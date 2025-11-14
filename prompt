@@ -1,6 +1,20 @@
-conda activate r2_assistant
-cd c:\r2
-git add .
-git commit -u ""
+Preciso integrar um sistema de reconhecimento de voz offline usando a biblioteca Vosk em meu assistente. O assistente é em Python e já possui uma estrutura básica de loop principal e execução de comandos.
 
-git push origin main --force
+Aqui está o código atual do meu assistente (se você tiver o código, cole aqui).
+
+Por favor, gere um código que:
+
+1. Inicialize o modelo Vosk com o modelo em português (o modelo está no caminho "./model/vosk-model-small-pt-0.3").
+2. Configure a captura de áudio do microfone usando PyAudio.
+3. Execute um loop contínuo para capturar áudio e reconhecer comandos de voz.
+4. Quando um comando for reconhecido, chame uma função `processar_comando(texto)` passando o texto reconhecido.
+
+Além disso, o código deve:
+
+- Usar as bibliotecas: vosk, pyaudio, json.
+- Configurar a taxa de amostragem para 16000 Hz e usar um buffer de 4096 bytes.
+- Tratar possíveis exceções durante a captura de áudio.
+
+Forneça o código completo para a integração.
+
+Se houver necessidade de modificar a função `processar_comando` para lidar com os comandos, inclua um exemplo de como essa função pode ser implementada.
