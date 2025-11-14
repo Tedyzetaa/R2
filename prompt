@@ -3,4 +3,4 @@ cd c:\r2
 git add .
 git commit -u ""
 
-git push oringe main --force
+git push origin main --force
