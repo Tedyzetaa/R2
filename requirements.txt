@@ -1,10 +1,22 @@
-speechrecognition==3.10.0
-gtts==2.3.2
-requests==2.31.0
+# Core
 python-dotenv==1.0.0
+requests==2.31.0
+
+# Voz
+SpeechRecognition==3.10.0
+gTTS==2.3.2
+pygame==2.5.2
+
+# Interface e Gráficos
+matplotlib==3.7.2
+pandas==2.0.3
+numpy==1.24.3
+mplfinance==0.12.10b0
+Pillow==10.0.1
+
+# Trading
+python-binance==1.0.19
+
+# Utilitários
 pyautogui==0.9.54
 pyperclip==1.8.2
-pillow==10.0.1
-beautifulsoup4==4.12.2
-urllib3==1.26.18
-pygame==2.5.2

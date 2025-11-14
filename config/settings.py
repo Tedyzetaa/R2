@@ -17,8 +17,8 @@ class Settings:
     USE_AUDIO = True
     
     # Configurações de Trading
-    TRADING_ENABLED = False
-    TESTNET = True
+    TRADING_ENABLED = bool(BINANCE_API_KEY and BINANCE_SECRET_KEY)
+    TESTNET = False  # Use testnet para desenvolvimento
     
     # Configurações de UI
     THEME = "dark"
@@ -32,6 +32,10 @@ class Settings:
             missing_apis.append("NEWS_API_KEY")
         if not cls.WEATHER_API_KEY:
             missing_apis.append("WEATHER_API_KEY")
+            
+        # Binance API é opcional para funcionalidades básicas
+        if not cls.BINANCE_API_KEY or not cls.BINANCE_SECRET_KEY:
+            print("⚠️  Binance API não configurada - Funcionalidades de trading desativadas")
             
         if missing_apis:
             print(f"⚠️  APIs não configuradas: {', '.join(missing_apis)}")

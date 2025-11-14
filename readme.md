@@ -1,161 +1,319 @@
-# 🤖 R2 Assistant - Assistente Pessoal em Python
+🤖 R2 Assistant - Assistente Pessoal em Python
+Um assistente virtual estilo Jarvis desenvolvido em Python com interface gráfica, reconhecimento de voz, sintetização de fala e sistema completo de trading automático.
 
-Um assistente virtual estilo Jarvis desenvolvido em Python com interface gráfica, reconhecimento de voz e sintetização de fala.
+https://img.shields.io/badge/Python-3.10+-blue.svg
+https://img.shields.io/badge/License-MIT-green.svg
+https://img.shields.io/badge/Version-1.1-red.svg
+https://img.shields.io/badge/Trading-Autom%C3%A1tico-green.svg
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+🆕 VERSÃO 1.1 - SISTEMA DE TRADING COMPLETO
+📈 Novas Funcionalidades Principais
+🤖 Trading Automático com múltiplas estratégias
 
-## 🎯 Funcionalidades
+💰 Suporte a Dinheiro Real (Binance Mainnet)
 
-### 🎤 Comandos por Voz
-- Reconhecimento de voz em tempo real
-- Escuta contínua sem travamentos
-- Sistema anti-eco (não reconhece a própria voz)
+📊 Histórico Completo de negociações
 
-### 💬 Comandos por Texto
-- Interface gráfica intuitiva
-- Histórico de conversa
-- Botões de ação rápida
+🎯 Interface Profissional para trading
 
-### 🔧 Comandos Implementados
-- **Sistema**: `olá`, `hora`, `data`, `tirar print`, `abrir chrome`, `abrir vscode`
-- **Web**: `pesquisar`, `notícias`, `previsão do tempo`, `bitcoin`, `ethereum`
-- **Utilidades**: `mutar áudio`, `desmutar áudio`, `preencher documento`
-- **Ajuda**: `ajuda`, `sobre`, `limpar`
+🔄 Múltiplos Pares de criptomoedas
 
-### 🎵 Sistema de Áudio
-- Síntese de voz com gTTS
-- Suporte a ffplay (recomendado) e pygame
-- Controle de volume automático
+📋 HISTÓRICO DE ATUALIZAÇÕES - v1.0 → v1.1
+v1.01 - Base do Sistema de Trading
+✅ Implementação do BinanceClient para conexão segura com API
 
-## 🚀 Instalação Rápida
+✅ Criação do TradingEngine com loop de execução automática
 
-### Pré-requisitos
-- Python 3.10+
-- Miniconda/Anaconda (recomendado)
-- Microfone
-- Alto-falantes
+✅ Estratégia SMA Crossover convertida do JavaScript para Python
 
-### 1. Clone o repositório
-```bash
+✅ Sistema modular de estratégias (BaseStrategy, SMACrossoverStrategy, RSIStrategy)
+
+v1.02 - Indicadores Técnicos
+✅ Implementação de SMA (Simple Moving Average)
+
+✅ Implementação de RSI (Relative Strength Index)
+
+✅ Implementação de MACD (Moving Average Convergence Divergence)
+
+✅ Sistema expansível para novos indicadores
+
+v1.03 - Interface Gráfica de Trading
+✅ Painel de trading integrado à interface principal
+
+✅ Gráficos em tempo real com matplotlib
+
+✅ Controles de início/parada de trading
+
+✅ Visualização de status e histórico
+
+v1.04 - Comandos de Voz para Trading
+✅ "R2, trading sma nano" - Inicia trading automático em um comando
+
+✅ "R2, status trading" - Mostra status das operações
+
+✅ "R2, parar trading" - Para todas as operações
+
+✅ "R2, comprar/vender [moeda]" - Ordens manuais por voz
+
+v1.05 - Múltiplas Criptomoedas Voláteis
+✅ Nano (XNO) - Transações instantâneas, zero fees
+
+✅ Dogecoin (DOGE) - Alta volatilidade, comunidade forte
+
+✅ Shiba Inu (SHIB) - Meme coin extremamente volátil
+
+✅ Cardano (ADA) - Smart contracts, pesquisa acadêmica
+
+✅ Algorand (ALGO) - Proof-of-stake puro
+
+✅ VeChain (VET) - Supply chain, enterprise focus
+
+✅ E mais 5 moedas de baixo preço
+
+v1.06 - Sistema de Pares Múltiplos
+✅ Pares USDT: DOGEUSDT, XNOUSDT, ADAUSDT, SHIBUSDT
+
+✅ Pares BTC: XNOBTC, DOGEBTC, ADABTC (trading entre criptos)
+
+✅ Pares ETH: XNOETH, DOGEETH
+
+✅ Pares BNB: DOGEBNB, ADABNB
+
+v1.07 - Verificação de Saldo Inteligente
+✅ Verificação automática de saldo antes de trades
+
+✅ Suporte tanto para COMPRAS (precisa de USDT) quanto VENDAS (precisa da moeda)
+
+✅ Painel de saldos em tempo real na interface
+
+✅ Atualização automática a cada 15 segundos
+
+v1.08 - Interface Avançada de Trading
+✅ Painel de pares ativos com controle individual
+
+✅ Gráficos interativos com seleção de par
+
+✅ Histórico de trades com cores (🟢 compra / 🔴 venda)
+
+✅ Botões de ação rápida e controles granulares
+
+v1.09 - Histórico Completo de Negociação
+✅ Dois painéis: Histórico recente + histórico completo
+
+✅ Cálculo automático de P&L para cada trade
+
+✅ Exportação para CSV para análise externa
+
+✅ Estatísticas detalhadas (Win Rate, P&L total, etc.)
+
+✅ Sistema de salvamento em JSON e CSV
+
+v1.10 - Modo Dinheiro Real
+✅ Confirmações de segurança para todas as ordens
+
+✅ Avisos claros sobre trading com dinheiro real
+
+✅ Interface com destaque vermelho para alertas
+
+✅ Configuração para Binance Mainnet
+
+v1.11 - Otimizações Finais
+✅ Correção de bugs e melhorias de performance
+
+✅ Melhor tratamento de erros da API Binance
+
+✅ Interface mais responsiva e informativa
+
+✅ Documentação completa atualizada
+
+🎯 Funcionalidades da Versão 1.1
+🎤 Comandos por Voz - TRADING
+bash
+# Trading Automático
+"R2, trading sma nano"              # Inicia SMA para Nano
+"R2, trading rsi doge"              # Inicia RSI para Dogecoin  
+"R2, trading sma doge btc"          # Trading entre Dogecoin e Bitcoin
+"R2, status trading"                # Status de todos os pares
+"R2, parar trading"                 # Para todo o trading
+
+# Ordens Manuais
+"R2, comprar nano"                  # Compra 0.01 Nano
+"R2, vender doge"                   # Vende 0.3 Dogecoin
+"R2, comprar ada"                   # Compra 5.0 Cardano
+
+# Informações
+"R2, saldo"                         # Mostra saldos principais
+"R2, cotação nano"                  # Preço da Nano
+"R2, listar pares"                  # Pares disponíveis
+💰 Sistema de Trading
+🤖 Estratégias: SMA Crossover, RSI
+
+📈 Pares: 10+ criptomoedas voláteis
+
+⚡ Execução: Ordens market em tempo real
+
+📊 Análise: Gráficos com indicadores em tempo real
+
+💰 Modos: Testnet (desenvolvimento) e Mainnet (real)
+
+📊 Histórico e Análise
+📋 Histórico Completo: Todos os trades com timestamps
+
+💰 Cálculo de P&L: Lucro/prejuízo automático
+
+📈 Estatísticas: Win Rate, trades lucrativos, P&L total
+
+💾 Exportação: CSV para Excel/Google Sheets
+
+🎯 Métricas: Performance por estratégia e par
+
+🚀 Instalação Rápida
+1. Clone e Configure
+bash
 git clone https://github.com/seu-usuario/r2-assistant.git
 cd r2-assistant
-2. Configure o ambiente Conda
-bash
-# Crie o ambiente
 conda env create -f environment.yml
-
-# Ative o ambiente
 conda activate r2_assistant
-3. Instalação alternativa com pip
+2. Configure as APIs de Trading
 bash
-pip install -r requirements.txt
-4. Configure as APIs (opcional)
-bash
-# Copie o arquivo de configuração
-copy .env.example .env
-
-# Edite o .env com suas chaves API
-# NEWS_API_KEY=sua_chave_aqui
-# WEATHER_API_KEY=sua_chave_aqui
-5. Execute o R2
+# Edite o arquivo .env
+BINANCE_API_KEY=sua_chave_da_mainnet
+BINANCE_SECRET_KEY=seu_secret_da_mainnet
+TESTNET=False  # Para dinheiro real
+3. Execute o R2 Assistant
 bash
 python main.py
-📁 Estrutura do Projeto
+📈 Estrutura do Módulo de Trading
 text
-r2-assistant/
-├── core/                 # Núcleo do sistema
-│   ├── voice_engine.py   # Motor de reconhecimento de voz
-│   ├── audio_processor.py # Sistema de síntese de fala
-│   └── command_system.py  # Gerenciador de comandos
-├── commands/             # Comandos do assistente
-│   ├── system_commands.py # Comandos do sistema
-│   ├── web_commands.py   # Comandos web
-│   ├── crypto_commands.py # Comandos de criptomoedas
-│   └── basic_commands.py  # Comandos básicos
-├── gui/                  # Interface gráfica
-│   └── assistant_gui.py  # Interface Tkinter
-├── config/               # Configurações
-│   └── settings.py       # Configurações do sistema
-├── utils/                # Utilitários
-│   └── helpers.py        # Funções auxiliares
-├── tests/                # Testes
-├── main.py               # Arquivo principal
-├── requirements.txt      # Dependências Python
-└── environment.yml       # Ambiente Conda
-🛠️ Desenvolvimento
-Testando componentes individuais
-bash
-# Teste o reconhecimento de voz
-python test_voice.py
+trading/
+├── binance_client.py          # Cliente seguro Binance API
+├── trading_engine.py          # Motor principal de trading
+├── strategies/
+│   ├── base_strategy.py       # Classe base para estratégias
+│   ├── sma_crossover.py       # Estratégia SMA Crossover
+│   └── rsi_strategy.py        # Estratégia RSI
+├── indicators/
+│   ├── sma.py                 # Simple Moving Average
+│   ├── rsi.py                 # Relative Strength Index
+│   └── macd.py                # MACD
+└── ui/
+    └── trading_gui.py         # Interface gráfica completa
+⚠️ AVISO IMPORTANTE - TRADING REAL
+🔴 Riscos do Trading com Dinheiro Real
+⚠️ Você pode perder dinheiro
 
-# Teste os comandos
-python test_commands.py
+⚠️ Criptomoedas são extremamente voláteis
 
-# Teste a escuta contínua
-python test_continuous_listening.py
+⚠️ Nunca invista mais do que pode perder
 
-# Teste o sistema de áudio
-python test_audio.py
-Adicionando novos comandos
-Crie uma função em um dos arquivos em commands/
+⚠️ Monitore as operações constantemente
 
-Registre o comando no sistema:
+🛡️ Medidas de Segurança Implementadas
+✅ Confirmação para todas as ordens
 
+✅ Verificação de saldo antes de trades
+
+✅ Limites de quantidade configuráveis
+
+✅ Interface com alertas visuais
+
+✅ Histórico completo para auditoria
+
+🔧 Configuração de Trading
+🎯 Parâmetros Ajustáveis
 python
-def meu_comando(falar_func=None, ouvir_func=None):
-    falar_func("Executando meu comando!")
+# Em config/settings.py
+TRADING_ENABLED = True
+TESTNET = False  # True para testes, False para dinheiro real
+QUANTITY_CONFIG = {
+    'nano': 0.01,      # 0.01 XNO por trade
+    'doge': 0.3,       # 0.3 DOGE por trade  
+    'ada': 5.0,        # 5.0 ADA por trade
+    'shib': 50000.0    # 50,000 SHIB por trade
+}
+📊 Estratégias Disponíveis
+SMA Crossover: Compra quando SMA13 > SMA21, vende quando SMA13 < SMA21
 
-command_system.register_command("meu comando", meu_comando, "Descrição do comando")
-Configuração de APIs
-Edite o arquivo .env:
+RSI Strategy: Compra quando RSI < 30 (oversold), vende quando RSI > 70 (overbought)
 
-ini
-NEWS_API_KEY=sua_chave_newsapi
-WEATHER_API_KEY=sua_chave_openweather
-BINANCE_API_KEY=sua_chave_binance
-BINANCE_SECRET_KEY=seu_secret_binance
-🎨 Personalização
-Modificando a interface
-Edite gui/assistant_gui.py para alterar cores, layout ou adicionar novos elementos.
+📊 Recursos de Análise
+📈 Painel de Histórico
+Trades Recentes: Últimos 15 trades em tempo real
 
-Adicionando novos comandos
-Crie novos arquivos em commands/ seguindo o padrão existente.
+Histórico Completo: Todos os trades com P&L calculado
 
-Alterando a voz
-Modifique o idioma em config/settings.py:
+Estatísticas: Win Rate, P&L total, performance por estratégia
 
+Exportação: CSV para análise externa
+
+💹 Métricas Calculadas
 python
-LANGUAGE = "en"  # Para inglês
-🔧 Solução de Problemas
-Problema: Travamento ao clicar em "Ouvir"
-Solução: Verifique se o microfone está funcionando e se as permissões estão concedidas.
-
-Problema: Áudio não funciona
+# Exemplo de métricas disponíveis
+{
+    'total_trades': 45,
+    'win_rate': 62.5,      # % de trades lucrativos
+    'total_pnl': 125.50,   # P&L total em USDT
+    'best_trade': 45.20,   # Melhor trade
+    'worst_trade': -15.75  # Pior trade
+}
+🐛 Solução de Problemas - Trading
+❌ Erro: "Invalid API-key"
 Solução:
 
 bash
-# Instale o ffmpeg
-conda install ffmpeg -c conda-forge
+# Use chaves da Testnet para desenvolvimento
+TESTNET = True
+# Ou configure chaves corretas da Mainnet
+❌ Erro: "Saldo insuficiente"
+Solução:
 
-# Ou use pygame como fallback
-pip install pygame
-Problema: Comandos não são reconhecidos
-Solução: Execute python test_commands.py para verificar se os comandos estão registrados.
+Verifique se as moedas estão na carteira SPOT
+
+Para compras: precisa de USDT na Spot
+
+Para vendas: precisa da criptomoeda na Spot
+
+❌ Erro: "Symbol not found"
+Solução:
+
+Verifique se o símbolo existe na Binance
+
+Use formato correto: DOGEUSDT, XNOBTC, etc.
+
+🔮 Próximas Atualizações Planejadas
+🚀 v1.2 - Backtesting e Otimização
+Sistema de backtesting com dados históricos
+
+Otimização de parâmetros de estratégias
+
+Relatórios de performance detalhados
+
+🎯 v1.3 - Estratégias Avançadas
+Machine Learning para previsão de preços
+
+Grid Trading e DCA (Dollar Cost Averaging)
+
+arbitragem entre exchanges
+
+🔒 v1.4 - Segurança Avançada
+Stop-loss e take-profit automáticos
+
+Gestão de risco integrada
+
+Alertas de mercado em tempo real
+
+📞 Suporte e Comunidade
+📧 Email: suporte@r2assistant.com
+
+💬 Discord: [Link do servidor]
+
+🐛 Issues: [GitHub Issues]
+
+📚 Documentação: [Wiki do projeto]
 
 📝 Licença
 Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
 
-🤝 Contribuindo
-Fork o projeto
+⚠️ AVISO LEGAL: Trading de criptomoedas envolve riscos significativos. O R2 Assistant é uma ferramenta educacional e não constitui aconselhamento financeiro.
 
-Crie uma branch para sua feature (git checkout -b feature/AmazingFeature)
-
-Commit suas mudanças (git commit -m 'Add some AmazingFeature')
-
-Push para a branch (git push origin feature/AmazingFeature)
-
-Abra um Pull Request
-
-📞 Suporte
-Se encontrar problemas, abra uma issue no GitHub ou entre em contato.
+🎉 R2 Assistant v1.1 - Seu assistente pessoal agora também é seu trader automático!
