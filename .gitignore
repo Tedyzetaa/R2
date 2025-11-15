@@ -1,17 +1,19 @@
-prompt
-console
+cat > .gitignore << 'EOF'
+# Executáveis e binários
+*.exe
+*.bin
+*.dll
+*.msi
+*.app
+*.pkg
 
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Pastas com executáveis
+miner/
+build/
+dist/
+__pycache__/
 
 # Python
-__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -32,17 +34,33 @@ wheels/
 .installed.cfg
 *.egg
 
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
 # Logs
 *.log
-r2_assistant.log
-
-# OS
-.DS_Store
-Thumbs.db
+logs/
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo"miner/" 
-"*.exe" 
+*.swo
+
+# Database
+*.db
+*.sqlite3
+
+# Temporary
+*.tmp
+*.temp
+EOF
+
+prompt
+console
