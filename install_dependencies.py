@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
 """
-Script para instalar dependências do R2 Assistant
+Script de instalação das dependências do R2 Assistant
 """
 
-import subprocess
+import os
 import sys
+import subprocess
+import platform
 
 def install_requirements():
-    """Instala as dependências do projeto"""
+    """Instala todas as dependências necessárias."""
     
     requirements = [
-        "python-dotenv==1.0.0",
-        "requests==2.31.0",
-        "SpeechRecognition==3.10.0", 
-        "gTTS==2.3.2",
-        "pygame==2.5.2",
-        "matplotlib==3.7.2",
-        "pandas==2.0.3",
-        "numpy==1.24.3",
-        "mplfinance==0.12.10",
-        "Pillow==10.0.1",
-        "python-binance==1.0.19",
-        "pyautogui==0.9.54",
-        "pyperclip==1.8.2"
+        "vosk",
+        "pyaudio",
+        "speechrecognition",
+        "gtts",
+        "pygame",
+        "requests",
+        "python-dotenv",
+        "pyautogui",
+        "pyperclip",
+        "tkinter"
     ]
     
     print("🚀 Instalando dependências do R2 Assistant...")
@@ -30,16 +29,55 @@ def install_requirements():
     for package in requirements:
         try:
             print(f"📦 Instalando {package}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-            print(f"✅ {package} instalado com sucesso!")
+            if package == "pyaudio":
+                # PyAudio pode precisar de tratamento especial no Windows
+                if platform.system() == "Windows":
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyaudio"])
+                else:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyaudio"])
+            elif package == "tkinter":
+                # Tkinter geralmente vem com Python
+                print("✅ Tkinter geralmente já está instalado com Python")
+            else:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+                
+            print(f"✅ {package} instalado com sucesso")
+            
         except subprocess.CalledProcessError as e:
             print(f"❌ Erro ao instalar {package}: {e}")
+            
+    print("\n📥 Baixando modelo de voz Vosk...")
+    download_vosk_model()
+
+def download_vosk_model():
+    """Baixa o modelo de voz Vosk em português."""
+    import urllib.request
+    import zipfile
     
-    print("\n🎉 Todas as dependências foram instaladas!")
-    print("\n📝 Próximos passos:")
-    print("1. Configure suas chaves API no arquivo .env")
-    print("2. Execute: python main.py")
-    print("3. Use 'R2, ativar trading automático' para iniciar!")
+    model_url = "https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip"
+    model_dir = "./model"
+    zip_path = os.path.join(model_dir, "vosk-model-small-pt-0.3.zip")
+    
+    os.makedirs(model_dir, exist_ok=True)
+    
+    try:
+        print("📥 Baixando modelo Vosk em português...")
+        urllib.request.urlretrieve(model_url, zip_path)
+        
+        print("📦 Extraindo modelo...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(model_dir)
+            
+        print("✅ Modelo Vosk instalado com sucesso")
+        
+        # Remove o arquivo zip
+        os.remove(zip_path)
+        
+    except Exception as e:
+        print(f"❌ Erro ao baixar modelo Vosk: {e}")
+        print("💡 Você pode baixar manualmente em:")
+        print("https://alphacephei.com/vosk/models")
+        print("E extrair em ./model/vosk-model-small-pt-0.3/")
 
 if __name__ == "__main__":
     install_requirements()
