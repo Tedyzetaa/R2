@@ -6,6 +6,7 @@ R2 - Assistente Pessoal Completo com Trading Automático
 import os
 import sys
 import logging
+import atexit
 
 # Adiciona diretórios ao path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'core'))
@@ -56,11 +57,15 @@ class R2Assistant:
         self.audio_processor = AudioProcessor(
             voice_engine=self.voice_engine,
             lang=Settings.LANGUAGE.split('-')[0],
-            use_audio=Settings.USE_AUDIO
+            use_audio=Settings.USE_AUDIO,
+            voice_type=Settings.VOICE_TYPE
         )
         self.command_system = CommandSystem()
         
-        # Inicializa trading engine se disponível - COM VERIFICAÇÃO DE CONEXÃO
+        # Aplica configurações de voz personalizadas
+        self._configure_voice_settings()
+        
+        # Inicializa trading engine se disponível
         self.trading_engine = None
         if TRADING_AVAILABLE and Settings.BINANCE_API_KEY and Settings.BINANCE_SECRET_KEY:
             try:
@@ -96,13 +101,36 @@ class R2Assistant:
             self.voice_engine,
             self.trading_engine
         )
+        
+        # Registra cleanup
+        atexit.register(self.cleanup)
+
+    def _configure_voice_settings(self):
+        """Aplica as configurações personalizadas de voz."""
+        if Settings.VOICE_TYPE == 'offline':
+            # Remove configuração de pitch no Windows para evitar erros
+            if os.name == 'nt':
+                self.logger.info("⚠️  Windows detectado - Desativando ajuste de tom")
+            else:
+                self.audio_processor.set_voice_pitch(Settings.VOICE_PITCH)
+                
+            self.audio_processor.set_voice_rate(Settings.VOICE_RATE)
+            self.audio_processor.set_voice_volume(Settings.VOICE_VOLUME)
+            
+            # Lista vozes disponíveis no log
+            voices = self.audio_processor.list_available_voices()
+            if voices:
+                self.logger.info("Voices disponíveis no sistema:")
+                for voice in voices[:3]:
+                    self.logger.info(f"  - {voice['name']}")
 
     def _register_commands(self):
         """Registra todos os comandos disponíveis."""
         register_system_commands(
             self.command_system,
             self.audio_processor.text_to_speech,
-            self.voice_engine.listen_once
+            self.voice_engine.listen_once,
+            self.audio_processor
         )
         
         register_web_commands(
@@ -124,19 +152,38 @@ class R2Assistant:
             self.trading_engine
         )
 
+    def cleanup(self):
+        """Limpeza de recursos."""
+        self.logger.info("Executando cleanup de recursos...")
+        if hasattr(self, 'audio_processor'):
+            self.audio_processor.stop_tts()
+        if hasattr(self, 'voice_engine'):
+            self.voice_engine.stop_listening()
+        if hasattr(self, 'trading_engine') and self.trading_engine:
+            self.trading_engine.stop_auto_trading()
+
     def run(self):
         """Inicia o assistente."""
         self.logger.info("Iniciando R2 Assistant...")
+        
+        # Verifica se o sistema de voz Vosk está disponível
+        if not self.voice_engine.is_audio_available():
+            self.logger.warning("Sistema de voz Vosk não disponível. Verifique:")
+            self.logger.warning("1. Se o modelo está em ./model/vosk-model-small-pt-0.3/")
+            self.logger.warning("2. Se as bibliotecas vosk e pyaudio estão instaladas")
+            print("\n📥 Para instalar as dependências:")
+            print("pip install vosk pyaudio")
+            print("\n📁 Estrutura de diretórios necessária:")
+            print("./model/vosk-model-small-pt-0.3/")
+        
         try:
             self.gui.run()
         except KeyboardInterrupt:
-            self.logger.info("R2 finalizado")
+            self.logger.info("R2 finalizado pelo usuário")
         except Exception as e:
             self.logger.error(f"Erro: {e}")
         finally:
-            if self.trading_engine:
-                self.trading_engine.stop_auto_trading()
-            self.voice_engine.stop_listening()
+            self.cleanup()
 
 if __name__ == "__main__":
     assistant = R2Assistant()

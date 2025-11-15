@@ -1,172 +1,155 @@
 🤖 R2 Assistant - Assistente Pessoal em Python
-Um assistente virtual estilo Jarvis desenvolvido em Python com interface gráfica, reconhecimento de voz, sintetização de fala e sistema completo de trading automático.
+Um assistente virtual estilo Jarvis desenvolvido em Python com interface gráfica, reconhecimento de voz offline, sintetização de fala personalizável e sistema completo de trading automático.
 
 https://img.shields.io/badge/Python-3.10+-blue.svg
 https://img.shields.io/badge/License-MIT-green.svg
-https://img.shields.io/badge/Version-1.1-red.svg
-https://img.shields.io/badge/Trading-Autom%C3%A1tico-green.svg
+https://img.shields.io/badge/Version-1.2-red.svg
+https://img.shields.io/badge/Trading-Autom%25C3%25A1tico-green.svg
+https://img.shields.io/badge/Voz-Offline%252FOnline-blue.svg
 
-🆕 VERSÃO 1.1 - SISTEMA DE TRADING COMPLETO
-📈 Novas Funcionalidades Principais
-🤖 Trading Automático com múltiplas estratégias
+🆕 VERSÃO 1.2 - SISTEMA DE VOZ OFFLINE E PERSONALIZÁVEL
+🎯 Novas Funcionalidades Principais
+🎤 Reconhecimento de Voz Offline com Vosk
 
-💰 Suporte a Dinheiro Real (Binance Mainnet)
+🗣️ Síntese de Voz Personalizável com pyttsx3
 
-📊 Histórico Completo de negociações
+🔊 Controle Avançado de Voz - velocidade, volume, tom
 
-🎯 Interface Profissional para trading
+🎭 Múltiplas Vozes do sistema suportadas
 
-🔄 Múltiplos Pares de criptomoedas
+🔄 Sistema Híbrido - offline com fallback para online
 
-📋 HISTÓRICO DE ATUALIZAÇÕES - v1.0 → v1.1
-v1.01 - Base do Sistema de Trading
-✅ Implementação do BinanceClient para conexão segura com API
+⚡ Processamento em Tempo Real com filas otimizadas
 
-✅ Criação do TradingEngine com loop de execução automática
+📋 HISTÓRICO DE ATUALIZAÇÕES - v1.1 → v1.2
+v1.20 - Sistema de Reconhecimento de Voz Offline
+✅ Integração Vosk - Reconhecimento offline em português
 
-✅ Estratégia SMA Crossover convertida do JavaScript para Python
+✅ Modelo PT-BR - Modelo pequeno (vosk-model-small-pt-0.3)
 
-✅ Sistema modular de estratégias (BaseStrategy, SMACrossoverStrategy, RSIStrategy)
+✅ Captura de Áudio - PyAudio com buffer otimizado
 
-v1.02 - Indicadores Técnicos
-✅ Implementação de SMA (Simple Moving Average)
+✅ Processamento Contínuo - Loop de escuta em tempo real
 
-✅ Implementação de RSI (Relative Strength Index)
+✅ Tratamento de Exceções - Robustez na captura de áudio
 
-✅ Implementação de MACD (Moving Average Convergence Divergence)
+v1.21 - Síntese de Voz Personalizável
+✅ Motor Duplo TTS - pyttsx3 (offline) + gTTS (online)
 
-✅ Sistema expansível para novos indicadores
+✅ Configurações de Voz - Velocidade, volume, tom ajustáveis
 
-v1.03 - Interface Gráfica de Trading
-✅ Painel de trading integrado à interface principal
+✅ Múltiplas Vozes - Suporte a todas as vozes do sistema
 
-✅ Gráficos em tempo real com matplotlib
+✅ Sistema de Filas - Processamento sequencial sem sobreposição
 
-✅ Controles de início/parada de trading
+✅ Controle de Eco - Pausa escuta durante fala automaticamente
 
-✅ Visualização de status e histórico
+v1.22 - Comandos de Voz para Personalização
+✅ "configurar voz" - Ajusta velocidade, volume e tom
 
-v1.04 - Comandos de Voz para Trading
-✅ "R2, trading sma nano" - Inicia trading automático em um comando
+✅ "alterar voz" - Muda para voz específica do sistema
 
-✅ "R2, status trading" - Mostra status das operações
+✅ "voze disponíveis" - Lista todas as vozes
 
-✅ "R2, parar trading" - Para todas as operações
+✅ "modo voz offline/online" - Alterna entre motores TTS
 
-✅ "R2, comprar/vender [moeda]" - Ordens manuais por voz
+✅ "testar voz" - Demonstração da voz atual
 
-v1.05 - Múltiplas Criptomoedas Voláteis
-✅ Nano (XNO) - Transações instantâneas, zero fees
+v1.23 - Otimizações de Performance
+✅ Thread Seguras - Processamento não-bloqueante
 
-✅ Dogecoin (DOGE) - Alta volatilidade, comunidade forte
+✅ Gerenciamento de Recursos - Cleanup automático
 
-✅ Shiba Inu (SHIB) - Meme coin extremamente volátil
+✅ Fallback Inteligente - Online se offline falhar
 
-✅ Cardano (ADA) - Smart contracts, pesquisa acadêmica
+✅ Tratamento Windows - Correções para SAPI5
 
-✅ Algorand (ALGO) - Proof-of-stake puro
+✅ Logs Detalhados - Diagnóstico completo do sistema
 
-✅ VeChain (VET) - Supply chain, enterprise focus
+v1.24 - Interface de Controle de Voz
+✅ Status de Voz - Indicadores visuais na GUI
 
-✅ E mais 5 moedas de baixo preço
+✅ Controles de Voz - Botões para gerenciar escuta/fala
 
-v1.06 - Sistema de Pares Múltiplos
-✅ Pares USDT: DOGEUSDT, XNOUSDT, ADAUSDT, SHIBUSDT
+✅ Configurações Integradas - Painel de ajustes de voz
 
-✅ Pares BTC: XNOBTC, DOGEBTC, ADABTC (trading entre criptos)
+✅ Feedback Visual - Confirmação de comandos reconhecidos
 
-✅ Pares ETH: XNOETH, DOGEETH
+🎤 Sistema de Voz da Versão 1.2
+🎯 Recursos de Reconhecimento (Vosk)
+python
+# Configuração Vosk
+MODEL_PATH = "./model/vosk-model-small-pt-0.3"
+SAMPLE_RATE = 16000      # Taxa de amostragem
+CHUNK_SIZE = 4096        # Buffer de áudio
+CHANNELS = 1             # Mono
+🗣️ Recursos de Síntese (TTS)
+python
+# Configurações de Voz Personalizáveis
+VOICE_TYPE = "offline"   # 'online' (gTTS) ou 'offline' (pyttsx3)
+VOICE_RATE = 150         # Velocidade (50-300)
+VOICE_VOLUME = 0.8       # Volume (0.0-1.0) 
+VOICE_PITCH = 110        # Tom (50-200) - exceto Windows
+🎙️ Comandos de Voz - CONTROLE DE VOZ
+bash
+# Personalização de Voz
+"R2, configurar voz"              # Menu de configurações
+"R2, alterar voz"                 # Lista e seleciona vozes
+"R2, voze disponíveis"            # Mostra vozes do sistema
+"R2, modo voz offline"            # Ativa TTS local
+"R2, modo voz online"             # Ativa TTS em nuvem
+"R2, testar voz"                  # Testa configuração atual
 
-✅ Pares BNB: DOGEBNB, ADABNB
+# Ajustes em Tempo Real
+"mais rápido" / "mais devagar"    # Velocidade da voz
+"aumentar volume" / "diminuir volume"  # Volume
+"tom mais alto" / "tom mais baixo"     # Tom (exceto Windows)
+🎯 Funcionalidades da Versão 1.2
+🎤 Comandos por Voz - SISTEMA E VOZ
+bash
+# Sistema Básico
+"R2, olá"                         # Cumprimenta o usuário
+"R2, hora"                        # Diz a hora atual  
+"R2, data"                        # Diz a data atual
+"R2, tirar print"                 # Captura tela
+"R2, preencher documento"         # Digita texto por voz
 
-v1.07 - Verificação de Saldo Inteligente
-✅ Verificação automática de saldo antes de trades
+# Controle de Sistema
+"R2, mutar áudio"                 # Muta sistema
+"R2, desmutar áudio"              # Desmuta sistema
+"R2, aumentar volume"             # Aumenta volume do sistema
+"R2, diminuir volume"             # Diminui volume do sistema
 
-✅ Suporte tanto para COMPRAS (precisa de USDT) quanto VENDAS (precisa da moeda)
+# Abertura de Programas
+"R2, abrir chrome"                # Navegador
+"R2, abrir vscode"                # Editor de código
+"R2, abrir explorer"              # Explorador de arquivos
+"R2, abrir terminal"              # Terminal/CMD
+"R2, abrir spotify"               # Música
+"R2, abrir discord"               # Comunicação
+🌐 Comandos por Voz - WEB E CRIPTO
+bash
+# Pesquisas e Web
+"R2, pesquisar [termo]"           # Google search
+"R2, notícias"                    # Notícias principais
+"R2, previsão do tempo"           # Clima para cidade
 
-✅ Painel de saldos em tempo real na interface
-
-✅ Atualização automática a cada 15 segundos
-
-v1.08 - Interface Avançada de Trading
-✅ Painel de pares ativos com controle individual
-
-✅ Gráficos interativos com seleção de par
-
-✅ Histórico de trades com cores (🟢 compra / 🔴 venda)
-
-✅ Botões de ação rápida e controles granulares
-
-v1.09 - Histórico Completo de Negociação
-✅ Dois painéis: Histórico recente + histórico completo
-
-✅ Cálculo automático de P&L para cada trade
-
-✅ Exportação para CSV para análise externa
-
-✅ Estatísticas detalhadas (Win Rate, P&L total, etc.)
-
-✅ Sistema de salvamento em JSON e CSV
-
-v1.10 - Modo Dinheiro Real
-✅ Confirmações de segurança para todas as ordens
-
-✅ Avisos claros sobre trading com dinheiro real
-
-✅ Interface com destaque vermelho para alertas
-
-✅ Configuração para Binance Mainnet
-
-v1.11 - Otimizações Finais
-✅ Correção de bugs e melhorias de performance
-
-✅ Melhor tratamento de erros da API Binance
-
-✅ Interface mais responsiva e informativa
-
-✅ Documentação completa atualizada
-
-🎯 Funcionalidades da Versão 1.1
-🎤 Comandos por Voz - TRADING
+# Criptomoedas
+"R2, cotação bitcoin"             # Preço do Bitcoin
+"R2, cotação ethereum"            # Preço do Ethereum
+"R2, cotação nano"                # Preço da Nano
+"R2, cotação doge"                # Preço do Dogecoin
+📈 Comandos por Voz - TRADING (mantidos da v1.1)
 bash
 # Trading Automático
-"R2, trading sma nano"              # Inicia SMA para Nano
-"R2, trading rsi doge"              # Inicia RSI para Dogecoin  
-"R2, trading sma doge btc"          # Trading entre Dogecoin e Bitcoin
-"R2, status trading"                # Status de todos os pares
-"R2, parar trading"                 # Para todo o trading
-
-# Ordens Manuais
-"R2, comprar nano"                  # Compra 0.01 Nano
-"R2, vender doge"                   # Vende 0.3 Dogecoin
-"R2, comprar ada"                   # Compra 5.0 Cardano
+"R2, trading sma nano"            # Inicia SMA para Nano
+"R2, trading rsi doge"            # Inicia RSI para Dogecoin
+"R2, status trading"              # Status de todos os pares
+"R2, parar trading"               # Para todo o trading
 
 # Informações
-"R2, saldo"                         # Mostra saldos principais
-"R2, cotação nano"                  # Preço da Nano
-"R2, listar pares"                  # Pares disponíveis
-💰 Sistema de Trading
-🤖 Estratégias: SMA Crossover, RSI
-
-📈 Pares: 10+ criptomoedas voláteis
-
-⚡ Execução: Ordens market em tempo real
-
-📊 Análise: Gráficos com indicadores em tempo real
-
-💰 Modos: Testnet (desenvolvimento) e Mainnet (real)
-
-📊 Histórico e Análise
-📋 Histórico Completo: Todos os trades com timestamps
-
-💰 Cálculo de P&L: Lucro/prejuízo automático
-
-📈 Estatísticas: Win Rate, trades lucrativos, P&L total
-
-💾 Exportação: CSV para Excel/Google Sheets
-
-🎯 Métricas: Performance por estratégia e par
-
+"R2, saldo"                       # Mostra saldos principais
+"R2, listar pares"                # Pares disponíveis
 🚀 Instalação Rápida
 1. Clone e Configure
 bash
@@ -174,146 +157,210 @@ git clone https://github.com/seu-usuario/r2-assistant.git
 cd r2-assistant
 conda env create -f environment.yml
 conda activate r2_assistant
-2. Configure as APIs de Trading
+2. Instale Dependências de Voz
+bash
+# Instalação automática
+python install_requirements.py
+
+# Ou manualmente
+pip install vosk pyaudio pyttsx3 speechrecognition gtts pygame
+3. Baixe Modelo de Voz Offline
+bash
+# O script install_requirements.py baixa automaticamente
+# Ou manualmente: baixe e extraia em:
+# ./model/vosk-model-small-pt-0.3/
+# Disponível em: https://alphacephei.com/vosk/models
+4. Configure as APIs
 bash
 # Edite o arquivo .env
 BINANCE_API_KEY=sua_chave_da_mainnet
 BINANCE_SECRET_KEY=seu_secret_da_mainnet
 TESTNET=False  # Para dinheiro real
-3. Execute o R2 Assistant
+
+# Configurações de Voz (opcional)
+VOICE_TYPE=offline  # offline ou online
+5. Execute o R2 Assistant
 bash
 python main.py
-📈 Estrutura do Módulo de Trading
+🏗️ Arquitetura do Sistema de Voz
 text
-trading/
-├── binance_client.py          # Cliente seguro Binance API
-├── trading_engine.py          # Motor principal de trading
-├── strategies/
-│   ├── base_strategy.py       # Classe base para estratégias
-│   ├── sma_crossover.py       # Estratégia SMA Crossover
-│   └── rsi_strategy.py        # Estratégia RSI
-├── indicators/
-│   ├── sma.py                 # Simple Moving Average
-│   ├── rsi.py                 # Relative Strength Index
-│   └── macd.py                # MACD
-└── ui/
-    └── trading_gui.py         # Interface gráfica completa
-⚠️ AVISO IMPORTANTE - TRADING REAL
-🔴 Riscos do Trading com Dinheiro Real
-⚠️ Você pode perder dinheiro
+core/
+├── voice_engine.py           # Motor Vosk - reconhecimento offline
+├── audio_processor.py        # Processador TTS - síntese de voz  
+└── command_system.py         # Sistema de comandos
 
-⚠️ Criptomoedas são extremamente voláteis
+config/
+├── settings.py              # Configurações de voz
+└── vosk_config.py           # Configurações Vosk
 
-⚠️ Nunca invista mais do que pode perder
+model/
+└── vosk-model-small-pt-0.3/ # Modelo de reconhecimento PT-BR
+🎮 Controles de Voz na Interface
+🎯 GUI Principal
+🎤 Iniciar/Parar Escuta - Botão para controle de voz
 
-⚠️ Monitore as operações constantemente
+🟢/🔴 Indicador - Status visual da escuta
 
-🛡️ Medidas de Segurança Implementadas
-✅ Confirmação para todas as ordens
+🗣️ Falar Agora - Síntese de texto digitado
 
-✅ Verificação de saldo antes de trades
+💬 Conversa - Histórico de comandos e respostas
 
-✅ Limites de quantidade configuráveis
-
-✅ Interface com alertas visuais
-
-✅ Histórico completo para auditoria
-
-🔧 Configuração de Trading
+⚙️ Painel de Configuração de Voz
+python
+# Acessível via comandos de voz ou GUI
+Configurações de Voz:
+├── Tipo: Offline (pyttsx3) / Online (gTTS)
+├── Velocidade: 150 (50-300)
+├── Volume: 0.8 (0.0-1.0)
+├── Tom: 110 (50-200) - exceto Windows
+└── Voz Atual: Microsoft Maria - Portuguese
+🔧 Configuração de Voz
 🎯 Parâmetros Ajustáveis
 python
 # Em config/settings.py
-TRADING_ENABLED = True
-TESTNET = False  # True para testes, False para dinheiro real
-QUANTITY_CONFIG = {
-    'nano': 0.01,      # 0.01 XNO por trade
-    'doge': 0.3,       # 0.3 DOGE por trade  
-    'ada': 5.0,        # 5.0 ADA por trade
-    'shib': 50000.0    # 50,000 SHIB por trade
-}
-📊 Estratégias Disponíveis
-SMA Crossover: Compra quando SMA13 > SMA21, vende quando SMA13 < SMA21
+VOICE_TYPE = "offline"    # 'online' ou 'offline'
+VOICE_RATE = 150          # Velocidade da fala
+VOICE_VOLUME = 0.8        # Volume da voz
+VOICE_PITCH = 110         # Tom (não suportado no Windows)
 
-RSI Strategy: Compra quando RSI < 30 (oversold), vende quando RSI > 70 (overbought)
+# Detecção automática do Windows
+if os.name == 'nt':
+    VOICE_TYPE = "online"  # Recomendado para Windows
+🗣️ Vozes por Sistema Operacional
+Windows:
+Microsoft Maria - Português Brasil
 
-📊 Recursos de Análise
-📈 Painel de Histórico
-Trades Recentes: Últimos 15 trades em tempo real
+Microsoft Zira - Inglês EUA
 
-Histórico Completo: Todos os trades com P&L calculado
+Microsoft David - Inglês EUA (masculina)
 
-Estatísticas: Win Rate, P&L total, performance por estratégia
+Linux:
+eSpeak - Voz robótica
 
-Exportação: CSV para análise externa
+Festival - Mais natural
 
-💹 Métricas Calculadas
-python
-# Exemplo de métricas disponíveis
-{
-    'total_trades': 45,
-    'win_rate': 62.5,      # % de trades lucrativos
-    'total_pnl': 125.50,   # P&L total em USDT
-    'best_trade': 45.20,   # Melhor trade
-    'worst_trade': -15.75  # Pior trade
-}
-🐛 Solução de Problemas - Trading
-❌ Erro: "Invalid API-key"
+Instale: sudo apt-get install espeak festival
+
+macOS:
+Alex - Padrão
+
+Victoria - Feminina
+
+Joana - Português
+
+🐛 Solução de Problemas - Voz
+❌ Erro: "Modelo Vosk não encontrado"
 Solução:
 
 bash
-# Use chaves da Testnet para desenvolvimento
-TESTNET = True
-# Ou configure chaves corretas da Mainnet
-❌ Erro: "Saldo insuficiente"
+# Execute o script de instalação
+python install_requirements.py
+
+# Ou baixe manualmente:
+# 1. Acesse: https://alphacephei.com/vosk/models
+# 2. Baixe: vosk-model-small-pt-0.3.zip
+# 3. Extraia em: ./model/vosk-model-small-pt-0.3/
+❌ Erro: "Pitch adjustment not supported" (Windows)
 Solução:
 
-Verifique se as moedas estão na carteira SPOT
+python
+# No config/settings.py
+VOICE_TYPE = "online"  # Use gTTS no Windows
 
-Para compras: precisa de USDT na Spot
-
-Para vendas: precisa da criptomoeda na Spot
-
-❌ Erro: "Symbol not found"
+# Ou desative o pitch:
+VOICE_PITCH = 100      # Será ignorado no Windows
+❌ Erro: "No module named 'vosk'"
 Solução:
 
-Verifique se o símbolo existe na Binance
+bash
+pip install vosk
 
-Use formato correto: DOGEUSDT, XNOBTC, etc.
+# No Windows, pode precisar de:
+pip install pipwin
+pipwin install pyaudio
+❌ Problema: Comandos não são detectados
+Solução:
+
+Verifique se o microfone está funcionando
+
+Fale claramente e próximo ao microfone
+
+Ajuste o ganho do microfone no sistema
+
+Teste em ambiente silencioso
+
+❌ Problema: Voz não funciona
+Solução:
+
+Verifique se as caixas de som estão ligadas
+
+Teste o volume do sistema
+
+No Windows, use VOICE_TYPE = "online"
+
+Verifique permissões de áudio
 
 🔮 Próximas Atualizações Planejadas
-🚀 v1.2 - Backtesting e Otimização
+🚀 v1.3 - Backtesting e Otimização
 Sistema de backtesting com dados históricos
 
 Otimização de parâmetros de estratégias
 
 Relatórios de performance detalhados
 
-🎯 v1.3 - Estratégias Avançadas
+🎯 v1.4 - Estratégias Avançadas
 Machine Learning para previsão de preços
 
 Grid Trading e DCA (Dollar Cost Averaging)
 
-arbitragem entre exchanges
+Arbitragem entre exchanges
 
-🔒 v1.4 - Segurança Avançada
+🔒 v1.5 - Segurança Avançada
 Stop-loss e take-profit automáticos
 
 Gestão de risco integrada
 
 Alertas de mercado em tempo real
 
+🗣️ v1.6 - Voz Avançada
+Comandos contextuais e conversacionais
+
+Aprendizado de preferências de voz
+
+Suporte a múltiplos idiomas simultâneos
+
+Sintetização de voz neural (Azure, Google Wavenet)
+
+📊 Estrutura do Projeto Completa
+text
+r2-assistant/
+├── core/
+│   ├── voice_engine.py          # Motor Vosk - reconhecimento
+│   ├── audio_processor.py       # TTS - síntese de voz
+│   ├── command_system.py        # Sistema de comandos
+│   └── vosk_engine.py           # Motor Vosk alternativo
+├── commands/
+│   ├── system_commands.py       # Comandos de sistema e voz
+│   ├── web_commands.py          # Comandos web
+│   ├── basic_commands.py        # Comandos básicos
+│   └── crypto_commands.py       # Comandos trading
+├── trading/                     # Sistema de trading (v1.1)
+├── gui/                         # Interface gráfica
+├── config/
+│   ├── settings.py              # Configurações principais
+│   └── vosk_config.py           # Configurações Vosk
+├── model/
+│   └── vosk-model-small-pt-0.3/ # Modelo de voz PT-BR
+├── utils/
+└── main.py                      # Arquivo principal
 📞 Suporte e Comunidade
 📧 Email: suporte@r2assistant.com
 
 💬 Discord: [Link do servidor]
-
-🐛 Issues: [GitHub Issues]
-
-📚 Documentação: [Wiki do projeto]
 
 📝 Licença
 Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
 
 ⚠️ AVISO LEGAL: Trading de criptomoedas envolve riscos significativos. O R2 Assistant é uma ferramenta educacional e não constitui aconselhamento financeiro.
 
-🎉 R2 Assistant v1.1 - Seu assistente pessoal agora também é seu trader automático!
+🔊 AVISO DE PRIVACIDADE: O modo de voz offline processa áudio localmente. No modo online, áudio é processado pelos serviços de nuvem respectivos.

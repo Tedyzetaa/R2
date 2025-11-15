@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 
-# Carrega variáveis de ambiente
 load_dotenv()
 
 class Settings:
@@ -16,9 +15,16 @@ class Settings:
     LANGUAGE = "pt-BR"
     USE_AUDIO = True
     
+    # 🔧 CONFIGURAÇÕES DE VOZ SEGURAS
+    # No Windows, use 'online' para evitar problemas com pyttsx3
+    VOICE_TYPE = "online" if os.name == 'nt' else "offline"
+    VOICE_RATE = 150
+    VOICE_VOLUME = 0.8
+    VOICE_PITCH = 110  # Ignorado no Windows
+    
     # Configurações de Trading
     TRADING_ENABLED = bool(BINANCE_API_KEY and BINANCE_SECRET_KEY)
-    TESTNET = False  # Use testnet para desenvolvimento
+    TESTNET = False
     
     # Configurações de UI
     THEME = "dark"
@@ -33,12 +39,10 @@ class Settings:
         if not cls.WEATHER_API_KEY:
             missing_apis.append("WEATHER_API_KEY")
             
-        # Binance API é opcional para funcionalidades básicas
         if not cls.BINANCE_API_KEY or not cls.BINANCE_SECRET_KEY:
             print("⚠️  Binance API não configurada - Funcionalidades de trading desativadas")
             
         if missing_apis:
             print(f"⚠️  APIs não configuradas: {', '.join(missing_apis)}")
-            print("   Algumas funcionalidades podem não funcionar.")
             
         return len(missing_apis) == 0
