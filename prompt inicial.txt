@@ -1,0 +1,3269 @@
+ATUE COMO UM ENGENHEIRO DE SOFTWARE SÊNIOR FULL-STACK, ESPECIALISTA EM PYTHON, COM DOMÍNIO EM ARQUITETURA DE DADOS (QUANT) E DESIGN DE INTERFACES (UI/UX).
+
+crie um aplicativo, de chatbot com bot assistente, os colaboradores da equipe que voce trabalha, ja desenvolveram, algumas versões, analise todos os codigos deles que vem a seguir, e monte um aplicativo coeso, com as melhores ideias que tiver nos projetos, reformulando a frontend, o pedido do cliente para o frontend foi:
+
+🎨 Estilo Geral e Tema
+Quero que a aparência do nosso bot assistente siga o estilo visual desta imagem. O tema deve ser Sci-Fi / HUD (Head-Up Display).
+
+Paleta de Cores: Predominantemente tons de azul ciano brilhante/elétrico sobre um fundo escuro (preto espacial ou grafite muito escuro). O efeito de brilho neon (glow) é crucial para todos os elementos ativos.
+
+Sensação: Deve parecer avançado, limpo, de alta tecnologia e em tempo real.
+
+⚙️ Elementos Centrais e de Status
+1. Módulo Central (O Coração da IA)
+Descrição: O elemento mais proeminente no centro, em forma de círculo concêntrico. É o "núcleo" da IA.
+
+Conteúdo: Dentro do círculo, deve haver uma forma de onda pulsante (ECG/Onda de Batal) em neon azul. Isso deve ser animado para simular que a IA está "pensando" ou "ouvindo".
+
+Função: Representar a atividade e vitalidade da IA.
+
+2. Status do Sistema
+Localização: Canto superior direito.
+
+Conteúdo: Um pequeno painel com o texto "SYSTEM STATUS: OPTIMAL" e "CONNECTION ESTABLISHED".
+
+Gráfico: Incluir um mapa-múndi estilizado (em linhas azuis) com pontos de dados acesos, sugerindo conectividade global e processamento de informações distribuído.
+
+📊 Painéis de Dados (Métricas do Bot)
+Os lados esquerdo e inferior devem ser preenchidos com painéis de métricas e análise de dados em tempo real.
+
+3. Log de Comunicação / Histórico de Interação
+Localização: Canto superior esquerdo.
+
+Conteúdo: Uma área de rolagem (como um terminal) intitulada "COMMUNICATION LOG". Deve ter várias linhas de texto técnico/código, simulando o histórico de comandos e respostas.
+
+4. Gráficos de Análise (Input/Output)
+Localização: Abaixo do Log de Comunicação.
+
+Conteúdo: Vários gráficos de barras e histogramas em azul (intitulados genericamente como "SIGRAM" ou "REPORT").
+
+Função: Sugerir que a IA está processando grandes volumes de dados de entrada/saída.
+
+5. Indicadores de Desempenho (Círculos Percentuais)
+Localização: Centro-inferior.
+
+Conteúdo: Três mostradores circulares de progresso, cada um com um título e um percentual:
+
+"PROCESSING THRUPUT" (Vazão de Processamento): 78%
+
+"QUERIES RESOLVED" (Consultas Resolvidas): 45% (Este deve ser mais baixo, sugerindo aprendizado contínuo)
+
+"RESPONSE TIME" (Tempo de Resposta): 0.12s (Este deve ser muito rápido, mostrando eficiência)
+
+Função: KPIs (Indicadores-Chave de Desempenho) do bot.
+
+6. Datastream e Gráfico de Rede
+Localização: Lado direito.
+
+Conteúdo:
+
+Título: "DATASTREAM".
+
+Visualização: Um gráfico de rede neural ou constelação de dados (pontos conectados por linhas) em movimento suave.
+
+Função: Representar a IA acessando e navegando em seu banco de dados ou rede de informações.
+
+📝 Resumo do Pedido
+Quero que a UI seja altamente modular, usando linhas finas e divisórias digitais. Todos os números e textos devem ter uma fonte digital/monospaced. A funcionalidade principal é que o usuário sinta que está interagindo com uma máquina superinteligente através de um painel de controle de missão.
+
+''''''''''''''''
+segue o codigo dos prototipos:
+''''''''''''''''''''
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext
+import json
+import os
+import subprocess
+import threading
+import time
+from pathlib import Path
+import sys
+import random
+import logging
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+import hashlib
+from functools import lru_cache
+import shutil
+from datetime import datetime
+
+# Configuração de logging
+def setup_logging():
+    """Configurar sistema de logging estruturado"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('r2_system.log', encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    return logging.getLogger(__name__)
+
+logger = setup_logging()
+
+# Classes de configuração
+@dataclass
+class AppConfig:
+    """Configurações da aplicação"""
+    VOICE_MODEL_PATH: str = "vosk-model-small-pt-0.3"
+    SOUNDS_DIR: str = "assets/sounds"
+    MODULES_FILE: str = "modules.json"
+    BACKUP_DIR: str = "backups"
+    API_TIMEOUT: int = 30
+    SAMPLE_RATE: int = 16000
+    MAX_HISTORY_SIZE: int = 100
+    ALLOWED_COMMANDS: List[str] = None
+    
+    def __post_init__(self):
+        if self.ALLOWED_COMMANDS is None:
+            self.ALLOWED_COMMANDS = ['python', 'conda', 'start', 'cmd']
+
+# Gerenciador de Histórico
+class HistoryManager:
+    """Gerenciar histórico de conversas e comandos"""
+    
+    def __init__(self, max_size: int = 100):
+        self.max_size = max_size
+        self.chat_history = []
+        self.command_history = []
+        self.voice_history = []
+    
+    def add_chat_message(self, role: str, message: str):
+        """Adicionar mensagem ao histórico do chat"""
+        entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.now().isoformat(),
+            'role': role,
+            'message': message
+        }
+        self.chat_history.append(entry)
+        self.trim_history(self.chat_history)
+    
+    def add_voice_command(self, command: str):
+        """Adicionar comando de voz ao histórico"""
+        entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.now().isoformat(),
+            'command': command
+        }
+        self.voice_history.append(entry)
+        self.trim_history(self.voice_history)
+    
+    def add_command(self, command: str, module: str = ""):
+        """Adicionar comando executado ao histórico"""
+        entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.now().isoformat(),
+            'command': command,
+            'module': module
+        }
+        self.command_history.append(entry)
+        self.trim_history(self.command_history)
+    
+    def trim_history(self, history: list):
+        """Manter histórico dentro do tamanho máximo"""
+        while len(history) > self.max_size:
+            history.pop(0)
+    
+    def get_recent_chat(self, count: int = 10):
+        """Obter conversas recentes"""
+        return self.chat_history[-count:]
+    
+    def get_recent_commands(self, count: int = 10):
+        """Obter comandos recentes"""
+        return self.command_history[-count:]
+    
+    def clear_history(self):
+        """Limpar todo o histórico"""
+        self.chat_history.clear()
+        self.command_history.clear()
+        self.voice_history.clear()
+
+# Gerenciador de Analytics
+class Analytics:
+    """Coletar métricas e estatísticas de uso"""
+    
+    def __init__(self):
+        self.voice_commands_count = 0
+        self.modules_activated = 0
+        self.chat_messages = 0
+        self.voice_activation_count = 0
+        self.errors_count = 0
+        self.start_time = time.time()
+    
+    def record_voice_command(self):
+        """Registrar comando de voz"""
+        self.voice_commands_count += 1
+    
+    def record_module_activation(self):
+        """Registrar ativação de módulo"""
+        self.modules_activated += 1
+    
+    def record_chat_message(self):
+        """Registrar mensagem de chat"""
+        self.chat_messages += 1
+    
+    def record_voice_activation(self):
+        """Registrar ativação por voz"""
+        self.voice_activation_count += 1
+    
+    def record_error(self):
+        """Registrar erro"""
+        self.errors_count += 1
+    
+    def generate_report(self) -> Dict:
+        """Gerar relatório de uso"""
+        current_time = time.time()
+        uptime = current_time - self.start_time
+        
+        return {
+            'total_voice_commands': self.voice_commands_count,
+            'modules_activated': self.modules_activated,
+            'chat_messages': self.chat_messages,
+            'voice_activations': self.voice_activation_count,
+            'errors_encountered': self.errors_count,
+            'uptime_seconds': uptime,
+            'average_commands_per_hour': self.voice_commands_count / (uptime / 3600) if uptime > 0 else 0
+        }
+
+# Gerenciador de Módulos
+class ModuleManager:
+    """Gerenciar módulos do sistema"""
+    
+    def __init__(self, modules_file: str, config: AppConfig):
+        self.modules_file = modules_file
+        self.config = config
+        self.modules = self.load_modules()
+        self.backup_manager = BackupManager(config.BACKUP_DIR)
+    
+    def load_modules(self) -> Dict:
+        """Carregar módulos do arquivo JSON"""
+        if os.path.exists(self.modules_file):
+            try:
+                with open(self.modules_file, 'r', encoding='utf-8') as f:
+                    modules = json.load(f)
+                    logger.info(f"Carregados {len(modules)} módulos")
+                    return modules
+            except Exception as e:
+                logger.error(f"Erro ao carregar módulos: {e}")
+                return {}
+        else:
+            logger.warning(f"Arquivo {self.modules_file} não encontrado. Criando estrutura vazia.")
+            self.save_modules({})
+            return {}
+    
+    def save_modules(self, modules: Dict = None):
+        """Salvar módulos no arquivo JSON"""
+        if modules is None:
+            modules = self.modules
+            
+        try:
+            # Criar backup antes de salvar
+            self.backup_manager.create_backup(self.modules_file, 'modules')
+            
+            with open(self.modules_file, 'w', encoding='utf-8') as f:
+                json.dump(modules, f, indent=2, ensure_ascii=False)
+            logger.info("Módulos salvos com sucesso")
+        except Exception as e:
+            logger.error(f"Erro ao salvar módulos: {e}")
+            raise
+    
+    def validate_module(self, module_data: Dict) -> bool:
+        """Validar dados do módulo"""
+        required_fields = ['command']
+        
+        if not module_data.get('name', '').strip():
+            return False
+        
+        for field in required_fields:
+            if field not in module_data or not module_data[field].strip():
+                return False
+        
+        # Validar comando de segurança
+        command = module_data['command'].lower()
+        if not any(allowed in command for allowed in self.config.ALLOWED_COMMANDS):
+            logger.warning(f"Comando não permitido: {command}")
+            return False
+        
+        return True
+    
+    def add_module(self, name: str, command: str, virtual_env: str = "", description: str = "") -> bool:
+        """Adicionar novo módulo"""
+        module_data = {
+            'command': command,
+            'virtual_env': virtual_env,
+            'description': description
+        }
+        
+        if not self.validate_module({'name': name, **module_data}):
+            return False
+        
+        self.modules[name] = module_data
+        self.save_modules()
+        return True
+    
+    def remove_module(self, name: str) -> bool:
+        """Remover módulo"""
+        if name in self.modules:
+            del self.modules[name]
+            self.save_modules()
+            return True
+        return False
+    
+    def get_module(self, name: str) -> Optional[Dict]:
+        """Obter módulo pelo nome"""
+        return self.modules.get(name)
+    
+    def list_modules(self) -> List[str]:
+        """Listar todos os módulos"""
+        return list(self.modules.keys())
+
+# Gerenciador de Backup
+class BackupManager:
+    """Gerenciar backups de arquivos importantes"""
+    
+    def __init__(self, backup_dir: str):
+        self.backup_dir = backup_dir
+        self.ensure_backup_dir()
+    
+    def ensure_backup_dir(self):
+        """Garantir que diretório de backup existe"""
+        os.makedirs(self.backup_dir, exist_ok=True)
+    
+    def create_backup(self, file_path: str, prefix: str = "backup"):
+        """Criar backup de arquivo"""
+        if not os.path.exists(file_path):
+            return
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = os.path.join(self.backup_dir, f"{prefix}_{timestamp}_{os.path.basename(file_path)}")
+        
+        try:
+            shutil.copy2(file_path, backup_file)
+            logger.info(f"Backup criado: {backup_file}")
+            
+            # Limitar número de backups
+            self.cleanup_old_backups(prefix)
+        except Exception as e:
+            logger.error(f"Erro criando backup: {e}")
+    
+    def cleanup_old_backups(self, prefix: str, max_backups: int = 10):
+        """Manter apenas os backups mais recentes"""
+        try:
+            backups = []
+            for file in os.listdir(self.backup_dir):
+                if file.startswith(prefix):
+                    file_path = os.path.join(self.backup_dir, file)
+                    backups.append((file_path, os.path.getctime(file_path)))
+            
+            # Ordenar por data de criação (mais antigos primeiro)
+            backups.sort(key=lambda x: x[1])
+            
+            # Remover backups antigos além do limite
+            while len(backups) > max_backups:
+                old_backup, _ = backups.pop(0)
+                os.remove(old_backup)
+                logger.info(f"Backup antigo removido: {old_backup}")
+                
+        except Exception as e:
+            logger.error(f"Erro limpando backups antigos: {e}")
+
+# Gerenciador de Sons
+class SoundManager:
+    """Gerenciar efeitos sonoros do sistema"""
+    
+    def __init__(self, sounds_dir: str):
+        self.sounds_dir = sounds_dir
+        self.sounds = {}
+        self.available = False
+        self.r2_sound_files = []
+        
+        self.initialize_audio()
+        self.load_sounds()
+    
+    def initialize_audio(self):
+        """Inicializar sistema de áudio"""
+        try:
+            import pygame
+            pygame.mixer.init()
+            pygame.mixer.music.set_volume(0.7)
+            self.available = True
+            logger.info("Sistema de áudio inicializado")
+        except ImportError:
+            logger.warning("pygame não disponível - sons desativados")
+            self.available = False
+        except Exception as e:
+            logger.error(f"Erro inicializando áudio: {e}")
+            self.available = False
+    
+    def load_sounds(self):
+        """Carregar arquivos de som"""
+        if not self.available or not os.path.exists(self.sounds_dir):
+            return
+        
+        # Carregar sons do R2
+        for file in os.listdir(self.sounds_dir):
+            if (file.startswith('r2-') or file.startswith('r2_')) and (file.endswith('.mp3') or file.endswith('.wav')):
+                sound_path = os.path.join(self.sounds_dir, file)
+                self.r2_sound_files.append(sound_path)
+        
+        logger.info(f"Carregados {len(self.r2_sound_files)} efeitos sonoros do R2")
+    
+    def play_r2_sound(self):
+        """Reproduzir efeito sonoro aleatório do R2"""
+        if not self.available or not self.r2_sound_files:
+            return False
+        
+        try:
+            import pygame
+            sound_file = random.choice(self.r2_sound_files)
+            sound = pygame.mixer.Sound(sound_file)
+            sound.play()
+            logger.debug(f"Efeito sonoro reproduzido: {os.path.basename(sound_file)}")
+            return True
+        except Exception as e:
+            logger.error(f"Erro reproduzindo som: {e}")
+            return False
+    
+    def play_sound(self, sound_name: str):
+        """Reproduzir som específico"""
+        if not self.available or sound_name not in self.sounds:
+            return False
+        
+        try:
+            import pygame
+            self.sounds[sound_name].play()
+            return True
+        except Exception as e:
+            logger.error(f"Erro reproduzindo som {sound_name}: {e}")
+            return False
+
+# Gerenciador de Voz
+class VoiceManager:
+    """Gerenciar reconhecimento de voz"""
+    
+    def __init__(self, config: AppConfig):
+        self.config = config
+        self.available = False
+        self.model = None
+        self.recognizer = None
+        self.audio_stream = None
+        self.audio = None
+        self.pyaudio_module = None
+        
+        self.setup_voice_recognition()
+    
+    def setup_voice_recognition(self):
+        """Configurar reconhecimento de voz"""
+        try:
+            import pyaudio
+            from vosk import Model, KaldiRecognizer
+            
+            self.pyaudio_module = pyaudio  # Armazenar referência ao módulo
+            
+            if not os.path.exists(self.config.VOICE_MODEL_PATH):
+                logger.error(f"Modelo Vosk não encontrado: {self.config.VOICE_MODEL_PATH}")
+                self.available = False
+                return
+            
+            logger.info("Carregando modelo Vosk...")
+            self.model = Model(self.config.VOICE_MODEL_PATH)
+            self.recognizer = KaldiRecognizer(self.model, self.config.SAMPLE_RATE)
+            
+            # Configurar áudio
+            self.audio = pyaudio.PyAudio()
+            self.available = True
+            logger.info("Reconhecimento de voz configurado com sucesso")
+            
+        except ImportError as e:
+            logger.warning(f"Bibliotecas de voz não disponíveis: {e}")
+            self.available = False
+        except Exception as e:
+            logger.error(f"Erro configurando reconhecimento de voz: {e}")
+            self.available = False
+    
+    def start_listening(self, callback):
+        """Iniciar escuta de voz em thread separada"""
+        if not self.available:
+            return
+        
+        def voice_thread():
+            try:
+                # Importar dentro da thread para evitar problemas
+                import pyaudio
+                
+                stream = self.audio.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=self.config.SAMPLE_RATE,
+                    input=True,
+                    frames_per_buffer=4096
+                )
+                stream.start_stream()
+                
+                logger.info("Thread de voz iniciada - ouvindo...")
+                
+                while True:
+                    data = stream.read(4096, exception_on_overflow=False)
+                    if self.recognizer.AcceptWaveform(data):
+                        result = json.loads(self.recognizer.Result())
+                        text = result.get('text', '').lower()
+                        if text:
+                            callback(text)
+                    
+                    time.sleep(0.1)
+                    
+            except Exception as e:
+                logger.error(f"Erro na thread de voz: {e}")
+        
+        thread = threading.Thread(target=voice_thread, daemon=True)
+        thread.start()
+        logger.info("Thread de voz criada")
+    
+    def cleanup(self):
+        """Limpar recursos de voz"""
+        try:
+            if hasattr(self, 'audio_stream') and self.audio_stream:
+                self.audio_stream.stop_stream()
+                self.audio_stream.close()
+            if hasattr(self, 'audio') and self.audio:
+                self.audio.terminate()
+            logger.info("Recursos de voz limpos")
+        except Exception as e:
+            logger.error(f"Erro limpando recursos de voz: {e}")
+
+# Gerenciador de Temas
+class ThemeManager:
+    """Gerenciar temas da interface"""
+    
+    def __init__(self):
+        self.themes = {
+            "Dark Blue": {
+                "bg": "#0a0a1a",
+                "fg": "#00ffff",
+                "accent": "#003366",
+                "terminal_bg": "#001122",
+                "terminal_fg": "#00ff00"
+            },
+            "Matrix": {
+                "bg": "#001100",
+                "fg": "#00ff00",
+                "accent": "#003300",
+                "terminal_bg": "#000800",
+                "terminal_fg": "#00ff00"
+            },
+            "Cyberpunk": {
+                "bg": "#1a0033",
+                "fg": "#ff00ff",
+                "accent": "#330033",
+                "terminal_bg": "#0d001a",
+                "terminal_fg": "#ff00ff"
+            },
+            "Solarized": {
+                "bg": "#002b36",
+                "fg": "#839496",
+                "accent": "#073642",
+                "terminal_bg": "#073642",
+                "terminal_fg": "#93a1a1"
+            }
+        }
+        self.current_theme = "Dark Blue"
+    
+    def get_theme(self, theme_name: str = None) -> Dict:
+        """Obter configurações do tema"""
+        if theme_name is None:
+            theme_name = self.current_theme
+        return self.themes.get(theme_name, self.themes["Dark Blue"])
+    
+    def get_available_themes(self) -> List[str]:
+        """Obter lista de temas disponíveis"""
+        return list(self.themes.keys())
+
+# Verificação de dependências
+def check_dependencies():
+    """Verificar dependências de forma robusta"""
+    dependencies = {
+        'pygame': False,
+        'python-dotenv': False,
+        'requests': False,
+        'vosk': False,
+        'pyaudio': False,
+        'speechrecognition': False
+    }
+    
+    try:
+        import pygame
+        dependencies['pygame'] = True
+        logger.info("pygame disponível")
+    except ImportError:
+        logger.warning("pygame não encontrado")
+    
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        dependencies['python-dotenv'] = True
+        logger.info("python-dotenv disponível")
+    except ImportError:
+        logger.warning("python-dotenv não encontrado")
+    
+    try:
+        import requests
+        dependencies['requests'] = True
+        logger.info("requests disponível")
+    except ImportError:
+        logger.warning("requests não encontrado")
+    
+    try:
+        import pyaudio
+        dependencies['pyaudio'] = True
+        logger.info("pyaudio disponível")
+    except ImportError:
+        logger.warning("pyaudio não encontrado")
+    
+    try:
+        from vosk import Model, KaldiRecognizer
+        dependencies['vosk'] = True
+        logger.info("vosk disponível")
+    except ImportError:
+        logger.warning("vosk não encontrado")
+    
+    try:
+        import speech_recognition as sr
+        dependencies['speechrecognition'] = True
+        logger.info("speechrecognition disponível")
+    except ImportError:
+        logger.warning("speechrecognition não encontrado")
+    
+    return dependencies
+
+# Classe principal da aplicação
+class R2App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("R2 - Sistema de Ativação de Módulos")
+        self.root.geometry("1200x800")
+        
+        # Configuração
+        self.config = AppConfig()
+        
+        # Dependências
+        self.dependencies = check_dependencies()
+        
+        # Gerenciadores
+        self.history_manager = HistoryManager(self.config.MAX_HISTORY_SIZE)
+        self.analytics = Analytics()
+        self.module_manager = ModuleManager(self.config.MODULES_FILE, self.config)
+        self.sound_manager = SoundManager(self.config.SOUNDS_DIR)
+        self.theme_manager = ThemeManager()
+        self.voice_manager = VoiceManager(self.config)
+        
+        # Configurar tratamento global de erros
+        self.setup_global_error_handling()
+        
+        # Estados
+        self.voice_active = False
+        self.voice_listening_for_ia = False
+        
+        # Cache para IA
+        self.response_cache = {}
+        
+        # Configuração da API
+        self.api_key = os.getenv('OPENROUTER_API_KEY')
+        self.openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
+        
+        # Frases de ativação
+        self.voice_activation_phrases = [
+            "ia", "inteligência artificial", "assistente",
+            "r2 ajuda", "r2 pergunta", 
+            "gemini", "chat gpt", "gpt", "claude"
+        ]
+        
+        self.r2_activation_phrases = [
+            "r2", "hey r2", "okay r2", "ei r2", "oi r2",
+            "ok r2", "alô r2", "r2 ativar", "r2 sistema"
+        ]
+        
+        # Interface
+        self.setup_ui()
+        
+        # Iniciar reconhecimento de voz (sempre ouvindo, mas só processa quando ativo)
+        if self.voice_manager.available:
+            self.voice_manager.start_listening(self.process_voice_command)
+        
+        logger.info("Aplicação R2 inicializada com sucesso")
+    
+    def setup_global_error_handling(self):
+        """Configurar tratamento global de exceções"""
+        def global_exception_handler(exc_type, exc_value, exc_traceback):
+            if issubclass(exc_type, KeyboardInterrupt):
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                return
+            
+            logger.critical(
+                "Exceção não tratada",
+                exc_info=(exc_type, exc_value, exc_traceback)
+            )
+            
+            # Mostrar erro na interface
+            self.root.after(0, lambda: messagebox.showerror(
+                "Erro Crítico",
+                f"Ocorreu um erro inesperado:\n{str(exc_value)}\n\nVerifique o log para detalhes."
+            ))
+        
+        sys.excepthook = global_exception_handler
+    
+    def configure_styles(self):
+        """Configurar estilos com tema atual"""
+        theme = self.theme_manager.get_theme()
+        
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
+        
+        self.style.configure('Futurist.TFrame', background=theme['bg'])
+        self.style.configure('Futurist.TLabel', 
+                           background=theme['bg'], 
+                           foreground=theme['fg'],
+                           font=('Consolas', 10))
+        
+        self.style.configure('Futurist.TButton',
+                           background=theme['accent'],
+                           foreground=theme['fg'],
+                           borderwidth=2,
+                           relief='raised',
+                           font=('Consolas', 9, 'bold'))
+        self.style.map('Futurist.TButton',
+                      background=[('active', '#004488')])
+        
+        self.style.configure('Terminal.TEntry',
+                           fieldbackground=theme['terminal_bg'],
+                           foreground=theme['terminal_fg'],
+                           insertcolor=theme['terminal_fg'])
+        
+        self.style.configure('Hologram.TNotebook',
+                           background=theme['bg'],
+                           tabmargins=[2, 5, 2, 0])
+        self.style.configure('Hologram.TNotebook.Tab',
+                           background=theme['accent'],
+                           foreground=theme['fg'],
+                           padding=[20, 5])
+        
+        self.style.configure('Matrix.TText',
+                           background=theme['terminal_bg'],
+                           foreground=theme['terminal_fg'],
+                           font=('Consolas', 9))
+        
+        # Barra de progresso
+        self.style.configure('Futurist.Horizontal.TProgressbar',
+                           background=theme['fg'],
+                           troughcolor=theme['accent'])
+    
+    def setup_ui(self):
+        """Configurar interface do usuário"""
+        self.configure_styles()
+        
+        # Frame principal
+        main_frame = ttk.Frame(self.root, style='Futurist.TFrame')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Header
+        header_frame = ttk.Frame(main_frame, style='Futurist.TFrame')
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        title_label = tk.Label(header_frame, 
+                             text="R2 - SISTEMA DE ATIVAÇÃO", 
+                             font=('Orbitron', 20, 'bold'),
+                             bg=self.theme_manager.get_theme()['bg'],
+                             fg=self.theme_manager.get_theme()['fg'])
+        title_label.pack(side=tk.LEFT)
+        
+        # Status do sistema
+        self.setup_status_bar(header_frame)
+        
+        # Notebook para abas
+        notebook = ttk.Notebook(main_frame, style='Hologram.TNotebook')
+        notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Abas
+        self.setup_dashboard_tab(notebook)
+        self.setup_module_registration_tab(notebook)
+        self.setup_voice_commands_tab(notebook)
+        self.setup_ai_chat_tab(notebook)
+        self.setup_analytics_tab(notebook)
+        
+        # Barra de status
+        self.setup_bottom_status_bar(main_frame)
+        
+        # Atualizar status inicial
+        self.update_system_status()
+    
+    def setup_status_bar(self, parent):
+        """Configurar barra de status no header"""
+        status_frame = tk.Frame(parent, bg=self.theme_manager.get_theme()['bg'])
+        status_frame.pack(side=tk.RIGHT)
+        
+        # Status voz
+        voice_status = "VOZ: PRONTO" if self.voice_manager.available else "VOZ: DESATIVADO"
+        voice_color = "#00ff00" if self.voice_manager.available else "#ffaa00"
+        
+        self.voice_status = tk.Label(status_frame,
+                                   text=voice_status,
+                                   font=('Consolas', 10, 'bold'),
+                                   bg=self.theme_manager.get_theme()['bg'],
+                                   fg=voice_color)
+        self.voice_status.pack(side=tk.RIGHT, padx=(10, 0))
+        
+        # Status sons
+        sound_count = len(self.sound_manager.r2_sound_files)
+        self.sound_status = tk.Label(status_frame,
+                                   text=f"🔊 {sound_count} EFEITOS",
+                                   font=('Consolas', 10, 'bold'),
+                                   bg=self.theme_manager.get_theme()['bg'],
+                                   fg='#ffff00')
+        self.sound_status.pack(side=tk.RIGHT, padx=(10, 0))
+    
+    def setup_bottom_status_bar(self, parent):
+        """Configurar barra de status inferior"""
+        status_bar = ttk.Frame(parent, style='Futurist.TFrame', height=25)
+        status_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        status_bar.pack_propagate(False)
+        
+        self.status_text = tk.StringVar(value="Sistema inicializado e pronto")
+        status_label = ttk.Label(status_bar, 
+                               textvariable=self.status_text,
+                               style='Futurist.TLabel')
+        status_label.pack(side=tk.LEFT, padx=10)
+        
+        # Barra de progresso
+        self.progress_bar = ttk.Progressbar(status_bar, 
+                                          mode='indeterminate',
+                                          style='Futurist.Horizontal.TProgressbar')
+        self.progress_bar.pack(side=tk.RIGHT, padx=10, pady=2, fill=tk.X, expand=True)
+        self.progress_bar.pack_forget()  # Inicialmente oculta
+    
+    def setup_dashboard_tab(self, notebook):
+        """Configurar aba do dashboard"""
+        dashboard_frame = ttk.Frame(notebook, style='Futurist.TFrame')
+        notebook.add(dashboard_frame, text="DASHBOARD")
+        
+        # Lista de módulos
+        modules_label = tk.Label(dashboard_frame,
+                               text="MÓDULOS DISPONÍVEIS",
+                               font=('Consolas', 12, 'bold'),
+                               bg=self.theme_manager.get_theme()['bg'],
+                               fg=self.theme_manager.get_theme()['fg'])
+        modules_label.pack(pady=(10, 5))
+        
+        # Frame para lista de módulos
+        modules_list_frame = tk.Frame(dashboard_frame, bg=self.theme_manager.get_theme()['bg'])
+        modules_list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Listbox e Scrollbar
+        listbox_container = tk.Frame(modules_list_frame, bg=self.theme_manager.get_theme()['bg'])
+        listbox_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.modules_listbox = tk.Listbox(listbox_container,
+                                        bg=self.theme_manager.get_theme()['terminal_bg'],
+                                        fg=self.theme_manager.get_theme()['terminal_fg'],
+                                        font=('Consolas', 10),
+                                        selectbackground=self.theme_manager.get_theme()['accent'],
+                                        selectforeground=self.theme_manager.get_theme()['fg'],
+                                        height=15)
+        self.modules_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        scrollbar = tk.Scrollbar(listbox_container, orient=tk.VERTICAL)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.modules_listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.modules_listbox.yview)
+        
+        # Botões de ação
+        button_frame = tk.Frame(dashboard_frame, bg=self.theme_manager.get_theme()['bg'])
+        button_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Button(button_frame, 
+                  text="ATIVAR MÓDULO",
+                  style='Futurist.TButton',
+                  command=self.activate_selected_module).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="ATUALIZAR LISTA",
+                  style='Futurist.TButton',
+                  command=self.refresh_modules).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="🔊 TESTAR SOM R2",
+                  style='Futurist.TButton',
+                  command=self.play_r2_activation_sound).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="📊 RELATÓRIO",
+                  style='Futurist.TButton',
+                  command=self.show_analytics_report).pack(side=tk.LEFT, padx=5)
+        
+        # Informações do sistema
+        self.setup_system_info(dashboard_frame)
+        
+        # Terminal de saída
+        terminal_label = tk.Label(dashboard_frame,
+                                text="TERMINAL DE SAÍDA",
+                                font=('Consolas', 10, 'bold'),
+                                bg=self.theme_manager.get_theme()['bg'],
+                                fg=self.theme_manager.get_theme()['fg'])
+        terminal_label.pack(pady=(10, 5))
+        
+        self.terminal_output = scrolledtext.ScrolledText(dashboard_frame,
+                                                       bg=self.theme_manager.get_theme()['terminal_bg'],
+                                                       fg=self.theme_manager.get_theme()['terminal_fg'],
+                                                       font=('Consolas', 9),
+                                                       height=10)
+        self.terminal_output.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        self.refresh_modules_list()
+    
+    def setup_system_info(self, parent):
+        """Configurar informações do sistema"""
+        info_frame = tk.Frame(parent, bg=self.theme_manager.get_theme()['bg'])
+        info_frame.pack(fill=tk.X, pady=5)
+        
+        # Informações de voz
+        voice_status = "🔊 Modelo de Voz: PEQUENO (31MB) - Rápido e Confiável"
+        if not self.voice_manager.available:
+            voice_status = "🔊 Modelo de Voz: NÃO CARREGADO"
+        
+        voice_label = tk.Label(info_frame,
+                             text=voice_status,
+                             font=('Consolas', 8),
+                             bg=self.theme_manager.get_theme()['bg'],
+                             fg='#00ff00')
+        voice_label.pack(anchor='w')
+        
+        # Informações de som
+        sound_info = f"🔊 {len(self.sound_manager.r2_sound_files)} efeitos sonoros disponíveis"
+        sound_label = tk.Label(info_frame,
+                             text=sound_info,
+                             font=('Consolas', 8),
+                             bg=self.theme_manager.get_theme()['bg'],
+                             fg='#ffff00')
+        sound_label.pack(anchor='w')
+        
+        # Informações de módulos
+        modules_info = f"📦 {len(self.module_manager.modules)} módulos cadastrados"
+        modules_label = tk.Label(info_frame,
+                               text=modules_info,
+                               font=('Consolas', 8),
+                               bg=self.theme_manager.get_theme()['bg'],
+                               fg='#00ffff')
+        modules_label.pack(anchor='w')
+    
+    def setup_module_registration_tab(self, notebook):
+        """Configurar aba de cadastro de módulos"""
+        reg_frame = ttk.Frame(notebook, style='Futurist.TFrame')
+        notebook.add(reg_frame, text="CADASTRO DE MÓDULOS")
+        
+        # Formulário de cadastro
+        form_frame = tk.Frame(reg_frame, bg=self.theme_manager.get_theme()['bg'])
+        form_frame.pack(fill=tk.X, padx=20, pady=20)
+        
+        # Nome do módulo
+        tk.Label(form_frame, text="NOME DO MÓDULO:", 
+                bg=self.theme_manager.get_theme()['bg'], 
+                fg=self.theme_manager.get_theme()['fg'], 
+                font=('Consolas', 9)).grid(row=0, column=0, sticky='w', pady=5)
+        self.module_name = ttk.Entry(form_frame, style='Terminal.TEntry', width=40)
+        self.module_name.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Comando
+        tk.Label(form_frame, text="COMANDO:", 
+                bg=self.theme_manager.get_theme()['bg'], 
+                fg=self.theme_manager.get_theme()['fg'], 
+                font=('Consolas', 9)).grid(row=1, column=0, sticky='w', pady=5)
+        self.module_command = ttk.Entry(form_frame, style='Terminal.TEntry', width=40)
+        self.module_command.grid(row=1, column=1, padx=5, pady=5)
+        
+        # Ambiente virtual
+        tk.Label(form_frame, text="AMBIENTE VIRTUAL:", 
+                bg=self.theme_manager.get_theme()['bg'], 
+                fg=self.theme_manager.get_theme()['fg'], 
+                font=('Consolas', 9)).grid(row=2, column=0, sticky='w', pady=5)
+        self.virtual_env = ttk.Entry(form_frame, style='Terminal.TEntry', width=40)
+        self.virtual_env.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Descrição
+        tk.Label(form_frame, text="DESCRIÇÃO:", 
+                bg=self.theme_manager.get_theme()['bg'], 
+                fg=self.theme_manager.get_theme()['fg'], 
+                font=('Consolas', 9)).grid(row=3, column=0, sticky='nw', pady=5)
+        self.module_description = tk.Text(form_frame, 
+                                        bg=self.theme_manager.get_theme()['terminal_bg'], 
+                                        fg=self.theme_manager.get_theme()['terminal_fg'],
+                                        font=('Consolas', 9),
+                                        width=40,
+                                        height=4)
+        self.module_description.grid(row=3, column=1, padx=5, pady=5)
+        
+        # Botões
+        button_frame = tk.Frame(form_frame, bg=self.theme_manager.get_theme()['bg'])
+        button_frame.grid(row=4, column=0, columnspan=2, pady=20)
+        
+        ttk.Button(button_frame, 
+                  text="CADASTRAR MÓDULO",
+                  style='Futurist.TButton',
+                  command=self.register_module).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="LIMPAR CAMPOS",
+                  style='Futurist.TButton',
+                  command=self.clear_form).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="EDITAR SELECIONADO",
+                  style='Futurist.TButton',
+                  command=self.edit_selected_module).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="REMOVER SELECIONADO",
+                  style='Futurist.TButton',
+                  command=self.remove_selected_module).pack(side=tk.LEFT, padx=5)
+    
+    def setup_voice_commands_tab(self, notebook):
+        """Configurar aba de comandos de voz"""
+        voice_frame = ttk.Frame(notebook, style='Futurist.TFrame')
+        notebook.add(voice_frame, text="COMANDOS DE VOZ")
+        
+        # Informação do modelo
+        if self.voice_manager.available:
+            model_info = tk.Label(voice_frame,
+                                text="🔊 MODELO PEQUENO ATIVADO - Rápido e Confiável",
+                                font=('Consolas', 10, 'bold'),
+                                bg=self.theme_manager.get_theme()['bg'],
+                                fg='#00ff00')
+        else:
+            model_info = tk.Label(voice_frame,
+                                text="🔊 RECONHECIMENTO DE VOZ INDISPONÍVEL",
+                                font=('Consolas', 10, 'bold'),
+                                bg=self.theme_manager.get_theme()['bg'],
+                                fg='#ff4444')
+        model_info.pack(pady=(10, 5))
+        
+        # Controles de voz
+        control_frame = tk.Frame(voice_frame, bg=self.theme_manager.get_theme()['bg'])
+        control_frame.pack(fill=tk.X, padx=20, pady=20)
+        
+        self.voice_button = ttk.Button(control_frame,
+                  text="ATIVAR RECONHECIMENTO DE VOZ",
+                  style='Futurist.TButton',
+                  command=self.toggle_voice_recognition)
+        self.voice_button.pack(pady=10)
+        
+        if not self.voice_manager.available:
+            self.voice_button.config(state="disabled")
+        
+        # Status do microfone
+        self.mic_status = tk.Label(control_frame,
+                                 text="MICROFONE: DESATIVADO",
+                                 font=('Consolas', 12, 'bold'),
+                                 bg=self.theme_manager.get_theme()['bg'],
+                                 fg='#ff4444')
+        self.mic_status.pack(pady=5)
+        
+        # Comandos reconhecidos
+        commands_label = tk.Label(voice_frame,
+                                text="ÚLTIMOS COMANDOS RECONHECIDOS:",
+                                font=('Consolas', 10, 'bold'),
+                                bg=self.theme_manager.get_theme()['bg'],
+                                fg=self.theme_manager.get_theme()['fg'])
+        commands_label.pack(pady=(20, 5))
+        
+        self.voice_commands_text = scrolledtext.ScrolledText(voice_frame,
+                                                           bg=self.theme_manager.get_theme()['terminal_bg'],
+                                                           fg=self.theme_manager.get_theme()['terminal_fg'],
+                                                           font=('Consolas', 9),
+                                                           height=15)
+        self.voice_commands_text.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+        
+        # Lista de comandos disponíveis
+        commands_info = """
+🎯 COMANDOS DE VOZ DISPONÍVEIS:
+
+🤖 ATIVAÇÃO DO R2:
+- "R2" ou "Hey R2" ou "Okay R2" - Toca efeito sonoro de ativação
+
+🤖 COMANDOS DE SISTEMA:
+- "R2 ativar [nome do módulo]" - Ativa um módulo específico
+- "R2 listar módulos" - Lista todos os módulos disponíveis  
+- "R2 parar" - Para o reconhecimento de voz
+
+🧠 ATIVAÇÃO DE IA:
+- "IA" ou "Inteligência Artificial" - Ativa modo de escuta para IA
+- "R2 pergunta" - Faz uma pergunta para a IA
+- "Gemini" ou "Chat GPT" - Ativa assistentes específicos
+
+💡 DICA: Fale claramente e evite ruídos de fundo!
+        """
+        commands_help = tk.Label(voice_frame,
+                               text=commands_info,
+                               font=('Consolas', 9),
+                               bg=self.theme_manager.get_theme()['bg'],
+                               fg='#ffff00',
+                               justify=tk.LEFT)
+        commands_help.pack(fill=tk.X, padx=20, pady=10)
+    
+    def setup_ai_chat_tab(self, notebook):
+        """Configurar aba de chat com IA"""
+        chat_frame = ttk.Frame(notebook, style='Futurist.TFrame')
+        notebook.add(chat_frame, text="CHAT IA")
+        
+        # Informações sobre modelos
+        voice_status = "Modelo Pequeno (31MB)" if self.voice_manager.available else "Voz Desativada"
+        info_label = tk.Label(chat_frame,
+                             text=f"💡 Usando Mistral 7B Instruct + {voice_status}",
+                             font=('Consolas', 8),
+                             bg=self.theme_manager.get_theme()['bg'],
+                             fg='#ffff00')
+        info_label.pack(pady=(5, 0))
+        
+        # Área de chat
+        self.chat_display = scrolledtext.ScrolledText(chat_frame,
+                                                    bg=self.theme_manager.get_theme()['terminal_bg'],
+                                                    fg=self.theme_manager.get_theme()['terminal_fg'],
+                                                    font=('Consolas', 9),
+                                                    height=20)
+        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Frame de entrada
+        input_frame = tk.Frame(chat_frame, bg=self.theme_manager.get_theme()['bg'])
+        input_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        self.chat_input = ttk.Entry(input_frame, style='Terminal.TEntry', width=50)
+        self.chat_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        self.chat_input.bind('<Return>', self.send_chat_message)
+        
+        ttk.Button(input_frame,
+                  text="ENVIAR",
+                  style='Futurist.TButton',
+                  command=self.send_chat_message).pack(side=tk.RIGHT)
+        
+        # Botão de ativação por voz para IA
+        self.voice_ia_button = ttk.Button(input_frame,
+                                   text="🎤 VOZ IA",
+                                   style='Futurist.TButton',
+                                   command=self.activate_voice_ia_mode)
+        self.voice_ia_button.pack(side=tk.RIGHT, padx=(0, 10))
+        
+        if not self.voice_manager.available:
+            self.voice_ia_button.config(state="disabled")
+        
+        # Botão de teste de som
+        ttk.Button(input_frame,
+                  text="🔊 TESTAR R2",
+                  style='Futurist.TButton',
+                  command=self.play_r2_activation_sound).pack(side=tk.RIGHT, padx=(0, 10))
+        
+        # Adicionar mensagem inicial
+        self.add_chat_message("R2", "🔊 *Sons de bipes e assobio*")
+        self.add_chat_message("R2", "Olá! Sou o R2, seu assistente de IA! 🌌✨")
+        
+        if self.voice_manager.available:
+            self.add_chat_message("R2", "🎯 **Sistema de voz com modelo PEQUENO ativado**")
+            self.add_chat_message("R2", "💬 Diga 'R2' para me ativar ou 'IA' para conversar!")
+        else:
+            self.add_chat_message("R2", "🔇 **Sistema de voz desativado**")
+            self.add_chat_message("R2", "💡 Use os comandos manuais do R2")
+        
+        self.add_chat_message("R2", f"🔊 {len(self.sound_manager.r2_sound_files)} efeitos sonoros disponíveis")
+        self.add_chat_message("R2", "Como posso ajudá-lo hoje? 🚀")
+    
+    def setup_analytics_tab(self, notebook):
+        """Configurar aba de analytics"""
+        analytics_frame = ttk.Frame(notebook, style='Futurist.TFrame')
+        notebook.add(analytics_frame, text="ANALYTICS")
+        
+        # Título
+        title_label = tk.Label(analytics_frame,
+                             text="📊 ESTATÍSTICAS DO SISTEMA",
+                             font=('Consolas', 14, 'bold'),
+                             bg=self.theme_manager.get_theme()['bg'],
+                             fg=self.theme_manager.get_theme()['fg'])
+        title_label.pack(pady=(10, 5))
+        
+        # Frame de métricas
+        metrics_frame = tk.Frame(analytics_frame, bg=self.theme_manager.get_theme()['bg'])
+        metrics_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        # Métricas serão atualizadas dinamicamente
+        self.metrics_labels = {}
+        metrics = [
+            ("Comandos de Voz", "total_voice_commands"),
+            ("Módulos Ativados", "modules_activated"),
+            ("Mensagens de Chat", "chat_messages"),
+            ("Ativações por Voz", "voice_activations"),
+            ("Erros Encontrados", "errors_encountered"),
+            ("Tempo de Atividade", "uptime_seconds"),
+            ("Comandos/Hora", "average_commands_per_hour")
+        ]
+        
+        for i, (label, key) in enumerate(metrics):
+            frame = tk.Frame(metrics_frame, bg=self.theme_manager.get_theme()['bg'])
+            frame.grid(row=i//2, column=i%2, sticky='w', padx=10, pady=5)
+            
+            tk.Label(frame, text=label + ":", 
+                    bg=self.theme_manager.get_theme()['bg'],
+                    fg=self.theme_manager.get_theme()['fg'],
+                    font=('Consolas', 9)).pack(anchor='w')
+            
+            value_label = tk.Label(frame, text="0",
+                                 bg=self.theme_manager.get_theme()['bg'],
+                                 fg='#00ff00',
+                                 font=('Consolas', 10, 'bold'))
+            value_label.pack(anchor='w')
+            
+            self.metrics_labels[key] = value_label
+        
+        # Botões de ação
+        button_frame = tk.Frame(analytics_frame, bg=self.theme_manager.get_theme()['bg'])
+        button_frame.pack(pady=10)
+        
+        ttk.Button(button_frame,
+                  text="ATUALIZAR ESTATÍSTICAS",
+                  style='Futurist.TButton',
+                  command=self.update_analytics_display).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="EXPORTAR RELATÓRIO",
+                  style='Futurist.TButton',
+                  command=self.export_analytics_report).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(button_frame,
+                  text="LIMPAR HISTÓRICO",
+                  style='Futurist.TButton',
+                  command=self.clear_history).pack(side=tk.LEFT, padx=5)
+        
+        # Histórico recente
+        history_frame = ttk.Frame(analytics_frame, style='Futurist.TFrame')
+        history_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Abas para diferentes históricos
+        history_notebook = ttk.Notebook(history_frame, style='Hologram.TNotebook')
+        history_notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Histórico de chat
+        chat_history_frame = ttk.Frame(history_notebook, style='Futurist.TFrame')
+        history_notebook.add(chat_history_frame, text="Histórico de Chat")
+        
+        self.chat_history_text = scrolledtext.ScrolledText(chat_history_frame,
+                                                         bg=self.theme_manager.get_theme()['terminal_bg'],
+                                                         fg=self.theme_manager.get_theme()['terminal_fg'],
+                                                         font=('Consolas', 8))
+        self.chat_history_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Histórico de comandos
+        commands_history_frame = ttk.Frame(history_notebook, style='Futurist.TFrame')
+        history_notebook.add(commands_history_frame, text="Histórico de Comandos")
+        
+        self.commands_history_text = scrolledtext.ScrolledText(commands_history_frame,
+                                                             bg=self.theme_manager.get_theme()['terminal_bg'],
+                                                             fg=self.theme_manager.get_theme()['terminal_fg'],
+                                                             font=('Consolas', 8))
+        self.commands_history_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Atualizar display inicial
+        self.update_analytics_display()
+    
+    def update_system_status(self):
+        """Atualizar status do sistema na barra de status"""
+        report = self.analytics.generate_report()
+        status = f"Módulos: {len(self.module_manager.modules)} | Voz: {'Ativo' if self.voice_active else 'Inativo'} | Comandos: {report['total_voice_commands']}"
+        self.status_text.set(status)
+    
+    def show_progress(self, show=True):
+        """Mostrar ou esconder barra de progresso"""
+        if show:
+            self.progress_bar.pack(side=tk.RIGHT, padx=10, pady=2, fill=tk.X, expand=True)
+            self.progress_bar.start()
+        else:
+            self.progress_bar.stop()
+            self.progress_bar.pack_forget()
+    
+    # Métodos principais da aplicação
+    
+    def refresh_modules_list(self):
+        """Atualizar lista de módulos no dashboard"""
+        self.modules_listbox.delete(0, tk.END)
+        for module_name in self.module_manager.list_modules():
+            self.modules_listbox.insert(tk.END, module_name)
+    
+    def register_module(self):
+        """Cadastrar novo módulo"""
+        name = self.module_name.get().strip()
+        command = self.module_command.get().strip()
+        venv = self.virtual_env.get().strip()
+        description = self.module_description.get("1.0", tk.END).strip()
+        
+        if not name or not command:
+            messagebox.showerror("Erro", "Nome e comando são obrigatórios!")
+            return
+        
+        if self.module_manager.add_module(name, command, venv, description):
+            self.refresh_modules_list()
+            self.clear_form()
+            messagebox.showinfo("Sucesso", f"Módulo '{name}' cadastrado com sucesso!")
+            logger.info(f"Módulo cadastrado: {name}")
+        else:
+            messagebox.showerror("Erro", "Falha ao cadastrar módulo. Verifique os dados.")
+    
+    def clear_form(self):
+        """Limpar formulário de cadastro"""
+        self.module_name.delete(0, tk.END)
+        self.module_command.delete(0, tk.END)
+        self.virtual_env.delete(0, tk.END)
+        self.module_description.delete("1.0", tk.END)
+    
+    def edit_selected_module(self):
+        """Editar módulo selecionado"""
+        selection = self.modules_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Aviso", "Selecione um módulo para editar!")
+            return
+        
+        module_name = self.modules_listbox.get(selection[0])
+        module = self.module_manager.get_module(module_name)
+        
+        if module:
+            self.clear_form()
+            self.module_name.insert(0, module_name)
+            self.module_command.insert(0, module.get('command', ''))
+            self.virtual_env.insert(0, module.get('virtual_env', ''))
+            self.module_description.insert("1.0", module.get('description', ''))
+    
+    def remove_selected_module(self):
+        """Remover módulo selecionado"""
+        selection = self.modules_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Aviso", "Selecione um módulo para remover!")
+            return
+        
+        module_name = self.modules_listbox.get(selection[0])
+        
+        if messagebox.askyesno("Confirmar", f"Remover módulo '{module_name}'?"):
+            if self.module_manager.remove_module(module_name):
+                self.refresh_modules_list()
+                messagebox.showinfo("Sucesso", f"Módulo '{module_name}' removido!")
+                logger.info(f"Módulo removido: {module_name}")
+            else:
+                messagebox.showerror("Erro", "Falha ao remover módulo.")
+    
+    def activate_selected_module(self):
+        """Ativar módulo selecionado"""
+        selection = self.modules_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Aviso", "Selecione um módulo para ativar!")
+            return
+        
+        module_name = self.modules_listbox.get(selection[0])
+        self.activate_module(module_name)
+    
+    def activate_module(self, module_name):
+        """Ativar módulo específico"""
+        module = self.module_manager.get_module(module_name)
+        if not module:
+            messagebox.showerror("Erro", f"Módulo '{module_name}' não encontrado!")
+            return
+        
+        # Construir comando seguro
+        cmd = self.build_safe_command(module)
+        
+        if not cmd:
+            messagebox.showerror("Erro", "Comando não permitido por questões de segurança.")
+            return
+        
+        # Executar em thread separada
+        thread = threading.Thread(target=self.execute_command, args=(cmd, module_name))
+        thread.daemon = True
+        thread.start()
+        
+        self.analytics.record_module_activation()
+        self.history_manager.add_command(cmd, module_name)
+        
+        self.log_terminal(f"INICIANDO MÓDULO: {module_name}\n")
+        self.log_terminal(f"COMANDO: {cmd}\n")
+        self.log_terminal("-" * 50 + "\n")
+        
+        logger.info(f"Módulo ativado: {module_name}")
+    
+    def build_safe_command(self, module: Dict) -> Optional[str]:
+        """Construir comando seguro para execução"""
+        command = module['command']
+        venv = module.get('virtual_env', '')
+        
+        # Validar comando
+        if not any(allowed in command.lower() for allowed in self.config.ALLOWED_COMMANDS):
+            logger.warning(f"Tentativa de executar comando não permitido: {command}")
+            return None
+        
+        # Construir comando com ambiente virtual se especificado
+        base_cmd = '%WINDIR%\\System32\\cmd.exe "/K" C:\\ProgramData\\miniconda3\\Scripts\\activate.bat C:\\ProgramData\\miniconda3'
+        
+        if venv:
+            base_cmd += f" && conda activate {venv}"
+        
+        base_cmd += f" && {command}"
+        
+        return base_cmd
+    
+    def execute_command(self, command, module_name):
+        """Executar comando do módulo de forma segura"""
+        try:
+            self.show_progress(True)
+            
+            # Para arquivos .bat, use start para abrir em nova janela
+            if command.endswith('.bat') and 'start' not in command.lower():
+                import os
+                os.system(f'start {command}')
+            else:
+                process = subprocess.Popen(command, 
+                                         shell=True,
+                                         stdout=subprocess.PIPE,
+                                         stderr=subprocess.STDOUT,
+                                         universal_newlines=True)
+                
+                for line in process.stdout:
+                    self.log_terminal(line)
+                
+                process.wait()
+            
+            self.log_terminal(f"\nMÓDULO '{module_name}' FINALIZADO\n")
+            
+        except Exception as e:
+            self.log_terminal(f"ERRO: {str(e)}\n")
+            self.analytics.record_error()
+            logger.error(f"Erro executando módulo {module_name}: {e}")
+        finally:
+            self.show_progress(False)
+    
+    def log_terminal(self, text):
+        """Adicionar texto ao terminal"""
+        def update_terminal():
+            self.terminal_output.insert(tk.END, text)
+            self.terminal_output.see(tk.END)
+            self.terminal_output.update_idletasks()
+        
+        self.root.after(0, update_terminal)
+    
+    def toggle_voice_recognition(self):
+        """Ativar/desativar reconhecimento de voz"""
+        if not self.voice_manager.available:
+            messagebox.showwarning(
+                "Reconhecimento de Voz Indisponível", 
+                "O sistema de voz não está disponível.\n\n"
+                "Verifique se:\n"
+                "• O modelo Vosk pequeno está baixado\n" 
+                "• As bibliotecas pyaudio e vosk estão instaladas\n"
+                "• O arquivo 'vosk-model-small-pt-0.3' está na pasta R2"
+            )
+            return
+        
+        self.voice_active = not self.voice_active
+        
+        if self.voice_active:
+            self.voice_status.config(text="VOZ: ATIVO", fg='#00ff00')
+            self.mic_status.config(text="MICROFONE: ATIVADO", fg='#00ff00')
+            self.voice_button.config(text="DESATIVAR RECONHECIMENTO DE VOZ")
+            self.play_activation_sound()
+            self.analytics.record_voice_activation()
+            self.log_voice_command("🎯 SISTEMA DE VOZ ATIVADO - Modelo Pequeno")
+            self.log_voice_command("🔊 Reconhecimento rápido e confiável!")
+            self.log_voice_command("💡 Diga 'R2' para me ativar ou 'IA' para conversar!")
+            logger.info("Reconhecimento de voz ativado")
+        else:
+            self.voice_status.config(text="VOZ: INATIVO", fg='#ff4444')
+            self.mic_status.config(text="MICROFONE: DESATIVADO", fg='#ff4444')
+            self.voice_button.config(text="ATIVAR RECONHECIMENTO DE VOZ")
+            self.voice_listening_for_ia = False
+            self.log_voice_command("Sistema de voz desativado.")
+            logger.info("Reconhecimento de voz desativado")
+        
+        self.update_system_status()
+    
+    def process_voice_command(self, command):
+        """Processar comando de voz"""
+        # Só processa comandos se o sistema de voz estiver ativo
+        if not self.voice_active:
+            return
+            
+        self.analytics.record_voice_command()
+        self.history_manager.add_voice_command(command)
+        
+        self.log_voice_command(f"🎤 Comando reconhecido: '{command}'")
+        
+        normalized_cmd = command.lower().strip()
+        
+        # Verificar se é um comando para IA
+        if self.voice_listening_for_ia:
+            self.voice_listening_for_ia = False
+            self.mic_status.config(text="MICROFONE: ATIVADO", fg='#00ff00')
+            self.log_voice_command("🎯 Enviando para IA...")
+            self.send_voice_to_ia(command)
+            return
+        
+        # Verificar frases de ativação para IA
+        for phrase in self.voice_activation_phrases:
+            if phrase in normalized_cmd:
+                self.activate_voice_ia_mode()
+                return
+        
+        # Verificar frases de ativação do R2
+        for phrase in self.r2_activation_phrases:
+            if phrase in normalized_cmd:
+                self.log_voice_command(f"🔊 Ativação do R2: '{phrase}'")
+                self.play_r2_activation_sound()
+                return
+        
+        # Padrões de reconhecimento para comandos do sistema
+        activation_patterns = ["r2 ativar", "ativar", "iniciar", "executar", "rodar"]
+        list_patterns = ["listar", "mostrar", "módulos", "ver módulos"]
+        stop_patterns = ["parar", "stop", "desativar", "sair"]
+        help_patterns = ["ajuda", "help", "comandos", "o que posso dizer"]
+        
+        # Verificar padrões de ativação
+        if any(pattern in normalized_cmd for pattern in activation_patterns):
+            for pattern in activation_patterns:
+                normalized_cmd = normalized_cmd.replace(pattern, "")
+            
+            module_name = normalized_cmd.strip()
+            if module_name:
+                self.log_voice_command(f"🚀 Ativando módulo: '{module_name}'")
+                self.root.after(0, lambda: self.activate_module(module_name))
+            else:
+                self.log_voice_command("❌ Nome do módulo não identificado")
+        
+        # Verificar padrões de listagem
+        elif any(pattern in normalized_cmd for pattern in list_patterns):
+            modules_list = ", ".join(self.module_manager.list_modules())
+            self.log_voice_command(f"📋 Módulos disponíveis: {modules_list}")
+        
+        # Verificar padrões de parada
+        elif any(pattern in normalized_cmd for pattern in stop_patterns):
+            self.root.after(0, self.toggle_voice_recognition)
+        
+        # Verificar padrões de ajuda
+        elif any(pattern in normalized_cmd for pattern in help_patterns):
+            help_text = """
+🎯 COMANDOS DISPONÍVEIS:
+- 'R2' ou 'Hey R2' - Toca efeito sonoro de ativação
+- 'R2 ativar [módulo]' - Inicia um módulo
+- 'Listar módulos' - Mostra módulos disponíveis  
+- 'Parar' - Desativa reconhecimento de voz
+- 'IA' ou 'Gemini' - Ativa modo IA por voz
+- 'Ajuda' - Mostra esta lista
+            """
+            self.log_voice_command(help_text)
+        
+        else:
+            self.log_voice_command("❌ Comando não reconhecido. Diga 'ajuda' para ver opções.")
+        
+        self.update_system_status()
+    
+    def activate_voice_ia_mode(self):
+        """Ativar modo de escuta para IA"""
+        if not self.voice_manager.available or not self.voice_active:
+            messagebox.showwarning(
+                "Voz Não Disponível",
+                "O reconhecimento de voz não está ativo.\n"
+                "Ative o reconhecimento de voz primeiro."
+            )
+            return
+        
+        self.voice_listening_for_ia = True
+        self.mic_status.config(text="MICROFONE: ESCUTANDO IA", fg='#ffff00')
+        self.play_ia_activation_sound()
+        self.log_voice_command("🧠 MODO IA ATIVADO - Fale sua pergunta...")
+        self.add_chat_message("Sistema", "🎤 Modo de voz ativado para IA. Fale agora...")
+    
+    def send_voice_to_ia(self, message):
+        """Enviar mensagem de voz para a IA"""
+        self.add_chat_message("Você (Voz)", message)
+        
+        # Processar em thread separada
+        thread = threading.Thread(target=self.process_ai_response, args=(message,))
+        thread.daemon = True
+        thread.start()
+    
+    def log_voice_command(self, text):
+        """Registrar comando de voz"""
+        def update_voice_log():
+            timestamp = time.strftime("%H:%M:%S")
+            self.voice_commands_text.insert(tk.END, f"[{timestamp}] {text}\n")
+            self.voice_commands_text.see(tk.END)
+            self.voice_commands_text.update_idletasks()
+        
+        self.root.after(0, update_voice_log)
+    
+    def play_r2_activation_sound(self):
+        """Reproduzir efeito sonoro do R2"""
+        if self.sound_manager.play_r2_sound():
+            self.log_terminal("🔊 Efeito sonoro do R2 reproduzido\n")
+        else:
+            self.log_terminal("❌ Não foi possível reproduzir efeito sonoro\n")
+    
+    def play_activation_sound(self):
+        """Reproduzir efeito sonoro de ativação"""
+        # Usar som do R2 como fallback
+        self.sound_manager.play_r2_sound()
+    
+    def play_ia_activation_sound(self):
+        """Reproduzir efeito sonoro de ativação da IA"""
+        # Usar som do R2 como fallback
+        self.sound_manager.play_r2_sound()
+    
+    def send_chat_message(self, event=None):
+        """Enviar mensagem para a IA"""
+        message = self.chat_input.get().strip()
+        if not message:
+            return
+        
+        self.add_chat_message("Você", message)
+        self.chat_input.delete(0, tk.END)
+        
+        # Processar em thread separada
+        thread = threading.Thread(target=self.process_ai_response, args=(message,))
+        thread.daemon = True
+        thread.start()
+    
+    def process_ai_response(self, message):
+        """Processar resposta da IA"""
+        try:
+            self.show_progress(True)
+            response = self.get_ai_response(message)
+            self.add_chat_message("R2", response)
+        except Exception as e:
+            self.add_chat_message("Sistema", f"Erro na comunicação com IA: {str(e)}")
+            self.analytics.record_error()
+            logger.error(f"Erro processando resposta IA: {e}")
+        finally:
+            self.show_progress(False)
+    
+    @lru_cache(maxsize=100)
+    def get_cached_ai_response(self, message_hash: str) -> Optional[str]:
+        """Obter resposta em cache"""
+        return self.response_cache.get(message_hash)
+    
+    def set_cached_ai_response(self, message_hash: str, response: str):
+        """Armazenar resposta em cache"""
+        if len(self.response_cache) > 100:  # Limitar tamanho do cache
+            self.response_cache.clear()
+        self.response_cache[message_hash] = response
+    
+    def get_ai_response(self, message):
+        """Obter resposta da OpenRouter usando cache"""
+        # Verificar cache primeiro
+        message_hash = hashlib.md5(message.encode()).hexdigest()
+        cached_response = self.get_cached_ai_response(message_hash)
+        
+        if cached_response:
+            logger.debug("Resposta obtida do cache")
+            return cached_response
+        
+        if not self.dependencies['requests']:
+            return "Erro: Biblioteca 'requests' não disponível"
+            
+        if not self.api_key:
+            return "Erro: Chave API não configurada. Verifique o arquivo .env"
+    
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/user/r2-app",
+            "X-Title": "R2 Assistant"
+        }
+        
+        system_prompt = """Você é o R2, uma IA inspirada no R2-D2 de Star Wars mas com capacidades avançadas de conversação."""
+        
+        data = {
+            "model": "mistralai/mistral-7b-instruct:free",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ],
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
+        
+        try:
+            import requests
+            response = requests.post(self.openrouter_url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()['choices'][0]['message']['content']
+                # Armazenar em cache
+                self.set_cached_ai_response(message_hash, result)
+                return result
+            else:
+                error_msg = f"Erro na API: {response.status_code}"
+                try:
+                    error_detail = response.json()
+                    if 'error' in error_detail:
+                        error_msg += f" - {error_detail['error'].get('message', 'Erro desconhecido')}"
+                except:
+                    error_msg += f" - {response.text}"
+                
+                return f"🔧 *Bip de erro* {error_msg}"
+                
+        except requests.exceptions.Timeout:
+            return "⏰ *Bip de timeout* A conexão com a API demorou muito. Tente novamente!"
+        except requests.exceptions.ConnectionError:
+            return "🌐 *Bip de conexão* Não consegui me conectar à API. Verifique sua internet!"
+        except Exception as e:
+            return f"❌ *Bip de erro crítico* Erro inesperado: {str(e)}"
+    
+    def add_chat_message(self, sender, message):
+        """Adicionar mensagem ao chat"""
+        def update_chat():
+            self.chat_display.insert(tk.END, f"{sender}: {message}\n\n")
+            self.chat_display.see(tk.END)
+            self.chat_display.update_idletasks()
+        
+        self.history_manager.add_chat_message(sender, message)
+        self.analytics.record_chat_message()
+        self.root.after(0, update_chat)
+    
+    def refresh_modules(self):
+        """Atualizar lista de módulos"""
+        self.module_manager.modules = self.module_manager.load_modules()
+        self.refresh_modules_list()
+        self.update_system_status()
+        messagebox.showinfo("Sucesso", "Lista de módulos atualizada!")
+    
+    # Novos métodos para Analytics
+    
+    def update_analytics_display(self):
+        """Atualizar display de analytics"""
+        report = self.analytics.generate_report()
+        
+        # Atualizar métricas
+        for key, label in self.metrics_labels.items():
+            value = report.get(key, 0)
+            if key == 'uptime_seconds':
+                # Formatar tempo
+                hours = int(value // 3600)
+                minutes = int((value % 3600) // 60)
+                seconds = int(value % 60)
+                display_value = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            elif key == 'average_commands_per_hour':
+                display_value = f"{value:.2f}"
+            else:
+                display_value = str(int(value))
+            
+            label.config(text=display_value)
+        
+        # Atualizar históricos
+        self.update_history_displays()
+    
+    def update_history_displays(self):
+        """Atualizar displays de histórico"""
+        # Histórico de chat
+        self.chat_history_text.delete('1.0', tk.END)
+        for entry in self.history_manager.get_recent_chat(20):
+            timestamp = datetime.fromisoformat(entry['datetime']).strftime("%H:%M:%S")
+            self.chat_history_text.insert(tk.END, 
+                                        f"[{timestamp}] {entry['role']}: {entry['message']}\n")
+        
+        # Histórico de comandos
+        self.commands_history_text.delete('1.0', tk.END)
+        for entry in self.history_manager.get_recent_commands(20):
+            timestamp = datetime.fromisoformat(entry['datetime']).strftime("%H:%M:%S")
+            module_info = f" ({entry['module']})" if entry['module'] else ""
+            self.commands_history_text.insert(tk.END, 
+                                            f"[{timestamp}] {entry['command']}{module_info}\n")
+    
+    def show_analytics_report(self):
+        """Mostrar relatório de analytics"""
+        report = self.analytics.generate_report()
+        
+        report_text = f"""
+📊 RELATÓRIO DO SISTEMA R2
+
+Estatísticas de Uso:
+• Comandos de Voz: {report['total_voice_commands']}
+• Módulos Ativados: {report['modules_activated']}
+• Mensagens de Chat: {report['chat_messages']}
+• Ativações por Voz: {report['voice_activations']}
+• Erros Encontrados: {report['errors_encountered']}
+• Tempo de Atividade: {int(report['uptime_seconds'] // 3600)}h {int((report['uptime_seconds'] % 3600) // 60)}m
+• Comandos por Hora: {report['average_commands_per_hour']:.2f}
+
+Informações do Sistema:
+• Módulos Cadastrados: {len(self.module_manager.modules)}
+• Efeitos Sonoros: {len(self.sound_manager.r2_sound_files)}
+• Reconhecimento de Voz: {'Ativo' if self.voice_manager.available else 'Inativo'}
+        """
+        
+        messagebox.showinfo("Relatório do Sistema", report_text)
+    
+    def export_analytics_report(self):
+        """Exportar relatório para arquivo"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"r2_analytics_report_{timestamp}.txt"
+            
+            report = self.analytics.generate_report()
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("RELATÓRIO DO SISTEMA R2\n")
+                f.write("=" * 50 + "\n\n")
+                f.write(f"Data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                
+                f.write("ESTATÍSTICAS DE USO:\n")
+                f.write("-" * 20 + "\n")
+                for key, value in report.items():
+                    if key == 'uptime_seconds':
+                        hours = int(value // 3600)
+                        minutes = int((value % 3600) // 60)
+                        f.write(f"Tempo de Atividade: {hours:02d}:{minutes:02d}\n")
+                    elif key == 'average_commands_per_hour':
+                        f.write(f"Comandos por Hora: {value:.2f}\n")
+                    else:
+                        f.write(f"{key.replace('_', ' ').title()}: {int(value)}\n")
+                
+                f.write("\nINFORMAÇÕES DO SISTEMA:\n")
+                f.write("-" * 25 + "\n")
+                f.write(f"Módulos Cadastrados: {len(self.module_manager.modules)}\n")
+                f.write(f"Efeitos Sonoros: {len(self.sound_manager.r2_sound_files)}\n")
+                f.write(f"Reconhecimento de Voz: {'Ativo' if self.voice_manager.available else 'Inativo'}\n")
+            
+            messagebox.showinfo("Relatório Exportado", f"Relatório salvo como: {filename}")
+            logger.info(f"Relatório exportado: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao exportar relatório: {e}")
+            logger.error(f"Erro exportando relatório: {e}")
+    
+    def clear_history(self):
+        """Limpar histórico"""
+        if messagebox.askyesno("Confirmar", "Limpar todo o histórico?"):
+            self.history_manager.clear_history()
+            self.update_analytics_display()
+            messagebox.showinfo("Sucesso", "Histórico limpo!")
+            logger.info("Histórico limpo")
+    
+    def cleanup(self):
+        """Limpar recursos antes de sair"""
+        logger.info("Limpando recursos da aplicação...")
+        self.voice_manager.cleanup()
+        
+        if self.dependencies['pygame']:
+            try:
+                import pygame
+                pygame.mixer.quit()
+            except:
+                pass
+
+def main():
+    """Função principal"""
+    try:
+        root = tk.Tk()
+        app = R2App(root)
+        
+        # Configurar fechamento adequado
+        def on_closing():
+            app.cleanup()
+            root.destroy()
+        
+        root.protocol("WM_DELETE_WINDOW", on_closing)
+        root.mainloop()
+        
+    except Exception as e:
+        logger.critical(f"Erro crítico na aplicação: {e}", exc_info=True)
+        messagebox.showerror("Erro Fatal", f"Erro crítico na aplicação: {e}")
+
+if __name__ == "__main__":
+    main()
+''''''''''''''''
+#!/usr/bin/env python3
+"""
+R2 Assistant - Assistente Pessoal Completo com Trading Automático
+Sistema de Voz Reimplementado - Versão Completa com DDoS, NOAA e Alertas Solares
+"""
+
+import os
+import sys
+import logging
+import atexit
+import locale
+import platform
+import time
+from dotenv import load_dotenv
+
+# --- CORREÇÃO: Carrega as variáveis de ambiente ANTES de qualquer outra importação ---
+# Isso garante que as chaves de API estejam disponíveis para todos os módulos.
+load_dotenv()
+
+# --- CORREÇÃO DO CAMINHO DE IMPORTAÇÃO ---
+# Adiciona a pasta raiz do projeto (C:\R2) ao início do path do sistema.
+# Isso garante que todos os módulos (core, modules, commands, etc.)
+# possam ser encontrados de qualquer lugar do projeto.
+project_root = os.path.dirname(__file__)
+sys.path.insert(0, project_root)
+
+# --- CORREÇÃO CRÍTICA PARA DATAS EM PORTUGUÊS ---
+# Define o locale para português do Brasil para garantir que os nomes dos meses
+# (ex: "Setembro") sejam formatados corretamente pela função `strftime`.
+try:
+    if platform.system() == "Windows":
+        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+    else: # Linux/macOS
+        locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_ALL, '') # Usa o locale padrão do sistema como fallback
+        logging.warning("Locale 'pt_BR' não encontrado. Usando locale padrão do sistema. A data pode aparecer em inglês.")
+    except locale.Error:
+        logging.error("Não foi possível configurar o locale. As datas podem não ser formatadas corretamente.")
+
+# --- CORREÇÃO PARA ERRO 'bad screen distance "0.0"' ---
+# Garante que a escala da UI seja um valor inteiro, o que evita erros no CustomTkinter
+# em algumas configurações de sistema.
+try:
+    import customtkinter
+    customtkinter.set_widget_scaling(1)
+except Exception:
+    pass # Ignora se o customtkinter não estiver disponível ou falhar
+
+from core.language_model import LanguageModel
+from core.command_system import CommandSystem
+from commands.system_commands import register_system_commands
+from commands.web_commands import register_web_commands
+from commands.basic_commands import register_basic_commands
+from commands.crypto_commands import register_crypto_commands
+from commands.voice_commands import register_voice_commands
+from commands.media_commands import register_media_commands
+from commands.ddos_commands import register_ddos_commands
+from config.settings import Settings
+import importlib.util
+
+# Tentar importar módulo de trading
+try:
+    from trading.binance_client import BinanceClient
+    from trading.trading_engine import TradingEngine
+    TRADING_AVAILABLE = True
+    logging.getLogger(__name__).info("✅ Módulo de trading carregado com sucesso")
+except ImportError as e:
+    logging.getLogger(__name__).warning(f"⚠️ Módulo de trading não disponível: {e}")
+    logging.getLogger(__name__).info("🔧 Usando módulo de trading simulado...")
+    
+    # Define classes básicas como fallback
+    class BinanceClient:
+        def __init__(self, api_key="", secret_key="", testnet=False): # CORREÇÃO: Padrão para False
+            self.api_key = api_key
+            self.secret_key = secret_key
+            self.testnet = testnet # Mantém o parâmetro, mas o padrão é False
+            self.logger = logging.getLogger(__name__)
+        
+        def test_connection(self): 
+            self.logger.info("🔗 Conexão Binance simulada")
+            return bool(self.api_key and self.secret_key)
+        
+        def get_ticker_price(self, symbol): 
+            prices = {'BTCUSDT': 45000.0, 'ETHUSDT': 3000.0, 'ADAUSDT': 0.5, 'DOGEUSDT': 0.1, 'XNOUSDT': 1.5}
+            return prices.get(symbol, 100.0)
+        
+        def get_account_info(self): 
+            return {
+                'balances': [
+                    {'asset': 'BTC', 'free': '0.1', 'locked': '0.0'},
+                    {'asset': 'ETH', 'free': '1.5', 'locked': '0.0'},
+                    {'asset': 'USDT', 'free': '5000.0', 'locked': '0.0'}
+                ]
+            }
+        
+        def get_balances(self):
+            return {
+                'BTC': {'free': 0.1, 'locked': 0.0, 'total': 0.1},
+                'ETH': {'free': 1.5, 'locked': 0.0, 'total': 1.5},
+                'USDT': {'free': 5000.0, 'locked': 0.0, 'total': 5000.0}
+            }
+        
+        def create_order(self, symbol, side, quantity): 
+            self.logger.info(f"📝 Ordem simulada: {side} {quantity} {symbol}")
+            return {'orderId': 123, 'fills': [{'price': self.get_ticker_price(symbol)}]}
+    
+    class TradingEngine:
+        def __init__(self, binance_client=None, trade_callback=None):
+            self.binance_client = binance_client
+            self.is_trading = False
+            self.is_scanner_running = False
+            self.logger = logging.getLogger(__name__)
+            self.scanner_positions = {}
+            self.trade_history = []
+        
+        def start_auto_trading(self, strategy, symbol, **kwargs): 
+            quantity = kwargs.get('quantity', 0.0)
+            if strategy == 'scanner':
+                self.logger.info(f"🚀 Auto trading simulado: {strategy} com quantidade {quantity}")
+                self.is_scanner_running = True
+            else:
+                self.logger.info(f"🚀 Auto trading simulado: {strategy} {symbol} {quantity}")
+            self.is_trading = True
+            return True
+        
+        def stop_auto_trading(self, symbol=None): 
+            self.is_trading = False
+            self.is_scanner_running = False
+            self.logger.info("⏹️ Auto trading parado")
+        
+        def manual_trade(self, symbol, side, quantity): 
+            self.logger.info(f"🎯 Trade manual simulado: {side} {quantity} {symbol}")
+            return True
+        
+        def get_status(self): 
+            return {
+                'trading_ativo': self.is_trading,
+                'pares_ativos': ['BTCUSDT (simulado)'] if self.is_trading and not self.is_scanner_running else (['DOGEUSDT (scanner)'] if self.is_scanner_running else []),
+                'trades_ativos': 0,
+                'total_historico_trades': 0,
+                'pares_detalhes': {}
+            }
+        
+        def get_account_balances(self): 
+            # CORREÇÃO: Deleta a chamada para o binance_client real,
+            # para que ele possa buscar os saldos reais se as chaves forem válidas,
+            # ou retornar um dicionário vazio se não forem.
+            return self.binance_client.get_balances()
+        
+        def get_available_symbols(self): 
+            return ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOGEUSDT', 'XNOUSDT']
+        
+        def get_symbol_config(self, symbol):
+            configs = {
+                'BTCUSDT': {'name': 'Bitcoin', 'quantity': 0.001},
+                'ETHUSDT': {'name': 'Ethereum', 'quantity': 0.01},
+                'ADAUSDT': {'name': 'Cardano', 'quantity': 100.0},
+                'DOGEUSDT': {'name': 'Dogecoin', 'quantity': 1000.0},
+                'XNOUSDT': {'name': 'Nano', 'quantity': 50.0}
+            }
+            return configs.get(symbol)
+
+        def get_trades_for_symbol(self, symbol):
+            return []
+    
+    TRADING_AVAILABLE = False
+
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('r2_assistant.log', encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+# Logger para este módulo
+logger = logging.getLogger(__name__)
+
+# --- Seleção da Interface Gráfica ---
+# Alterne entre 'futuristic' e 'modern' para escolher a UI
+UI_CHOICE = 'futuristic' # Mude para 'modern' para usar a outra UI
+
+def update_env_file(data_to_update: dict):
+    """Atualiza ou adiciona chaves em um arquivo .env."""
+    env_file = '.env'
+    env_vars = {}
+    if os.path.exists(env_file):
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env_vars[key.strip()] = value.strip()
+
+    env_vars.update(data_to_update)
+
+    with open(env_file, 'w') as f:
+        for key, value in env_vars.items():
+            f.write(f'{key}={value}\n')
+
+def load_api_keys():
+    """Carrega todas as chaves de API do ambiente (arquivo .env)."""
+    # A função load_dotenv() já foi chamada no início do script.
+    # Agora, apenas lemos as variáveis do ambiente.
+    logging.info("🔑 Carregando chaves de API do arquivo .env...")
+    keys = {
+        'binance_api_key': os.getenv('BINANCE_API_KEY', ''),
+        'binance_secret_key': os.getenv('BINANCE_SECRET_KEY', ''),
+        'spotify_client_id': os.getenv('SPOTIFY_CLIENT_ID', ''),
+        'spotify_client_secret': os.getenv('SPOTIFY_CLIENT_SECRET', ''),
+    }
+    # Também carregamos outras chaves que podem estar no .env
+    keys['openrouter_api_key'] = os.getenv('OPENROUTER_API_KEY', '')
+    keys['news_api_key'] = os.getenv('NEWS_API_KEY', '')
+    keys['weather_api_key'] = os.getenv('WEATHER_API_KEY', '')
+    return keys
+
+class R2Assistant:
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        
+        # Valida configurações
+        Settings.validate_apis()
+        
+        # Carrega chaves salvas
+        api_keys = load_api_keys()
+        self.binance_api_key = api_keys['binance_api_key']
+        self.binance_secret_key = api_keys['binance_secret_key']
+
+        # Carrega chave do OpenRouter e inicializa o modelo de linguagem
+        self.openrouter_api_key = api_keys['openrouter_api_key']
+        self.language_model = LanguageModel(self.openrouter_api_key)
+
+        # --- MELHORIA: Carrega os módulos dinamicamente ---
+        self.loaded_features = self._load_features()
+
+        # Variáveis para o monitoramento de alerta solar
+        self.last_solar_flare_check = 0
+        self.kp_storm_alert_issued = False # Novo: para evitar alertas repetidos
+        # --- CORREÇÃO DEFINITIVA: A GUI deve ser inicializada ANTES dos módulos de áudio ---
+        if UI_CHOICE == 'futuristic':
+            from gui.futuristic_ui import FuturisticUI
+            self.gui = FuturisticUI(
+                command_system=None, # Passa None, será atualizado depois
+                audio_processor=None, # Passa None, será atualizado depois
+                voice_engine=None, # Passa None, será atualizado depois
+                api_keys=api_keys,
+                web_api_keys={'news': api_keys['news_api_key'], 'weather': api_keys['weather_api_key']},
+                activation_callback=self._activation_callback
+            )
+            self.logger.info("🎨 Interface Gráfica Futurista carregada.")
+        else:
+            from gui.new_design import ModernGUI
+            self.gui = ModernGUI(
+                None, # Passa None, será atualizado depois
+                None, # Passa None, será atualizado depois
+                None, # Passa None, será atualizado depois
+                self.loaded_features.get('trading', {}).get('instance'), # Passa a instância de trading
+                self.binance_api_key,
+                self.binance_secret_key,
+                self.reinitialize_trading_engine, # Passa a função de reinicialização
+            )
+
+        # --- CORREÇÃO DEFINITIVA: Inicializa os componentes de voz e comando DEPOIS da GUI ter sido criada ---
+        # As importações são movidas para aqui para garantir que a GUI seja criada ANTES de qualquer importação de pygame.
+        self.logger.info("🎤 Inicializando sistema de voz...")
+        from core.voice_engine import VoiceEngine
+        self.voice_engine = VoiceEngine(language=Settings.LANGUAGE, phrase_time_limit=10)
+        from core.audio_processor import AudioProcessor
+        self.audio_processor = AudioProcessor(lang=Settings.LANGUAGE.split('-')[0], use_audio=Settings.USE_AUDIO)
+        # O FunctionHandler é inicializado por último, pois suas dependências podem causar conflitos.
+        from core.function_handler import FunctionHandler
+        self.function_handler = FunctionHandler()
+        self.command_system = CommandSystem()
+
+        # Atualiza as referências na GUI que foram passadas como None
+        self.gui.command_system = self.command_system
+        self.gui.audio_processor = self.audio_processor
+        self.gui.voice_engine = self.voice_engine
+        self.gui.function_handler = self.function_handler
+
+        # Passa as instâncias e painéis dos módulos carregados para a GUI
+        for feature_name, feature_data in self.loaded_features.items():
+            if feature_data: # Garante que o módulo foi inicializado corretamente
+                self.gui.add_feature_panel(
+                    feature_name, feature_data, feature_data.get('tile_icon', '❓'), feature_data.get('tile_text', feature_name.title())
+                )
+
+        self.gui.panels['chat'].function_handler = self.function_handler # Garante que o painel de chat também tenha a referência
+        self.gui.update_component_references() # Método a ser criado na GUI
+
+        self._register_commands()
+        # --- CORREÇÃO DEFINITIVA: Conecta os callbacks DEPOIS da GUI ser criada ---
+        # Isso garante que qualquer inicialização de áudio (como o mixer do pygame)
+        # aconteça apenas quando a janela principal já existe, evitando o erro.
+        self.voice_command_callback = self._voice_callback
+        if UI_CHOICE == 'futuristic':
+            self.gui.set_voice_command_callback(self._voice_callback)
+
+        # Registra cleanup
+        atexit.register(self.cleanup)
+
+        # Conecta o callback de trade do engine à função da GUI
+        trading_feature = self.loaded_features.get('trading', {})
+        trading_engine = trading_feature.get('instance') if trading_feature else None
+        if trading_engine:
+            trading_engine.trade_callback = self.gui.on_trade_executed
+            self.logger.info("🔗 Callback de notificação de trade conectado à GUI.")
+            if 'trading' in self.gui.panels: # Garante que o painel foi criado
+                trading_engine.trade_history_update_callback = self.gui.panels['trading'].update_trade_history
+
+
+
+        self.logger.info("🚀 R2 Assistant inicializado com sucesso!")
+
+    def _load_features(self) -> dict:
+        """
+        Varre a pasta 'features', importa e inicializa cada módulo encontrado.
+        """
+        self.logger.info("🔍 Carregando módulos de 'features'...")
+        loaded_features = {}
+        features_dir = os.path.join(project_root, 'features')
+        if not os.path.isdir(features_dir):
+            return loaded_features
+
+        for feature_name in os.listdir(features_dir):
+            feature_path = os.path.join(features_dir, feature_name)
+            if os.path.isdir(feature_path):
+                init_file = os.path.join(feature_path, "__init__.py")
+                if not os.path.exists(init_file):
+                    self.logger.debug(f"Ignorando pasta '{feature_name}' em 'features' pois não contém __init__.py.")
+                    continue
+                try:
+                    # Importa dinamicamente o __init__.py do módulo
+                    spec = importlib.util.spec_from_file_location(
+                        f"features.{feature_name}", init_file)
+                    feature_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(feature_module)
+
+                    # Chama a função 'initialize' que deve existir no __init__.py
+                    if hasattr(feature_module, 'initialize'):
+                        # Passa chaves para módulos que precisam (ex: trading)
+                        if feature_name == 'trading':
+                            feature_data = feature_module.initialize(self.binance_api_key, self.binance_secret_key)
+                        # CORREÇÃO: Passa dependências para o módulo noaa
+                        elif feature_name == 'noaa':
+                             # O módulo noaa pode precisar de chaves no futuro, como a de clima
+                            weather_key = os.getenv('WEATHER_API_KEY', '')
+                            feature_data = feature_module.initialize(api_key=weather_key)
+                        else:
+                            feature_data = feature_module.initialize()
+                        
+                        if feature_data:
+                            loaded_features[feature_name] = feature_data
+                            # Registra o método stop, se existir
+                            instance = feature_data.get('instance')
+                            if instance and hasattr(instance, 'stop'):
+                                atexit.register(instance.stop)
+
+                        self.logger.info(f"✅ Módulo '{feature_name}' carregado com sucesso.")
+                except Exception as e:
+                    self.logger.error(f"❌ Falha ao carregar o módulo '{feature_name}': {e}")
+        return loaded_features
+
+    def reinitialize_trading_engine(self, api_key: str, secret_key: str) -> bool:
+        """Tenta reinicializar o TradingEngine com novas chaves."""
+        self.logger.info("🔄 Tentando reinicializar o Trading Engine com novas credenciais...")
+        
+        if not TRADING_AVAILABLE:
+            self.logger.error("Módulo de trading real não está disponível. Não é possível reinicializar.")
+            return False
+
+        try:
+            trading_feature = self.loaded_features.get('trading')
+            if not trading_feature:
+                self.logger.error("Módulo de trading não está carregado. Não é possível reinicializar.")
+                return False
+
+            binance_client = BinanceClient(
+                api_key, secret_key, False
+            )
+            if binance_client.test_connection():
+                trading_engine = TradingEngine(binance_client)
+                trading_feature['instance'] = trading_engine
+                self.gui.panels['trading'].trading_engine = trading_engine # Atualiza a referência no painel
+                # Reconecta o callback
+                trading_engine.trade_callback = self.gui.on_trade_executed
+                self.logger.info("✅ Trading Engine reinicializado com sucesso com a conta real!")
+                return True
+            else:
+                self.logger.error("❌ Falha na conexão com Binance ao tentar reinicializar. Usando modo simulado.")
+                # Volta para o simulado se a conexão falhar
+                # Usa o cliente simulado, que agora também aponta para a rede real para dados públicos
+                simulated_client_fallback = BinanceClient(api_key="", secret_key="", testnet=False)
+                trading_engine = TradingEngine(simulated_client_fallback)
+                trading_feature['instance'] = trading_engine
+                self.gui.panels['trading'].trading_engine = trading_engine
+                trading_engine.trade_callback = self.gui.on_trade_executed
+                return False
+        except Exception as e:
+            self.logger.error(f"Erro ao reinicializar Trading Engine: {e}")
+            return False
+
+    def toggle_trading_mode(self) -> str:
+        """
+        Alterna o Trading Engine entre o modo REAL (com chaves) e SIMULADO (sem chaves).
+        Retorna o novo modo ('Real' ou 'Simulado').
+        """
+        self.logger.info("🔄 Alternando modo de trading...")
+        trading_feature = self.loaded_features.get('trading')
+        if not trading_feature:
+            return "Indisponível"
+
+        # Verifica o modo atual: se o cliente tem chaves, está no modo real.
+        is_currently_real = bool(trading_feature['instance'] and trading_feature['instance'].binance_client.api_key)
+
+        if is_currently_real:
+            # Mudar para SIMULADO
+            self.logger.info("Mudando para modo de trading SIMULADO.")
+            simulated_client = BinanceClient(api_key="", secret_key="", testnet=False)
+            trading_feature['instance'] = TradingEngine(simulated_client)
+            new_mode = "Simulado"
+        else:
+            # Mudar para REAL
+            self.logger.info("Mudando para modo de trading REAL.")
+            # A função reinitialize lida com a criação do engine real
+            success = self.reinitialize_trading_engine(self.binance_api_key, self.binance_secret_key)
+            if success:
+                new_mode = "Real"
+            else:
+                # Se a reinicialização falhar, ele já volta para o simulado.
+                self.logger.error("Falha ao mudar para o modo REAL. Permanecendo em modo SIMULADO.")
+                new_mode = "Simulado"
+
+        # Atualiza a referência na GUI e reconecta os callbacks
+        if 'trading' in self.gui.panels:
+            self.gui.panels['trading'].trading_engine = trading_feature['instance']
+            trading_feature['instance'].trade_callback = self.gui.on_trade_executed
+            trading_feature['instance'].trade_history_update_callback = self.gui.panels['trading'].update_trade_history
+
+        self.logger.info(f"✅ Modo de trading alterado para: {new_mode}")
+        return new_mode
+
+    def save_and_reinitialize_apis(self, keys: dict):
+        """Salva as chaves no arquivo e reinicializa os serviços."""
+        self.logger.info("💾 Salvando novas chaves de API e reinicializando serviços...")
+        binance_keys = keys.get('binance', {})
+        spotify_keys = keys.get('spotify', {})
+
+        env_updates = {
+            'BINANCE_API_KEY': binance_keys.get('api_key', ''),
+            'BINANCE_SECRET_KEY': binance_keys.get('secret_key', ''),
+        }
+
+        update_env_file(env_updates)
+        self.logger.info("✅ Chaves salvas em '.env'")
+
+        self.reinitialize_trading_engine(env_updates['BINANCE_API_KEY'], env_updates['BINANCE_SECRET_KEY'])
+
+    def _configure_voice_settings(self):
+        """Aplica as configurações personalizadas de voz."""
+        self.logger.info("⚙️ Aplicando configurações de voz (pós-inicialização da GUI)...")
+        
+        if Settings.VOICE_TYPE == 'offline':
+            # Remove configuração de pitch no Windows para evitar erros
+            if os.name == 'nt':
+                self.logger.info("⚠️  Windows detectado - Desativando ajuste de tom")
+            else:
+                # A inicialização do pyttsx3 ocorrerá aqui, de forma segura.
+                self.audio_processor.set_voice_pitch(Settings.VOICE_PITCH)
+                
+            self.audio_processor.set_voice_rate(Settings.VOICE_RATE)
+            self.audio_processor.set_voice_volume(Settings.VOICE_VOLUME)
+            
+            # Lista vozes disponíveis no log
+            voices = self.audio_processor.list_available_voices()
+            if voices:
+                self.logger.info("🎙️  Vozes disponíveis no sistema:")
+                for voice in voices[:3]:
+                    self.logger.info(f"   - {voice['name']}")
+
+    def _register_commands(self):
+        """Registra todos os comandos disponíveis."""
+        self.logger.info("📝 Registrando comandos do sistema...")
+        
+        # Comandos do sistema
+        # CORREÇÃO: Passa a função necessária diretamente para evitar o ModuleNotFound
+        noaa_feature = self.loaded_features.get('noaa', {})
+        noaa_instance = noaa_feature.get('instance')
+        if noaa_instance and hasattr(noaa_instance, 'get_space_weather_summary'):
+             register_system_commands(self.command_system, self, noaa_instance.get_space_weather_summary)
+        else:
+             register_system_commands(self.command_system, self, lambda: "Serviço NOAA indisponível.")
+        
+        # Comandos web
+        register_web_commands(self.command_system, self)
+        
+        # Comandos básicos
+        register_basic_commands(self.command_system, self)
+
+        # Comandos de crypto/trading
+        register_crypto_commands(self.command_system, self)
+        
+        # Comandos de voz (novos)
+        register_voice_commands(self.command_system, self)
+
+        # Comandos de mídia (Spotify)
+        register_media_commands(self.command_system, self)
+
+        # Comandos de DDoS
+        register_ddos_commands(self.command_system, self)
+        
+        self.logger.info(f"✅ {len(self.command_system.commands)} comandos registrados")
+
+    def _voice_callback(self, text: str):
+        """Callback para comandos de voz recebidos"""
+        # Este método é chamado pela GUI ou pelo VoiceEngine
+        # Usa self.root.after para garantir que a atualização da GUI ocorra na thread principal
+        self.gui.after(0, self.gui.add_chat_message, "Você (Voz)", text)
+
+        # --- CORREÇÃO: Prioriza comandos diretos antes de usar o LLM ---
+        # 1. Tenta executar um comando direto (ex: "hora", "data")
+        command_executed = self.command_system.execute_command(
+            text,
+            lambda msg: self.gui.after(0, self.gui.add_chat_message, "R2", msg) or self.audio_processor.text_to_speech(msg),
+            self.voice_engine.listen_once
+        )
+
+        # 2. Se nenhum comando direto for encontrado, usa o "cérebro" (FunctionHandler) como fallback
+        if not command_executed:
+            self.logger.info(f"🎤 Comando não encontrado, usando LLM como fallback: '{text}'")
+            response = self.function_handler.process_command(text) or self.language_model.get_response(text)
+            self.gui.after(0, self.gui.add_chat_message, "R2", response)
+            self.audio_processor.text_to_speech(response)
+    
+    def _activation_callback(self):
+        """Callback para quando a palavra de ativação é ouvida."""
+        self.logger.info("🔑 Palavra de ativação detectada. Dando feedback de voz.")
+        self.gui.play_ui_sound('activate') # Toca o som de ativação
+        self.audio_processor.text_to_speech("Pois não?") # Resposta verbal
+
+    def start_voice_listening(self):
+        """Inicia a escuta de voz"""
+        self.logger.info("🎤 Iniciando escuta de voz...")
+        
+        # A GUI agora controla o início da escuta
+        self.gui.toggle_voice()
+
+    def stop_voice_listening(self):
+        """Para a escuta de voz"""
+        self.logger.info("⏹️ Parando escuta de voz...")
+        self.voice_engine.stop_listening()
+        self.audio_processor.text_to_speech("Escuta de voz desativada")
+
+    def _check_for_solar_flare_proactively(self):
+        """Verifica proativamente por alertas de explosão solar."""
+        # Verifica a cada 15 minutos (900 segundos)
+        if time.time() - self.last_solar_flare_check > 900:
+            self.logger.info("🛰️ Verificando proativamente por alertas de explosão solar...")
+            from features.noaa.noaa_service import get_latest_solar_flare_alert # Importação correta
+            self.last_solar_flare_check = time.time()
+            alert_message = get_latest_solar_flare_alert()
+            if alert_message:
+                self.logger.warning(f"ALERTA SOLAR DETECTADO: {alert_message}")
+                full_warning = f"Atenção! Alerta de atividade solar emitido pela NOAA: {alert_message}"
+                # Adiciona na GUI e fala para o usuário
+                self.gui.add_chat_message("ALERTA R2", full_warning, tag="error")
+                self.audio_processor.text_to_speech(full_warning)
+
+    def _check_for_kp_storm_proactively(self):
+        """Verifica proativamente por tempestades geomagnéticas (Índice Kp)."""
+        # Esta função será chamada junto com a verificação de flare
+        from features.noaa.noaa_service import _get_kp_index_value # Importação correta
+        self.logger.info("🌍 Verificando proativamente por tempestades geomagnéticas...")
+        kp_value = _get_kp_index_value()
+
+        if kp_value is not None:
+            # Condição de Alerta: Kp >= 5 e o alerta ainda não foi emitido
+            if kp_value >= 5 and not self.kp_storm_alert_issued:
+                self.kp_storm_alert_issued = True # Marca que o alerta foi emitido
+                warning_message = (
+                    f"Atenção, comandante! Detectada uma perturbação geomagnética significativa. "
+                    f"O Índice Kp escalou para {kp_value:.1f}. "
+                    f"Recomendo verificar os sistemas de comunicação."
+                )
+                self.logger.warning(f"ALERTA DE TEMPESTADE GEOMAGNÉTICA: Kp = {kp_value}")
+                self.gui.add_chat_message("ALERTA R2", warning_message, tag="error")
+                self.audio_processor.text_to_speech(warning_message)
+            
+            # Condição de Reset: A tempestade acabou
+            elif kp_value < 5 and self.kp_storm_alert_issued:
+                self.logger.info("Condições geomagnéticas normalizadas. Resetando alerta de tempestade.")
+                self.kp_storm_alert_issued = False # Reseta o alerta para a próxima tempestade
+
+    def cleanup(self):
+        """Limpeza de recursos."""
+        self.logger.info("🧹 Executando cleanup de recursos...")
+        
+        # Para sistema de voz
+        if hasattr(self, 'voice_engine'):
+            self.voice_engine.stop_listening()
+            
+        # Para processamento de áudio
+        if hasattr(self, 'audio_processor'):
+            self.audio_processor.stop_tts()
+            
+        # Para trading
+        if hasattr(self, 'trading_engine') and self.trading_engine:
+            self.trading_engine.stop_auto_trading()
+        
+        self.logger.info("✅ Cleanup concluído")
+
+    def run(self):
+        """Inicia o assistente."""
+        self.logger.info("🚀 Iniciando R2 Assistant...")
+        
+        # Verifica se o sistema de voz está disponível
+        if not self.voice_engine.is_audio_available():
+            self.logger.warning("🎤 Sistema de voz pode não estar disponível. Verifique:")
+            self.logger.warning("1. Se o microfone está conectado e funcionando")
+            self.logger.warning("2. Se as permissões de áudio estão concedidas")
+            self.logger.warning("3. Se as bibliotecas de áudio estão instaladas")
+            print("\n📥 Para instalar as dependências de voz:")
+            print("pip install speechrecognition pyttsx3 gtts pygame")
+        
+        # Mensagem de boas-vindas
+        welcome_message = f"""
+🤖 R2 ASSISTANT INICIALIZADO!
+
+💡 Funcionalidades disponíveis:
+• 🎤 Comandos de voz: Diga 'voz' para ativar/desativar
+• 📈 Trading: Acesso completo à Binance
+• 🌐 Pesquisas: Notícias, previsão do tempo
+• ⚡ Sistema: Hora, data, abrir programas
+
+🔧 Status do sistema:
+• Voz: {'✅ Disponível' if self.voice_engine.is_audio_available() else '❌ Indisponível'}
+• Trading: {'✅ Conectado' if self.loaded_features.get('trading', {}).get('instance') and self.loaded_features['trading']['instance'].binance_client.api_key else '❌ Simulado'}
+• Comandos: {len(self.command_system.commands)} registrados
+
+💬 Diga 'ajuda' ou 'comandos' para ver todas as opções!
+        """
+        logger.info(welcome_message)
+        
+        try:
+            # Inicia a interface gráfica
+
+            # Adiciona a verificação proativa no loop da GUI
+            # A função `run` da GUI é bloqueante, então a verificação precisa ser chamada de dentro dela.
+            def proactive_checks():
+                self._check_for_solar_flare_proactively()
+                self._check_for_kp_storm_proactively()
+                self.gui.after(900 * 1000, proactive_checks) # Reagenda para daqui a 15 min
+            self.gui.after(900 * 1000, proactive_checks) # Inicia o ciclo de verificações
+            self.gui.run()
+            
+        except KeyboardInterrupt:
+            self.logger.info("🛑 R2 finalizado pelo usuário (Ctrl+C)")
+            self.audio_processor.text_to_speech("Assistente finalizado")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Erro fatal: {e}")
+            self.audio_processor.text_to_speech("Erro crítico no sistema")
+            
+        finally:
+            self.cleanup()
+
+def main():
+    """Função principal com tratamento de exceções"""
+    try:
+        assistant = R2Assistant()
+        assistant.run()
+        
+    except ImportError as e:
+        logger.error(f"❌ Erro de importação: {e}")
+        logger.info("\n🔧 Soluções possíveis:")
+        logger.info("1. Execute: pip install -r requirements.txt")
+        logger.info("2. Verifique se todos os módulos estão nos diretórios corretos")
+        logger.info("3. Execute: python setup.py (se disponível)")
+        
+    except Exception as e:
+        logger.exception(f"❌ Erro fatal na inicialização: {e}")
+        logger.info("\n📋 Informações para debug:")
+        logger.info(f"Python: {sys.version}")
+        logger.info(f"Diretório: {os.getcwd()}")
+        logger.info(f"Path: {sys.path}")
+
+if __name__ == "__main__":
+    main()
+''''''''''''''
+#!/usr/bin/env python3
+"""
+R2 Assistant - Assistente Pessoal Completo com Trading Automático
+Sistema de Voz Reimplementado - Versão Completa com DDoS, NOAA e Alertas Solares
+"""
+
+import os
+import sys
+import logging
+import atexit
+import locale
+import platform
+import time
+from dotenv import load_dotenv
+
+# --- CORREÇÃO: Carrega as variáveis de ambiente ANTES de qualquer outra importação ---
+# Isso garante que as chaves de API estejam disponíveis para todos os módulos.
+load_dotenv()
+
+# --- CORREÇÃO DO CAMINHO DE IMPORTAÇÃO ---
+# Adiciona a pasta raiz do projeto (C:\R2) ao início do path do sistema.
+# Isso garante que todos os módulos (core, modules, commands, etc.)
+# possam ser encontrados de qualquer lugar do projeto.
+project_root = os.path.dirname(__file__)
+sys.path.insert(0, project_root)
+
+# --- CORREÇÃO CRÍTICA PARA DATAS EM PORTUGUÊS ---
+# Define o locale para português do Brasil para garantir que os nomes dos meses
+# (ex: "Setembro") sejam formatados corretamente pela função `strftime`.
+try:
+    if platform.system() == "Windows":
+        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+    else: # Linux/macOS
+        locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_ALL, '') # Usa o locale padrão do sistema como fallback
+        logging.warning("Locale 'pt_BR' não encontrado. Usando locale padrão do sistema. A data pode aparecer em inglês.")
+    except locale.Error:
+        logging.error("Não foi possível configurar o locale. As datas podem não ser formatadas corretamente.")
+
+# --- CORREÇÃO CRÍTICA PARA ERRO 'bad screen distance "0.0"' ---
+# Importa o customtkinter e define a escala ANTES de qualquer outra coisa.
+# Isso força a UI a usar uma escala de 100% (sem arredondamentos),
+# o que previne o erro em algumas configurações de display do Windows.
+try:
+    import customtkinter
+    # Força a escala para 100% (valor inteiro) para evitar erros de arredondamento.
+    customtkinter.set_widget_scaling(1)
+except Exception as e:
+    logging.warning(f"Não foi possível forçar a escala da UI: {e}")
+
+from core.language_model import LanguageModel
+from core.command_system import CommandSystem
+from commands.system_commands import register_system_commands
+from commands.web_commands import register_web_commands
+from commands.basic_commands import register_basic_commands
+from commands.crypto_commands import register_crypto_commands
+from commands.voice_commands import register_voice_commands
+from commands.media_commands import register_media_commands
+from commands.ddos_commands import register_ddos_commands
+from config.settings import Settings
+import importlib.util
+
+# Tentar importar módulo de trading
+try:
+    from trading.binance_client import BinanceClient
+    from trading.trading_engine import TradingEngine
+    TRADING_AVAILABLE = True
+    logging.getLogger(__name__).info("✅ Módulo de trading carregado com sucesso")
+except ImportError as e:
+    logging.getLogger(__name__).warning(f"⚠️ Módulo de trading não disponível: {e}")
+    logging.getLogger(__name__).info("🔧 Usando módulo de trading simulado...")
+    
+    # Define classes básicas como fallback
+    class BinanceClient:
+        def __init__(self, api_key="", secret_key="", testnet=False): # CORREÇÃO: Padrão para False
+            self.api_key = api_key
+            self.secret_key = secret_key
+            self.testnet = testnet # Mantém o parâmetro, mas o padrão é False
+            self.logger = logging.getLogger(__name__)
+        
+        def test_connection(self): 
+            self.logger.info("🔗 Conexão Binance simulada")
+            return bool(self.api_key and self.secret_key)
+        
+        def get_ticker_price(self, symbol): 
+            prices = {'BTCUSDT': 45000.0, 'ETHUSDT': 3000.0, 'ADAUSDT': 0.5, 'DOGEUSDT': 0.1, 'XNOUSDT': 1.5}
+            return prices.get(symbol, 100.0)
+        
+        def get_account_info(self): 
+            return {
+                'balances': [
+                    {'asset': 'BTC', 'free': '0.1', 'locked': '0.0'},
+                    {'asset': 'ETH', 'free': '1.5', 'locked': '0.0'},
+                    {'asset': 'USDT', 'free': '5000.0', 'locked': '0.0'}
+                ]
+            }
+        
+        def get_balances(self):
+            return {
+                'BTC': {'free': 0.1, 'locked': 0.0, 'total': 0.1},
+                'ETH': {'free': 1.5, 'locked': 0.0, 'total': 1.5},
+                'USDT': {'free': 5000.0, 'locked': 0.0, 'total': 5000.0}
+            }
+        
+        def create_order(self, symbol, side, quantity): 
+            self.logger.info(f"📝 Ordem simulada: {side} {quantity} {symbol}")
+            return {'orderId': 123, 'fills': [{'price': self.get_ticker_price(symbol)}]}
+    
+    class TradingEngine:
+        def __init__(self, binance_client=None, trade_callback=None):
+            self.binance_client = binance_client
+            self.is_trading = False
+            self.is_scanner_running = False
+            self.logger = logging.getLogger(__name__)
+            self.scanner_positions = {}
+            self.trade_history = []
+        
+        def start_auto_trading(self, strategy, symbol, **kwargs): 
+            quantity = kwargs.get('quantity', 0.0)
+            if strategy == 'scanner':
+                self.logger.info(f"🚀 Auto trading simulado: {strategy} com quantidade {quantity}")
+                self.is_scanner_running = True
+            else:
+                self.logger.info(f"🚀 Auto trading simulado: {strategy} {symbol} {quantity}")
+            self.is_trading = True
+            return True
+        
+        def stop_auto_trading(self, symbol=None): 
+            self.is_trading = False
+            self.is_scanner_running = False
+            self.logger.info("⏹️ Auto trading parado")
+        
+        def manual_trade(self, symbol, side, quantity): 
+            self.logger.info(f"🎯 Trade manual simulado: {side} {quantity} {symbol}")
+            return True
+        
+        def get_status(self): 
+            return {
+                'trading_ativo': self.is_trading,
+                'pares_ativos': ['BTCUSDT (simulado)'] if self.is_trading and not self.is_scanner_running else (['DOGEUSDT (scanner)'] if self.is_scanner_running else []),
+                'trades_ativos': 0,
+                'total_historico_trades': 0,
+                'pares_detalhes': {}
+            }
+        
+        def get_account_balances(self): 
+            # CORREÇÃO: Deleta a chamada para o binance_client real,
+            # para que ele possa buscar os saldos reais se as chaves forem válidas,
+            # ou retornar um dicionário vazio se não forem.
+            return self.binance_client.get_balances()
+        
+        def get_available_symbols(self): 
+            return ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'DOGEUSDT', 'XNOUSDT']
+        
+        def get_symbol_config(self, symbol):
+            configs = {
+                'BTCUSDT': {'name': 'Bitcoin', 'quantity': 0.001},
+                'ETHUSDT': {'name': 'Ethereum', 'quantity': 0.01},
+                'ADAUSDT': {'name': 'Cardano', 'quantity': 100.0},
+                'DOGEUSDT': {'name': 'Dogecoin', 'quantity': 1000.0},
+                'XNOUSDT': {'name': 'Nano', 'quantity': 50.0}
+            }
+            return configs.get(symbol)
+
+        def get_trades_for_symbol(self, symbol):
+            return []
+    
+    TRADING_AVAILABLE = False
+
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('r2_assistant.log', encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+# Logger para este módulo
+logger = logging.getLogger(__name__)
+
+# --- Seleção da Interface Gráfica ---
+# Alterne entre 'futuristic' e 'modern' para escolher a UI
+UI_CHOICE = 'futuristic' # Mude para 'modern' para usar a outra UI
+
+def update_env_file(data_to_update: dict):
+    """Atualiza ou adiciona chaves em um arquivo .env."""
+    env_file = '.env'
+    env_vars = {}
+    if os.path.exists(env_file):
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env_vars[key.strip()] = value.strip()
+
+    env_vars.update(data_to_update)
+
+    with open(env_file, 'w') as f:
+        for key, value in env_vars.items():
+            f.write(f'{key}={value}\n')
+
+def load_api_keys():
+    """Carrega todas as chaves de API do ambiente (arquivo .env)."""
+    # A função load_dotenv() já foi chamada no início do script.
+    # Agora, apenas lemos as variáveis do ambiente.
+    logging.info("🔑 Carregando chaves de API do arquivo .env...")
+    keys = {
+        'binance_api_key': os.getenv('BINANCE_API_KEY', ''),
+        'binance_secret_key': os.getenv('BINANCE_SECRET_KEY', ''),
+        'spotify_client_id': os.getenv('SPOTIFY_CLIENT_ID', ''),
+        'spotify_client_secret': os.getenv('SPOTIFY_CLIENT_SECRET', ''),
+    }
+    # Também carregamos outras chaves que podem estar no .env
+    keys['openrouter_api_key'] = os.getenv('OPENROUTER_API_KEY', '')
+    keys['news_api_key'] = os.getenv('NEWS_API_KEY', '')
+    keys['weather_api_key'] = os.getenv('WEATHER_API_KEY', '')
+    return keys
+
+class R2Assistant:
+    def __init__(self, gui):
+        self.logger = logging.getLogger(__name__)
+        self.gui = gui # Recebe a instância da GUI já criada
+        
+        # Valida configurações
+        Settings.validate_apis()
+        
+        # Carrega chaves salvas
+        self.api_keys = load_api_keys()
+        self.binance_api_key = self.api_keys['binance_api_key']
+        self.binance_secret_key = self.api_keys['binance_secret_key']
+
+        # Carrega chave do OpenRouter e inicializa o modelo de linguagem
+        self.openrouter_api_key = self.api_keys['openrouter_api_key']
+        self.language_model = LanguageModel(self.openrouter_api_key)
+
+        # --- MELHORIA: Carrega os módulos dinamicamente ---
+        self.loaded_features = self._load_features()
+
+        # Variáveis para o monitoramento de alerta solar
+        self.last_solar_flare_check = 0
+        self.kp_storm_alert_issued = False # Novo: para evitar alertas repetidos
+
+        # --- Inicializa os componentes de voz e comando DEPOIS da GUI ter sido criada ---
+        # As importações são movidas para aqui para garantir que a GUI seja criada ANTES de qualquer importação de pygame.
+        self.logger.info("🎤 Inicializando sistema de voz...")
+        from core.voice_engine import VoiceEngine
+        self.voice_engine = VoiceEngine(language=Settings.LANGUAGE, phrase_time_limit=10)
+        from core.audio_processor import AudioProcessor
+        self.audio_processor = AudioProcessor(lang=Settings.LANGUAGE.split('-')[0])
+        # O FunctionHandler é inicializado por último
+        from core.function_handler import FunctionHandler
+        self.function_handler = FunctionHandler()
+        self.command_system = CommandSystem()
+
+        # Atualiza as referências na GUI que foram passadas como None
+        self.gui.command_system = self.command_system
+        self.gui.audio_processor = self.audio_processor
+        self.gui.voice_engine = self.voice_engine
+        self.gui.function_handler = self.function_handler
+        self.gui.api_keys = self.api_keys
+        self.gui.web_api_keys = {'news': self.api_keys['news_api_key'], 'weather': self.api_keys['weather_api_key']}
+
+        # Passa as instâncias e painéis dos módulos carregados para a GUI
+        for feature_name, feature_data in self.loaded_features.items():
+            if feature_data: # Garante que o módulo foi inicializado corretamente
+                self.gui.add_feature_panel(
+                    feature_name, feature_data, feature_data.get('tile_icon', '❓'), feature_data.get('tile_text', feature_name.title())
+                )
+
+        self.gui.panels['chat'].function_handler = self.function_handler # Garante que o painel de chat também tenha a referência
+        self.gui.update_component_references() # Método a ser criado na GUI
+
+        # Registra comandos e callbacks DEPOIS de tudo estar inicializado
+        self._register_commands()
+        self.voice_command_callback = self._voice_callback
+        self.gui.set_voice_command_callback(self._voice_callback)
+        self.gui.set_activation_callback(self._activation_callback)
+
+        # Registra cleanup
+        atexit.register(self.cleanup)
+
+        # Conecta o callback de trade do engine à função da GUI
+        trading_feature = self.loaded_features.get('trading', {})
+        trading_engine = trading_feature.get('instance') if trading_feature else None
+        if trading_engine:
+            trading_engine.trade_callback = self.gui.on_trade_executed
+            self.logger.info("🔗 Callback de notificação de trade conectado à GUI.")
+            if 'trading' in self.gui.panels: # Garante que o painel foi criado
+                trading_engine.trade_history_update_callback = self.gui.panels['trading'].update_trade_history
+
+
+
+        self.logger.info("🚀 R2 Assistant inicializado com sucesso!")
+
+    def _load_features(self) -> dict:
+        """
+        Varre a pasta 'features', importa e inicializa cada módulo encontrado.
+        """
+        self.logger.info("🔍 Carregando módulos de 'features'...")
+        loaded_features = {}
+        features_dir = os.path.join(project_root, 'features')
+        if not os.path.isdir(features_dir):
+            return loaded_features
+
+        for feature_name in os.listdir(features_dir):
+            feature_path = os.path.join(features_dir, feature_name)
+            if os.path.isdir(feature_path):
+                init_file = os.path.join(feature_path, "__init__.py")
+                if not os.path.exists(init_file):
+                    self.logger.debug(f"Ignorando pasta '{feature_name}' em 'features' pois não contém __init__.py.")
+                    continue
+                try:
+                    # Importa dinamicamente o __init__.py do módulo
+                    spec = importlib.util.spec_from_file_location(
+                        f"features.{feature_name}", init_file)
+                    feature_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(feature_module)
+
+                    # Chama a função 'initialize' que deve existir no __init__.py
+                    if hasattr(feature_module, 'initialize'):
+                        # Passa chaves para módulos que precisam (ex: trading)
+                        if feature_name == 'trading':
+                            feature_data = feature_module.initialize(self.binance_api_key, self.binance_secret_key)
+                        # CORREÇÃO: Passa dependências para o módulo noaa
+                        elif feature_name == 'noaa':
+                             # O módulo noaa pode precisar de chaves no futuro, como a de clima
+                            weather_key = os.getenv('WEATHER_API_KEY', '')
+                            feature_data = feature_module.initialize(api_key=weather_key)
+                        else:
+                            feature_data = feature_module.initialize()
+                        
+                        if feature_data:
+                            loaded_features[feature_name] = feature_data
+                            # Registra o método stop, se existir
+                            instance = feature_data.get('instance')
+                            if instance and hasattr(instance, 'stop'):
+                                atexit.register(instance.stop)
+
+                        self.logger.info(f"✅ Módulo '{feature_name}' carregado com sucesso.")
+                except Exception as e:
+                    self.logger.error(f"❌ Falha ao carregar o módulo '{feature_name}': {e}")
+        return loaded_features
+
+    def reinitialize_trading_engine(self, api_key: str, secret_key: str) -> bool:
+        """Tenta reinicializar o TradingEngine com novas chaves."""
+        self.logger.info("🔄 Tentando reinicializar o Trading Engine com novas credenciais...")
+        
+        if not TRADING_AVAILABLE:
+            self.logger.error("Módulo de trading real não está disponível. Não é possível reinicializar.")
+            return False
+
+        try:
+            trading_feature = self.loaded_features.get('trading')
+            if not trading_feature:
+                self.logger.error("Módulo de trading não está carregado. Não é possível reinicializar.")
+                return False
+
+            binance_client = BinanceClient(
+                api_key, secret_key, False
+            )
+            if binance_client.test_connection():
+                trading_engine = TradingEngine(binance_client)
+                trading_feature['instance'] = trading_engine
+                self.gui.panels['trading'].trading_engine = trading_engine # Atualiza a referência no painel
+                # Reconecta o callback
+                trading_engine.trade_callback = self.gui.on_trade_executed
+                self.logger.info("✅ Trading Engine reinicializado com sucesso com a conta real!")
+                return True
+            else:
+                self.logger.error("❌ Falha na conexão com Binance ao tentar reinicializar. Usando modo simulado.")
+                # Volta para o simulado se a conexão falhar
+                # Usa o cliente simulado, que agora também aponta para a rede real para dados públicos
+                simulated_client_fallback = BinanceClient(api_key="", secret_key="", testnet=False)
+                trading_engine = TradingEngine(simulated_client_fallback)
+                trading_feature['instance'] = trading_engine
+                self.gui.panels['trading'].trading_engine = trading_engine
+                trading_engine.trade_callback = self.gui.on_trade_executed
+                return False
+        except Exception as e:
+            self.logger.error(f"Erro ao reinicializar Trading Engine: {e}")
+            return False
+
+    def toggle_trading_mode(self) -> str:
+        """
+        Alterna o Trading Engine entre o modo REAL (com chaves) e SIMULADO (sem chaves).
+        Retorna o novo modo ('Real' ou 'Simulado').
+        """
+        self.logger.info("🔄 Alternando modo de trading...")
+        trading_feature = self.loaded_features.get('trading')
+        if not trading_feature:
+            return "Indisponível"
+
+        # Verifica o modo atual: se o cliente tem chaves, está no modo real.
+        is_currently_real = bool(trading_feature['instance'] and trading_feature['instance'].binance_client.api_key)
+
+        if is_currently_real:
+            # Mudar para SIMULADO
+            self.logger.info("Mudando para modo de trading SIMULADO.")
+            simulated_client = BinanceClient(api_key="", secret_key="", testnet=False)
+            trading_feature['instance'] = TradingEngine(simulated_client)
+            new_mode = "Simulado"
+        else:
+            # Mudar para REAL
+            self.logger.info("Mudando para modo de trading REAL.")
+            # A função reinitialize lida com a criação do engine real
+            success = self.reinitialize_trading_engine(self.binance_api_key, self.binance_secret_key)
+            if success:
+                new_mode = "Real"
+            else:
+                # Se a reinicialização falhar, ele já volta para o simulado.
+                self.logger.error("Falha ao mudar para o modo REAL. Permanecendo em modo SIMULADO.")
+                new_mode = "Simulado"
+
+        # Atualiza a referência na GUI e reconecta os callbacks
+        if 'trading' in self.gui.panels:
+            self.gui.panels['trading'].trading_engine = trading_feature['instance']
+            trading_feature['instance'].trade_callback = self.gui.on_trade_executed
+            trading_feature['instance'].trade_history_update_callback = self.gui.panels['trading'].update_trade_history
+
+        self.logger.info(f"✅ Modo de trading alterado para: {new_mode}")
+        return new_mode
+
+    def save_and_reinitialize_apis(self, keys: dict):
+        """Salva as chaves no arquivo e reinicializa os serviços."""
+        self.logger.info("💾 Salvando novas chaves de API e reinicializando serviços...")
+        binance_keys = keys.get('binance', {})
+        spotify_keys = keys.get('spotify', {})
+
+        env_updates = {
+            'BINANCE_API_KEY': binance_keys.get('api_key', ''),
+            'BINANCE_SECRET_KEY': binance_keys.get('secret_key', ''),
+        }
+
+        update_env_file(env_updates)
+        self.logger.info("✅ Chaves salvas em '.env'")
+
+        self.reinitialize_trading_engine(env_updates['BINANCE_API_KEY'], env_updates['BINANCE_SECRET_KEY'])
+
+    def _configure_voice_settings(self):
+        """Aplica as configurações personalizadas de voz."""
+        self.logger.info("⚙️ Aplicando configurações de voz (pós-inicialização da GUI)...")
+        
+        if Settings.VOICE_TYPE == 'offline':
+            # Remove configuração de pitch no Windows para evitar erros
+            if os.name == 'nt':
+                self.logger.info("⚠️  Windows detectado - Desativando ajuste de tom")
+            else:
+                # A inicialização do pyttsx3 ocorrerá aqui, de forma segura.
+                self.audio_processor.set_voice_pitch(Settings.VOICE_PITCH)
+                
+            self.audio_processor.set_voice_rate(Settings.VOICE_RATE)
+            self.audio_processor.set_voice_volume(Settings.VOICE_VOLUME)
+            
+            # Lista vozes disponíveis no log
+            voices = self.audio_processor.list_available_voices()
+            if voices:
+                self.logger.info("🎙️  Vozes disponíveis no sistema:")
+                for voice in voices[:3]:
+                    self.logger.info(f"   - {voice['name']}")
+
+    def _register_commands(self):
+        """Registra todos os comandos disponíveis."""
+        self.logger.info("📝 Registrando comandos do sistema...")
+        
+        # Comandos do sistema
+        # CORREÇÃO: Passa a função necessária diretamente para evitar o ModuleNotFound
+        noaa_feature = self.loaded_features.get('noaa', {})
+        noaa_instance = noaa_feature.get('instance')
+        if noaa_instance and hasattr(noaa_instance, 'get_space_weather_summary'):
+             register_system_commands(self.command_system, self, noaa_instance.get_space_weather_summary)
+        else:
+             register_system_commands(self.command_system, self, lambda: "Serviço NOAA indisponível.")
+        
+        # Comandos web
+        register_web_commands(self.command_system, self)
+        
+        # Comandos básicos
+        register_basic_commands(self.command_system, self)
+
+        # Comandos de crypto/trading
+        register_crypto_commands(self.command_system, self)
+        
+        # Comandos de voz (novos)
+        register_voice_commands(self.command_system, self)
+
+        # Comandos de mídia (Spotify)
+        register_media_commands(self.command_system, self)
+
+        # Comandos de DDoS
+        register_ddos_commands(self.command_system, self)
+        
+        self.logger.info(f"✅ {len(self.command_system.commands)} comandos registrados")
+
+    def _voice_callback(self, text: str):
+        """Callback para comandos de voz recebidos"""
+        # Este método é chamado pela GUI ou pelo VoiceEngine
+        # Usa self.root.after para garantir que a atualização da GUI ocorra na thread principal
+        self.gui.after(0, self.gui.add_chat_message, "Você (Voz)", text)
+
+        # --- CORREÇÃO: Prioriza comandos diretos antes de usar o LLM ---
+        # 1. Tenta executar um comando direto (ex: "hora", "data")
+        command_executed = self.command_system.execute_command(
+            text,
+            lambda msg: self.gui.after(0, self.gui.add_chat_message, "R2", msg) or self.audio_processor.text_to_speech(msg),
+            self.voice_engine.listen_once
+        )
+
+        # 2. Se nenhum comando direto for encontrado, usa o "cérebro" (FunctionHandler) como fallback
+        if not command_executed:
+            self.logger.info(f"🎤 Comando não encontrado, usando LLM como fallback: '{text}'")
+            response = self.function_handler.process_command(text) or self.language_model.get_response(text)
+            self.gui.after(0, self.gui.add_chat_message, "R2", response)
+            self.audio_processor.text_to_speech(response)
+    
+    def _activation_callback(self):
+        """Callback para quando a palavra de ativação é ouvida."""
+        self.logger.info("🔑 Palavra de ativação detectada. Dando feedback de voz.")
+        self.gui.play_ui_sound('activate') # Toca o som de ativação
+        self.audio_processor.text_to_speech("Pois não?") # Resposta verbal
+
+    def start_voice_listening(self):
+        """Inicia a escuta de voz"""
+        self.logger.info("🎤 Iniciando escuta de voz...")
+        
+        # A GUI agora controla o início da escuta
+        self.gui.toggle_voice()
+
+    def stop_voice_listening(self):
+        """Para a escuta de voz"""
+        self.logger.info("⏹️ Parando escuta de voz...")
+        self.voice_engine.stop_listening()
+        self.audio_processor.text_to_speech("Escuta de voz desativada")
+
+    def _check_for_solar_flare_proactively(self):
+        """Verifica proativamente por alertas de explosão solar."""
+        # Verifica a cada 15 minutos (900 segundos)
+        if time.time() - self.last_solar_flare_check > 900:
+            self.logger.info("🛰️ Verificando proativamente por alertas de explosão solar...")
+            from features.noaa.noaa_service import get_latest_solar_flare_alert # Importação correta
+            self.last_solar_flare_check = time.time()
+            alert_message = get_latest_solar_flare_alert()
+            if alert_message:
+                self.logger.warning(f"ALERTA SOLAR DETECTADO: {alert_message}")
+                full_warning = f"Atenção! Alerta de atividade solar emitido pela NOAA: {alert_message}"
+                # Adiciona na GUI e fala para o usuário
+                self.gui.add_chat_message("ALERTA R2", full_warning, tag="error")
+                self.audio_processor.text_to_speech(full_warning)
+
+    def _check_for_kp_storm_proactively(self):
+        """Verifica proativamente por tempestades geomagnéticas (Índice Kp)."""
+        # Esta função será chamada junto com a verificação de flare
+        from features.noaa.noaa_service import _get_kp_index_value # Importação correta
+        self.logger.info("🌍 Verificando proativamente por tempestades geomagnéticas...")
+        kp_value = _get_kp_index_value()
+
+        if kp_value is not None:
+            # Condição de Alerta: Kp >= 5 e o alerta ainda não foi emitido
+            if kp_value >= 5 and not self.kp_storm_alert_issued:
+                self.kp_storm_alert_issued = True # Marca que o alerta foi emitido
+                warning_message = (
+                    f"Atenção, comandante! Detectada uma perturbação geomagnética significativa. "
+                    f"O Índice Kp escalou para {kp_value:.1f}. "
+                    f"Recomendo verificar os sistemas de comunicação."
+                )
+                self.logger.warning(f"ALERTA DE TEMPESTADE GEOMAGNÉTICA: Kp = {kp_value}")
+                self.gui.add_chat_message("ALERTA R2", warning_message, tag="error")
+                self.audio_processor.text_to_speech(warning_message)
+            
+            # Condição de Reset: A tempestade acabou
+            elif kp_value < 5 and self.kp_storm_alert_issued:
+                self.logger.info("Condições geomagnéticas normalizadas. Resetando alerta de tempestade.")
+                self.kp_storm_alert_issued = False # Reseta o alerta para a próxima tempestade
+
+    def cleanup(self):
+        """Limpeza de recursos."""
+        self.logger.info("🧹 Executando cleanup de recursos...")
+        
+        # Para sistema de voz
+        if hasattr(self, 'voice_engine'):
+            self.voice_engine.stop_listening()
+            
+        # Para processamento de áudio
+        if hasattr(self, 'audio_processor'):
+            self.audio_processor.stop_tts()
+            
+        # Para trading
+        if hasattr(self, 'trading_engine') and self.trading_engine:
+            self.trading_engine.stop_auto_trading()
+        
+        self.logger.info("✅ Cleanup concluído")
+
+    def run(self):
+        """Inicia o assistente."""
+        self.logger.info("🚀 Iniciando R2 Assistant...")
+        
+        # Verifica se o sistema de voz está disponível
+        if not self.voice_engine.is_audio_available():
+            self.logger.warning("🎤 Sistema de voz pode não estar disponível. Verifique:")
+            self.logger.warning("1. Se o microfone está conectado e funcionando")
+            self.logger.warning("2. Se as permissões de áudio estão concedidas")
+            self.logger.warning("3. Se as bibliotecas de áudio estão instaladas")
+            print("\n📥 Para instalar as dependências de voz:")
+            print("pip install speechrecognition pyttsx3 gtts pygame")
+        
+        # Mensagem de boas-vindas
+        welcome_message = f"""
+🤖 R2 ASSISTANT INICIALIZADO!
+
+💡 Funcionalidades disponíveis:
+• 🎤 Comandos de voz: Diga 'voz' para ativar/desativar
+• 📈 Trading: Acesso completo à Binance
+• 🌐 Pesquisas: Notícias, previsão do tempo
+• ⚡ Sistema: Hora, data, abrir programas
+
+🔧 Status do sistema:
+• Voz: {'✅ Disponível' if self.voice_engine.is_audio_available() else '❌ Indisponível'}
+• Trading: {'✅ Conectado' if self.loaded_features.get('trading', {}).get('instance') and self.loaded_features['trading']['instance'].binance_client.api_key else '❌ Simulado'}
+• Comandos: {len(self.command_system.commands)} registrados
+
+💬 Diga 'ajuda' ou 'comandos' para ver todas as opções!
+        """
+        logger.info(welcome_message)
+        
+        try:
+            # Inicia a interface gráfica
+
+            # Adiciona a verificação proativa no loop da GUI
+            # A função `run` da GUI é bloqueante, então a verificação precisa ser chamada de dentro dela.
+            def proactive_checks():
+                self._check_for_solar_flare_proactively()
+                self._check_for_kp_storm_proactively()
+                self.gui.after(900 * 1000, proactive_checks) # Reagenda para daqui a 15 min
+            self.gui.after(900 * 1000, proactive_checks) # Inicia o ciclo de verificações
+            self.gui.run()
+            
+        except KeyboardInterrupt:
+            self.logger.info("🛑 R2 finalizado pelo usuário (Ctrl+C)")
+            self.audio_processor.text_to_speech("Assistente finalizado")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Erro fatal: {e}")
+            self.audio_processor.text_to_speech("Erro crítico no sistema")
+            
+        finally:
+            self.cleanup()
+
+def main():
+    """Função principal com tratamento de exceções"""
+    # --- CORREÇÃO DEFINITIVA: A GUI é criada ANTES de qualquer outra coisa ---
+    try:
+        # 1. Cria a instância da GUI primeiro. Ela não depende de mais nada.
+        if UI_CHOICE == 'futuristic':
+            from gui.futuristic_ui import FuturisticUI
+            gui = FuturisticUI()
+            logger.info("🎨 Instância da Interface Gráfica Futurista criada.")
+        else:
+            # Adicione a lógica para a ModernGUI aqui se necessário
+            from gui.new_design import ModernGUI
+            gui = ModernGUI() # Adapte os parâmetros conforme necessário
+            logger.info("🎨 Instância da Interface Gráfica Moderna criada.")
+
+        # 2. Cria a instância do assistente, passando a GUI já criada.
+        # O assistente agora irá popular a GUI com seus componentes.
+        assistant = R2Assistant(gui)
+        
+        assistant.run()
+        
+    except ImportError as e:
+        logger.error(f"❌ Erro de importação: {e}")
+        logger.info("\n🔧 Soluções possíveis:")
+        logger.info("1. Execute: pip install -r requirements.txt")
+        logger.info("2. Verifique se todos os módulos estão nos diretórios corretos")
+        logger.info("3. Execute: python setup.py (se disponível)")
+        
+    except Exception as e:
+        logger.exception(f"❌ Erro fatal na inicialização: {e}")
+        logger.info("\n📋 Informações para debug:")
+        logger.info(f"Python: {sys.version}")
+        logger.info(f"Diretório: {os.getcwd()}")
+        logger.info(f"Path: {sys.path}")
+if __name__ == "__main__":
+    main()
+''''''''''''''''''''''
+caso precise de algum outro arquivo para analisar pode me pedir antes, implante todas as tecnologias, reconhecimento de voz melhorado, voz do bot vosk, e avisos do bot, exemplo quando tiver explosão solar, mudança no clima, e qual outro voce achar necessario

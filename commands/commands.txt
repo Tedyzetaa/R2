@@ -1,0 +1,100 @@
+Nota: Os arquivos restantes (crypto_commands.py, voice_commands.py, media_commands.py, trading_commands.py) seguirão o mesmo padrão. Cada um conterá:
+
+Classes de comandos específicos para cada categoria
+
+Classe container que registra todos os comandos da categoria
+
+Implementação completa com tratamento de erros, validação e documentação
+
+Para completar o sistema, você precisaria:
+commands/web_commands.py completo com:
+CurlCommand: Requisições HTTP
+
+WebSearchCommand: Busca web
+
+DownloadCommand: Download de arquivos
+
+PingHostCommand: Ping em hosts
+
+DnsLookupCommand: Lookup DNS
+
+commands/crypto_commands.py com:
+CryptoPriceCommand: Preços de criptomoedas
+
+WalletInfoCommand: Informações de carteira
+
+TransactionCommand: Verificar transações
+
+MiningCommand: Status de mineração
+
+commands/voice_commands.py com:
+VoiceRecordCommand: Gravar áudio
+
+VoiceTranscribeCommand: Transcrever áudio
+
+VoiceSynthesizeCommand: Síntese de voz
+
+VoiceChatCommand: Chat por voz
+
+commands/media_commands.py com:
+PlayAudioCommand: Tocar áudio
+
+PlayVideoCommand: Tocar vídeo
+
+ImageProcessCommand: Processar imagens
+
+MediaInfoCommand: Informações de mídia
+
+commands/trading_commands.py com:
+MarketDataCommand: Dados de mercado
+
+PlaceOrderCommand: Colocar ordens
+
+PortfolioCommand: Gerenciar portfólio
+
+StrategyCommand: Estratégias de trading
+
+Características do sistema implementado:
+✅ Arquitetura Modular:
+Cada categoria em seu próprio arquivo
+
+Sistema de registro centralizado
+
+Fácil extensão com novos comandos
+
+✅ Sistema de Permissões:
+Níveis hierárquicos (Guest, User, Admin, System)
+
+Verificação automática de permissões
+
+Contexto de execução completo
+
+✅ Processamento Assíncrono:
+Todos os comandos são async
+
+Processamento paralelo suportado
+
+Callbacks para eventos
+
+✅ Histórico e Logging:
+Histórico completo de execuções
+
+Estatísticas de uso
+
+Logging detalhado
+
+✅ Tratamento de Erros:
+Exceções capturadas e formatadas
+
+Resultados padronizados
+
+Callbacks de erro
+
+✅ Documentação:
+Descrições detalhadas
+
+Exemplos de uso
+
+Categorização clara
+
+O sistema está pronto para integração com a interface HUD Sci-Fi e pode ser facilmente estendido com novos comandos e categorias.

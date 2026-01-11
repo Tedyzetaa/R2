@@ -1,0 +1,61 @@
+{
+  "PROJECT_ROOT": ".",
+  "DATA_DIR": "data",
+  "LOGS_DIR": "logs",
+  "ASSETS_DIR": "assets",
+  "MODELS_DIR": "models",
+  "PLUGINS_DIR": "plugins",
+  "LOCALES_DIR": "locales",
+  
+  "UI_THEME": "sci-fi",
+  "MAX_HISTORY_SIZE": 1000,
+  "WINDOW_WIDTH": 1600,
+  "WINDOW_HEIGHT": 900,
+  
+  "VOICE_TYPE": "hybrid",
+  "VOICE_MODEL_PATH": "models/vosk-model-small-pt-0.3",
+  
+  "LANGUAGE": "pt-BR",
+  "VOICE_LANGUAGE": "pt",
+  "VOICE_GENDER": "female",
+  "VOICE_SPEED": 1.0,
+  "TTS_ENGINE": "gtts",
+  
+  "AI_MODEL": "mistral-7b",
+  "AI_MAX_TOKENS": 2000,
+  "AI_TEMPERATURE": 0.7,
+  "AI_ENABLED": true,
+  "AI_PROVIDER": "openrouter",
+  
+  "OPENROUTER_API_KEY": "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",
+  "WEATHER_API_KEY": "54a3351be38a30a0a283e5876395a31a",
+  "OPENAI_API_KEY": "",
+  
+  "ENABLE_AI": true,
+  "ENABLE_WEATHER": true,
+  "ENABLE_GESTURE_CONTROL": false,
+  "ENABLE_WEB_DASHBOARD": false,
+  "ENABLE_VOICE_TTS": true,
+  
+  "WEB_DASHBOARD_ENABLED": false,
+  "WEB_PORT": 8080,
+  "WEB_HOST": "localhost",
+  "WEB_AUTH_REQUIRED": true,
+  "WEB_USERNAME": "admin",
+  "WEB_PASSWORD": "admin123",
+  
+  "GESTURE_CONTROL_ENABLED": false,
+  "GESTURE_SENSITIVITY": 0.7,
+  "GESTURE_CAMERA_INDEX": 0,
+  
+  "PLUGINS_AUTO_LOAD": true,
+  "PLUGINS_ALLOW_EXTERNAL": false,
+  "PLUGINS_SANDBOX": true,
+  
+  "SHOW_NETWORK_MAP": true,
+  "SHOW_ALERT_PANEL": true,
+  "SHOW_MODULE_PANEL": true,
+  "SHOW_AI_PANEL": true,
+  "SHOW_WEATHER_PANEL": true,
+  "SHOW_GESTURE_PANEL": false
+}

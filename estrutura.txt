@@ -1,0 +1,126 @@
+r2-assistant-sci-fi/
+├── README.md
+├── requirements.txt
+├── setup.py
+├── run.py
+├── .env.example
+├── .gitignore
+├── main.py
+├── config.json
+│
+├── core/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── history_manager.py
+│   ├── analytics.py
+│   ├── voice_engine.py
+│   ├── audio_processor.py
+│   ├── language_model.py
+│   ├── function_handler.py
+│   ├── command_system.py
+│   ├── alert_system.py
+│   └── module_manager.py
+│
+├── gui/
+│   ├── __init__.py
+│   ├── sci_fi_hud.py
+│   ├── theme.py
+│   ├── components/
+│   │   ├── __init__.py
+│   │   ├── wave_animation.py
+│   │   ├── circular_gauge.py
+│   │   ├── datastream.py
+│   │   ├── alert_panel.py
+│   │   ├── module_panel.py
+│   │   └── network_map.py
+│   └── windows/
+│       ├── __init__.py
+│       ├── modules_window.py
+│       ├── analytics_window.py
+│       ├── settings_window.py
+│       └── trading_window.py
+│
+├── modules/
+│   ├── __init__.py
+│   ├── base_module.py
+│   ├── trading_module.py
+│   ├── weather_module.py
+│   ├── news_module.py
+│   ├── system_module.py
+│   ├── crypto_module.py
+│   └── voice_module.py
+│
+├── features/
+│   ├── __init__.py
+│   ├── noaa/
+│   │   ├── __init__.py
+│   │   ├── noaa_service.py
+│   │   └── solar_monitor.py
+│   ├── trading/
+│   │   ├── __init__.py
+│   │   ├── binance_client.py
+│   │   ├── trading_engine.py
+│   │   ├── strategies.py
+│   │   └── risk_manager.py
+│   ├── monitoring/
+│   │   ├── __init__.py
+│   │   ├── system_monitor.py
+│   │   ├── network_monitor.py
+│   │   └── performance_monitor.py
+│   └── alerts/
+│       ├── __init__.py
+│       ├── alert_manager.py
+│       └── notification_system.py
+│
+├── commands/
+│   ├── __init__.py
+│   ├── system_commands.py
+│   ├── web_commands.py
+│   ├── basic_commands.py
+│   ├── crypto_commands.py
+│   ├── voice_commands.py
+│   ├── media_commands.py
+│   └── trading_commands.py
+│
+├── utils/
+│   ├── __init__.py
+│   ├── file_utils.py
+│   ├── validation.py
+│   ├── cache.py
+│   ├── security.py
+│   └── helpers.py
+│
+├── data/
+│   ├── modules.json
+│   ├── cache/
+│   │   ├── __init__.py
+│   │   └── .gitkeep
+│   └── models/
+│       └── README.md
+│
+├── assets/
+│   ├── sounds/
+│   │   ├── alert_critical.wav
+│   │   ├── alert_warning.wav
+│   │   ├── alert_info.wav
+│   │   └── r2_beeps/
+│   ├── icons/
+│   │   ├── logo.png
+│   │   └── favicon.ico
+│   └── fonts/
+│       ├── Orbitron-Bold.ttf
+│       └── Consolas.ttf
+│
+├── tests/
+│   ├── __init__.py
+│   ├── test_core.py
+│   ├── test_gui.py
+│   └── test_modules.py
+│
+├── logs/
+│   └── .gitkeep
+│
+└── scripts/
+    ├── install_dependencies.py
+    ├── download_models.py
+    └── setup_environment.py

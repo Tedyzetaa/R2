@@ -1,0 +1,197 @@
+"""
+Wave animation component for AI core visualization
+"""
+
+import customtkinter as ctk
+import numpy as np
+import math
+from typing import Optional, Tuple
+
+class WaveAnimation(ctk.CTkCanvas):
+    """Animated wave visualization for AI core"""
+    
+    def __init__(self, parent, size: int = 200, **kwargs):
+        self.size = size
+        self.center = size // 2
+        self.radius = size // 3
+        
+        super().__init__(
+            parent,
+            width=size,
+            height=size,
+            bg='#0a0a12',
+            highlightthickness=0,
+            **kwargs
+        )
+        
+        # Animation parameters
+        self.angle = 0
+        self.amplitude = 15
+        self.frequency = 0.15
+        self.speed = 0.05
+        
+        # Wave components
+        self.wave_components = [
+            {'freq': 5, 'amp': 0.5, 'phase': 0},
+            {'freq': 3, 'amp': 0.3, 'phase': math.pi/2},
+            {'freq': 7, 'amp': 0.2, 'phase': math.pi/4}
+        ]
+        
+        # Drawing IDs
+        self.circle_ids = []
+        self.wave_id = None
+        self.glow_id = None
+        
+        # Create animation
+        self._create_circles()
+        self._animate()
+        
+    def _create_circles(self):
+        """Create concentric circles"""
+        colors = ['#00ffff', '#0099ff', '#0066ff']
+        widths = [2, 1.5, 1]
+        
+        for i, (color, width) in enumerate(zip(colors, widths)):
+            r = self.radius - (i * 20)
+            
+            # Main circle
+            circle = self.create_oval(
+                self.center - r, self.center - r,
+                self.center + r, self.center + r,
+                outline=color,
+                width=width
+            )
+            self.circle_ids.append(circle)
+            
+            # Glow effect
+            glow = self.create_oval(
+                self.center - r, self.center - r,
+                self.center + r, self.center + r,
+                outline=color,
+                width=1,
+                stipple="gray50"
+            )
+            self.circle_ids.append(glow)
+    
+    def _generate_wave_points(self) -> list:
+        """Generate wave points for current animation state"""
+        points = []
+        num_points = 100
+        
+        for i in range(num_points):
+            angle = (2 * np.pi * i / num_points) + self.angle
+            
+            # Calculate combined wave
+            radius_offset = 0
+            for comp in self.wave_components:
+                radius_offset += (
+                    comp['amp'] * 
+                    self.amplitude * 
+                    np.sin(comp['freq'] * self.frequency * angle + comp['phase'])
+                )
+            
+            r = self.radius + radius_offset
+            
+            # Convert to coordinates
+            x = self.center + r * np.cos(angle)
+            y = self.center + r * np.sin(angle)
+            points.extend([x, y])
+        
+        return points
+    
+    def _animate(self):
+        """Update animation"""
+        # Update angle
+        self.angle += self.speed
+        
+        # Generate new wave
+        points = self._generate_wave_points()
+        
+        # Remove old wave
+        if self.wave_id:
+            self.delete(self.wave_id)
+        if self.glow_id:
+            self.delete(self.glow_id)
+        
+        # Draw new wave
+        self.wave_id = self.create_line(
+            *points,
+            fill='#00ffff',
+            width=2,
+            smooth=True,
+            joinstyle='round',
+            tags='wave'
+        )
+        
+        # Draw glow effect
+        self.glow_id = self.create_line(
+            *points,
+            fill='#ffffff',
+            width=1,
+            smooth=True,
+            stipple="gray50",
+            joinstyle='round',
+            tags='wave_glow'
+        )
+        
+        # Add pulsing effect to circles
+        self._pulse_circles()
+        
+        # Schedule next frame
+        self.after(50, self._animate)
+    
+    def _pulse_circles(self):
+        """Add pulsing effect to circles"""
+        pulse_factor = 1 + 0.1 * np.sin(self.angle * 3)
+        
+        for i, circle_id in enumerate(self.circle_ids):
+            if i % 2 == 0:  # Only affect main circles (not glows)
+                # Get current color
+                item_config = self.itemconfig(circle_id)
+                current_color = item_config.get('outline', ['#00ffff'])[-1]
+                
+                # Calculate pulse color
+                if current_color == '#00ffff':
+                    pulse_color = self._adjust_brightness(current_color, pulse_factor)
+                elif current_color == '#0099ff':
+                    pulse_color = self._adjust_brightness(current_color, pulse_factor * 0.8)
+                else:
+                    pulse_color = self._adjust_brightness(current_color, pulse_factor * 0.6)
+                
+                # Update circle color
+                self.itemconfig(circle_id, outline=pulse_color)
+    
+    def _adjust_brightness(self, color: str, factor: float) -> str:
+        """Adjust color brightness"""
+        # Convert hex to RGB
+        color = color.lstrip('#')
+        r, g, b = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
+        
+        # Apply factor
+        r = min(255, int(r * factor))
+        g = min(255, int(g * factor))
+        b = min(255, int(b * factor))
+        
+        # Convert back to hex
+        return f'#{r:02x}{g:02x}{b:02x}'
+    
+    def set_amplitude(self, amplitude: float):
+        """Set wave amplitude"""
+        self.amplitude = max(5, min(30, amplitude))
+    
+    def set_frequency(self, frequency: float):
+        """Set wave frequency"""
+        self.frequency = max(0.05, min(0.5, frequency))
+    
+    def set_speed(self, speed: float):
+        """Set animation speed"""
+        self.speed = max(0.01, min(0.2, speed))
+    
+    def get_animation_state(self) -> dict:
+        """Get current animation state"""
+        return {
+            'amplitude': self.amplitude,
+            'frequency': self.frequency,
+            'speed': self.speed,
+            'angle': self.angle % (2 * np.pi)
+        }

@@ -1,0 +1,24 @@
+{
+  "id": "example_plugin",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "An example plugin demonstrating R2 Assistant V2.1 plugin system",
+  "author": "R2 Team",
+  "main": "module.py",
+  "category": "utility",
+  "dependencies": [],
+  "permissions": ["read_config", "execute_commands"],
+  "settings": {
+    "auto_start": false,
+    "logging_level": "info"
+  },
+  "commands": [
+    {
+      "name": "hello",
+      "description": "Say hello from plugin",
+      "pattern": "^plugin hello$",
+      "handler": "handle_command",
+      "type": "custom"
+    }
+  ]
+}

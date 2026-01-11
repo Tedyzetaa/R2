@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "r2_assistant",
+    "r2_assistant.core",
+    "r2_assistant.gui",
+    "r2_assistant.features",
+    "r2_assistant.commands", 
+    "r2_assistant.utils"
+]
+
+[tool.setuptools.package-dir]
+"" = "."
+"r2_assistant" = "."
+"core" = "core"
+"gui" = "gui"
+"features" = "features"
+"commands" = "commands"
+"utils" = "utils"

@@ -1,0 +1,20 @@
+{
+    "UI_THEME": "sci-fi",
+    "MAX_HISTORY_SIZE": 1000,
+    "DATA_DIR": "./data",
+    "LOGS_DIR": "./logs",
+    "ASSETS_DIR": "./assets",
+    "MODELS_DIR": "./models",
+    "WINDOW_WIDTH": 1600,
+    "WINDOW_HEIGHT": 900,
+    "VOICE_TYPE": "offline",
+    "ENABLE_ANALYTICS": true,
+    "ENABLE_NOAA": false,
+    "ENABLE_SOLAR_MONITOR": false,
+    "ENABLE_VOICE_TTS": false,
+    "SHOW_NETWORK_MAP": true,
+    "SHOW_ALERT_PANEL": true,
+    "SHOW_MODULE_PANEL": true,
+    "VOICE_ACTIVATION_THRESHOLD": 0.5,
+    "VOICE_SPEECH_RATE": 150
+}

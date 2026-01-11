@@ -1,0 +1,106 @@
+Aqui está um prompt detalhado e estruturado, projetado para ser fornecido a uma IA (como o ChatGPT, Claude ou o próprio Gemini) para que ela compreenda profundamente a arquitetura, funcionalidades e peculiaridades do projeto R2 Assistant, baseando-se nos códigos e documentos fornecidos.
+
+Prompt de Contextualização do Sistema: R2 Assistant
+Instrução para a IA: Atue como um Arquiteto de Software Sênior e Engenheiro Full-Stack especializado em Python. Analise a seguinte descrição técnica detalhada do projeto "R2 Assistant" para estabelecer o contexto completo do sistema antes de prosseguirmos com o desenvolvimento ou manutenção.
+
+1. Visão Geral do Projeto
+O R2 Assistant é um assistente virtual de desktop altamente modular, desenvolvido em Python (v3.10+), focado em automação, trading quantitativo e interação por voz. O diferencial do projeto é sua interface gráfica (GUI) com estética Sci-Fi / HUD (Head-Up Display) militar/futurista, inspirada em painéis de controle de naves espaciais, utilizando tons de azul neon e elementos animados.
+
+2. Arquitetura do Sistema
+O sistema segue uma arquitetura modular robusta para garantir estabilidade e expansibilidade:
+
+Entrada (Entry Point): O arquivo principal é start_r2_safe.py (V2.1). Ele implementa um sistema de inicialização segura (DependencyManagerV21, EnvironmentCheckerV21) que verifica dependências críticas e opcionais antes de iniciar.
+Sistema de Fallback (Resiliência): O sistema possui três modos de operação, ativados automaticamente em caso de falha:
+GUI Completa: A interface Sci-Fi HUD completa.
+GUI Básica: Uma interface simplificada em CustomTkinter caso a completa falhe.
+Modo Terminal: Uma interface de linha de comando (CLI) para depuração ou ambientes sem suporte gráfico.
+3. Stack Tecnológico
+Linguagem: Python 3.10+.
+Interface Gráfica: CustomTkinter (com patches para widgets Tkinter padrão), Tkinter (legado/fallback).
+Voz: Vosk (reconhecimento offline), SpeechRecognition, pyttsx3 / gTTS (síntese de fala).
+IA/LLM: Integração com APIs de LLM (ex: OpenRouter/OpenAI) para processamento de linguagem natural e chat.
+Dados: SQLite para persistência de histórico e logs; JSON para configurações e módulos.
+Trading: Integração com Binance API.
+Outros: OpenCV/Mediapipe (gestos), FastAPI (dashboard web), psutil (monitoramento).
+4. Funcionalidades Principais (Módulos)
+A. Núcleo (Core):
+
+Command System: Um registro centralizado de comandos que suporta execução assíncrona, permissões hierárquicas (Guest, User, Admin, System) e callbacks.
+Voice Engine: Detecção de "Wake Word" (ex: "R2", "Hey R2") e processamento de comandos de voz contínuo.
+History Manager: Mantém logs de chat, comandos executados e erros.
+B. Interface (GUI Sci-Fi):
+
+Módulo Central: Animação de onda (ECG/Onda de Batalha) reagindo ao áudio/estado da IA.
+Painéis de Dados: Logs de comunicação estilo terminal, gráficos de análise (Input/Output) e mapa-múndi estilizado.
+Indicadores: Mostradores circulares para CPU, RAM e Latência de Rede.
+C. Features Específicas:
+
+Trading Engine: Possui dois modos de operação:
+Modo Real: Executa ordens na Binance via API Key.
+Modo Simulado: Simula operações de compra/venda para testes de estratégia sem risco financeiro.
+NOAA / Space Weather: Monitoramento em tempo real de tempestades solares e clima espacial.
+Automação: Comandos para abrir programas, scripts Python, controle de mídia (Spotify) e automação web.
+DDoS / Segurança: Módulos (mencionados na estrutura) para testes de rede/stress (uso ético/autorizado).
+5. Peculiaridades e Regras de Negócio
+Segurança na Inicialização: O script start_r2_safe.py nunca deve falhar silenciosamente. Ele deve diagnosticar o ambiente, tentar instalar dependências faltantes via pip e degradar graciosamente para um modo funcional (Fallback).
+Estilo Visual: A UI deve aderir estritamente à paleta "Ciano Elétrico/Azul Neon" sobre fundo escuro ("Preto Espacial"). Fontes devem ser monoespaçadas/digitais.
+Interação Híbrida: O usuário pode interagir tanto por texto (terminal/chat) quanto por voz simultaneamente.
+Tratamento de Erros: Exceções globais são capturadas para evitar o fechamento abrupto da aplicação, registrando o erro e notificando o usuário (via áudio ou popup).
+
+📂 Estrutura de Diretórios do Projeto R2 Assistant
+Raiz do Projeto (R2/)
+
+📄 start_r2_safe.py: (Entry Point Principal) Script de inicialização V2.1 com verificação de dependências e sistema de fallback seguro.
+📄 start_r2.py: Script de inicialização alternativo.
+📄 run.py: Ponto de entrada legado.
+📄 fix_critical.py: Script utilitário para correção automática de dependências e erros conhecidos.
+📄 config.json: Arquivo de configurações persistentes do usuário.
+📄 .env: Arquivo para armazenamento seguro de chaves de API (Binance, OpenRouter, Spotify, etc.).
+🧠 Diretório core/ (Núcleo do Sistema) Responsável pela lógica central, processamento e gerenciamento de estado.
+
+📄 __init__.py
+📄 config.py: Definições de configuração global e Enums (AppConfig, Theme, VoiceType).
+📄 command_system.py: Gerenciador central de registro e execução de comandos (suporte a assincronismo).
+📄 voice_engine.py: Motor de reconhecimento de voz (integração Vosk/SpeechRecognition).
+📄 audio_processor.py: Processamento de áudio e síntese de fala (TTS).
+📄 language_model.py: Cliente para interação com LLMs (IA Generativa).
+📄 history_manager.py: Gerenciamento de logs de chat e histórico de comandos.
+📄 module_manager.py: Carregador dinâmico de módulos e plugins.
+📄 alert_system.py: Sistema de notificação e monitoramento de alertas.
+📄 analytics.py: Coleta e análise de métricas de uso do sistema.
+📄 function_handler.py: Roteador de funções para chamadas da IA.
+🖥️ Diretório gui/ (Interface Gráfica) Implementação da interface visual Sci-Fi/HUD.
+
+📄 __init__.py
+📄 sci_fi_hud.py: Classe principal da GUI Sci-Fi (CustomTkinter).
+📄 futuristic_ui.py: Implementação alternativa da UI futurista.
+📄 theme.py: Definições de paleta de cores (Neon Blue/Dark) e estilos.
+📂 components/ (Widgets Reutilizáveis):
+📄 wave_animation.py: Visualização de onda de áudio (ECG/Senoide).
+📄 circular_gauge.py: Medidores circulares para CPU/RAM.
+📄 datastream.py: Visualização de fluxo de dados estilo "Matrix".
+📄 network_map.py: Mapa de rede estilizado.
+📄 alert_panel.py: Painel para exibição de alertas críticos.
+📄 module_panel.py: Cards para exibição de status dos módulos.
+⚡ Diretório commands/ (Comandos) Implementação das ações executáveis pelo usuário ou voz.
+
+📄 system_commands.py: Controle do SO, abertura de programas, monitoramento.
+📄 web_commands.py: Pesquisas web, ping, testes de conexão.
+📄 crypto_commands.py: Cotações e informações de criptomoedas.
+📄 voice_commands.py: Controle do sistema de voz (ativar/desativar, trocar modelo).
+📄 media_commands.py: Controle de mídia (Spotify, YouTube).
+📄 ddos_commands.py: Ferramentas de teste de rede e segurança.
+📄 basic_commands.py: Comandos de conversação e ajuda.
+🚀 Diretório features/ (Módulos Especiais) Funcionalidades complexas e independentes.
+
+📂 noaa/ (Clima Espacial):
+📄 noaa_service.py: Integração com API da NOAA.
+📄 solar_monitor.py: Monitoramento de tempestades solares e índice Kp.
+📂 trading/ (Motor Financeiro):
+📄 trading_engine.py: Lógica de execução de ordens e estratégias.
+📄 binance_client.py: Wrapper para a API da Binance.
+📂 Diretórios de Dados e Logs
+
+📂 data/: Armazenamento local (SQLite/JSON) para histórico e persistência.
+📂 logs/: Arquivos de log de execução (r2_system.log, etc.).
+📂 assets/: Recursos estáticos (sons, ícones, imagens).

@@ -1,0 +1,44 @@
+{
+  "app": {
+    "title": "R2 Assistant V2.1",
+    "loading": "Loading...",
+    "ready": "Ready"
+  },
+  "commands": {
+    "help": "Help",
+    "time": "Time",
+    "date": "Date",
+    "status": "Status",
+    "voice": "Voice",
+    "ai": "AI",
+    "weather": "Weather",
+    "gestures": "Gestures",
+    "web": "Web"
+  },
+  "ai": {
+    "thinking": "Thinking...",
+    "response": "Response",
+    "error": "AI Error",
+    "offline": "AI Offline"
+  },
+  "weather": {
+    "current": "Current",
+    "forecast": "Forecast",
+    "humidity": "Humidity",
+    "wind": "Wind",
+    "pressure": "Pressure"
+  },
+  "system": {
+    "cpu": "CPU",
+    "memory": "Memory",
+    "network": "Network",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "alerts": {
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error",
+    "critical": "Critical"
+  }
+}

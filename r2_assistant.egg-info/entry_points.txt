@@ -1,0 +1,2 @@
+[console_scripts]
+r2-assistant = r2_assistant.cli:main

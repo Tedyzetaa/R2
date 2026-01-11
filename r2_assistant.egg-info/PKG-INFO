@@ -1,0 +1,150 @@
+Metadata-Version: 2.4
+Name: r2-assistant
+Version: 1.0.0
+Summary: Sistema de Assistência IA com Interface Sci-Fi/HUD
+Home-page: https://github.com/seu-usuario/r2-assistant
+Author: R2 Assistant Team
+Author-email: team@r2-assistant.dev
+License: MIT
+Project-URL: Source Code, https://github.com/seu-usuario/r2-assistant
+Project-URL: Bug Tracker, https://github.com/seu-usuario/r2-assistant/issues
+Keywords: ai,assistant,trading,voice,hud,automation,monitoring,alerts,security
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Financial and Insurance Industry
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Office/Business :: Financial :: Investment
+Classifier: Topic :: Multimedia :: Sound/Audio :: Speech
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Environment :: X11 Applications :: GTK
+Classifier: Environment :: Win32 (MS Windows)
+Classifier: Environment :: MacOS X
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: aiohttp>=3.8.0
+Requires-Dist: colorama>=0.4.6
+Requires-Dist: tqdm>=4.66.0
+Requires-Dist: click>=8.1.0
+Requires-Dist: loguru>=0.7.0
+Provides-Extra: gui
+Requires-Dist: customtkinter>=5.2.0; extra == "gui"
+Requires-Dist: pillow>=10.0.0; extra == "gui"
+Provides-Extra: voice
+Requires-Dist: SpeechRecognition>=3.10.0; extra == "voice"
+Requires-Dist: pyttsx3>=2.90; extra == "voice"
+Provides-Extra: trading
+Requires-Dist: ccxt>=4.0.0; extra == "trading"
+Requires-Dist: yfinance>=0.2.28; extra == "trading"
+Requires-Dist: pandas>=2.0.0; extra == "trading"
+Requires-Dist: numpy>=1.24.0; extra == "trading"
+Provides-Extra: ai
+Requires-Dist: transformers>=4.35.0; extra == "ai"
+Requires-Dist: torch>=2.0.0; extra == "ai"
+Requires-Dist: scikit-learn>=1.3.0; extra == "ai"
+Provides-Extra: security
+Requires-Dist: cryptography>=41.0.0; extra == "security"
+Requires-Dist: pyjwt>=2.8.0; extra == "security"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Provides-Extra: full
+Requires-Dist: python-dotenv>=1.0.0; extra == "full"
+Requires-Dist: pyyaml>=6.0; extra == "full"
+Requires-Dist: psutil>=5.9.0; extra == "full"
+Requires-Dist: requests>=2.31.0; extra == "full"
+Requires-Dist: aiohttp>=3.8.0; extra == "full"
+Requires-Dist: colorama>=0.4.6; extra == "full"
+Requires-Dist: tqdm>=4.66.0; extra == "full"
+Requires-Dist: click>=8.1.0; extra == "full"
+Requires-Dist: loguru>=0.7.0; extra == "full"
+Requires-Dist: customtkinter>=5.2.0; extra == "full"
+Requires-Dist: pillow>=10.0.0; extra == "full"
+Requires-Dist: SpeechRecognition>=3.10.0; extra == "full"
+Requires-Dist: pyttsx3>=2.90; extra == "full"
+Requires-Dist: ccxt>=4.0.0; extra == "full"
+Requires-Dist: yfinance>=0.2.28; extra == "full"
+Requires-Dist: pandas>=2.0.0; extra == "full"
+Requires-Dist: numpy>=1.24.0; extra == "full"
+Requires-Dist: transformers>=4.35.0; extra == "full"
+Requires-Dist: torch>=2.0.0; extra == "full"
+Requires-Dist: scikit-learn>=1.3.0; extra == "full"
+Requires-Dist: cryptography>=41.0.0; extra == "full"
+Requires-Dist: pyjwt>=2.8.0; extra == "full"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: project-url
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# R2 Assistant - Sistema de Assistência IA com Interface Sci-Fi/HUD
+
+![R2 Assistant](assets/icons/logo.png)
+
+Sistema de assistência pessoal avançado com interface futurista, reconhecimento de voz, trading automatizado e monitoramento em tempo real.
+
+## 🌟 Características Principais
+
+### 🤖 Inteligência Artificial Avançada
+- Chat com IA via OpenRouter
+- Processamento de linguagem natural
+- Respostas contextuais inteligentes
+- Sistema de aprendizado contínuo
+
+### 🎤 Sistema de Voz Completo
+- Reconhecimento offline com VOSK
+- Sintetização de voz natural
+- Palavras de ativação personalizáveis
+- Comandos por voz em tempo real
+
+### 📈 Trading Quantitativo
+- Conexão com Binance API
+- Estratégias automatizadas
+- Scanner de oportunidades
+- Gestão de risco avançada
+
+### 🌐 Monitoramento em Tempo Real
+- Alertas solares da NOAA
+- Previsão do tempo precisa
+- Notícias financeiras
+- Saúde do sistema 24/7
+
+### 🎨 Interface Sci-Fi/HUD
+- Tema futurista com efeitos neon
+- Métricas em tempo real
+- Animações fluidas
+- Painéis modulares personalizáveis
+
+## 🚀 Instalação Rápida
+
+### Pré-requisitos
+- Python 3.8 ou superior
+- Git
+- Ambiente virtual (recomendado)
+
+### Passo a Passo
+
+1. **Clonar o repositório**
+```bash
+git clone https://github.com/seu-usuario/r2-assistant.git
+cd r2-assistant
