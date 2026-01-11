@@ -79,30 +79,50 @@ class R2CloudCore:
         print(f"⚡ [CLOUD_EXEC]: {cmd}")
         cmd_lower = cmd.lower()
         
-        # Comando de identificação de instância
-        if "nuvem" in cmd_lower or "status link" in cmd_lower:
-            status_msg = (
-                "🌐 [STATUS DO LINK]: OPERAÇÃO CLOUD ATIVA\n"
-                "🛰️ SERVIDOR: Render.com (Headless)\n"
-                "🔋 REDUNDÂNCIA: Ativada\n"
-                "⚠️ OBS: Comandos de hardware (Webcam/Som) indisponíveis neste nó."
-            )
-            self.telegram_bot.enviar_mensagem_ativa(status_msg)
-            return
-
-        # Exemplo: Clima
+        # --- 🌤️ CLIMA ---
         if "clima" in cmd_lower or "previsão" in cmd_lower:
             cidade = cmd_lower.replace("clima", "").replace("previsão", "").strip()
             if not cidade: cidade = "Ivinhema"
             res = self.weather_ops.obter_clima(cidade)
             self.telegram_bot.enviar_mensagem_ativa(res)
         
-        # Exemplo: Radar
+        # --- ✈️ RADAR ---
         elif "radar" in cmd_lower:
             path, qtd, msg = self.radar_ops.radar_scan()
             self.telegram_bot.enviar_mensagem_ativa(msg)
             if path and qtd > 0:
                 self.telegram_bot.enviar_foto_ativa(path, legenda=f"Radar: {qtd} alvos")
+
+        # --- 🛰️ INTEL LINHA DE FRENTE (NOVO) ---
+        elif any(p in cmd_lower for p in ["guerra", "front", "intel", "ucrânia", "israel"]):
+            from features.liveuamap_intel import FrontlineIntel
+            intel_ops = FrontlineIntel(region="ukraine" if "ucrânia" in cmd_lower else "global")
+            relatorio = intel_ops.get_tactical_report(limit=4)
+            # Na nuvem, enviamos apenas o texto, pois o mapa exige navegador
+            self.telegram_bot.enviar_mensagem_ativa(f"🛰️ [INTEL CLOUD]:\n{relatorio}")
+
+        # --- 🍕 DEFCON / PIZZA METER (NOVO) ---
+        elif "defcon" in cmd_lower or "pizza" in cmd_lower:
+            import random
+            pizzas = random.randint(1, 100)
+            status = "DEFCON 5" if pizzas < 20 else "DEFCON 3" if pizzas < 60 else "DEFCON 1"
+            res = f"📊 [PIZZA METER CLOUD]: {status} (Nível de atividade: {pizzas})"
+            self.telegram_bot.enviar_mensagem_ativa(res)
+
+        # --- ☀️ MONITORAMENTO SOLAR (NOVO) ---
+        elif "solar" in cmd_lower or "noaa" in cmd_lower:
+            from features.noaa import NOAAService
+            async def get_solar():
+                service = NOAAService()
+                data = await service.get_space_weather()
+                if data:
+                    res = f"☀️ [NOAA CLOUD]: Alerta: {data.overall_alert.value}\nÍndice Kp: {data.kp_index}\nVento Solar: {data.solar_wind.speed} km/s"
+                    self.telegram_bot.enviar_mensagem_ativa(res)
+            asyncio.run(get_solar())
+            
+        # --- 🌐 STATUS LINK ---
+        elif "nuvem" in cmd_lower:
+            self.telegram_bot.enviar_mensagem_ativa("☁️ [STATUS]: OPERAÇÃO CLOUD ATIVA (Render)")
 
     def iniciar(self):
         self.telegram_bot.iniciar_sistema()

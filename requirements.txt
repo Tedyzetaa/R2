@@ -11,3 +11,5 @@ attrs
 frozenlist
 multidict
 yarl
+feedparser
+cloudscraper
