@@ -3,8 +3,13 @@ Solar Monitor - Monitoramento em tempo real de atividade solar
 Dashboard e alertas para eventos solares significativos
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox
+import os
+try:
+    import tkinter as tk
+    from tkinter import ttk, messagebox
+except (ImportError, ModuleNotFoundError):
+    # Fallback para ambientes sem tela (Render)
+    tk = None
 import logging
 import asyncio
 import threading

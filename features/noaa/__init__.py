@@ -11,7 +11,14 @@ from .noaa_service import (
     AlertLevel,
     SolarFlareClass
 )
-from .solar_monitor import SolarMonitor
+
+# Só importa o SolarMonitor se houver suporte a interface gráfica
+try:
+    import tkinter
+    from .solar_monitor import SolarMonitor
+except (ImportError, ModuleNotFoundError):
+    SolarMonitor = None
+    print("⚠️ [SISTEMA]: Interface gráfica (Tkinter) não detectada. SolarMonitor desativado.")
 
 __all__ = [
     'NOAAService',

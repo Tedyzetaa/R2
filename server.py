@@ -1,4 +1,7 @@
 import os
+# Sinaliza que estamos em modo Cloud para evitar carregamento de GUIs
+os.environ["R2_CLOUD_MODE"] = "1"
+
 import threading
 import time
 import asyncio
