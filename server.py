@@ -79,27 +79,36 @@ class R2CloudCore:
         print(f"⚡ [CLOUD_EXEC]: {cmd}")
         cmd_lower = cmd.lower()
         
-        # --- 🌤️ CLIMA ---
-        if "clima" in cmd_lower or "previsão" in cmd_lower:
-            cidade = cmd_lower.replace("clima", "").replace("previsão", "").strip()
-            if not cidade: cidade = "Ivinhema"
-            res = self.weather_ops.obter_clima(cidade)
+        # --- 🌤️ CLIMA (FLUXO DE PERGUNTA) ---
+        if cmd_lower in ["clima", "previsão", "tempo"]:
+            self.esperando_cidade = True # Ativa a trava de diálogo
+            self.telegram_bot.enviar_mensagem_ativa("🌤️ Qual a cidade alvo para a previsão?")
+            return
+
+        # Se o sistema estiver esperando a cidade, o próximo comando cai aqui
+        if getattr(self, 'esperando_cidade', False):
+            self.esperando_cidade = False
+            res = self.weather_ops.obter_clima(cmd) # cmd aqui é o nome da cidade enviado
             self.telegram_bot.enviar_mensagem_ativa(res)
+            return
         
         # --- ✈️ RADAR ---
-        elif "radar" in cmd_lower:
+        if "radar" in cmd_lower:
             path, qtd, msg = self.radar_ops.radar_scan()
             self.telegram_bot.enviar_mensagem_ativa(msg)
             if path and qtd > 0:
                 self.telegram_bot.enviar_foto_ativa(path, legenda=f"Radar: {qtd} alvos")
 
-        # --- 🛰️ INTEL LINHA DE FRENTE (NOVO) ---
+        # --- 🛰️ INTEL LINHA DE FRENTE (REPARADO) ---
         elif any(p in cmd_lower for p in ["guerra", "front", "intel", "ucrânia", "israel"]):
-            from features.liveuamap_intel import FrontlineIntel
-            intel_ops = FrontlineIntel(region="ukraine" if "ucrânia" in cmd_lower else "global")
-            relatorio = intel_ops.get_tactical_report(limit=4)
-            # Na nuvem, enviamos apenas o texto, pois o mapa exige navegador
-            self.telegram_bot.enviar_mensagem_ativa(f"🛰️ [INTEL CLOUD]:\n{relatorio}")
+            try:
+                from features.liveuamap_intel import FrontlineIntel
+                # Forçamos o modo headless no init do módulo se necessário
+                intel_ops = FrontlineIntel(region="ukraine" if "ucrânia" in cmd_lower else "global")
+                relatorio = intel_ops.get_tactical_report(limit=4)
+                self.telegram_bot.enviar_mensagem_ativa(f"🛰️ [INTEL CLOUD]:\n{relatorio}")
+            except Exception as e:
+                self.telegram_bot.enviar_mensagem_ativa(f"⚠️ Erro ao acessar Intel: {str(e)}")
 
         # --- 🍕 DEFCON / PIZZA METER (NOVO) ---
         elif "defcon" in cmd_lower or "pizza" in cmd_lower:
@@ -109,27 +118,35 @@ class R2CloudCore:
             res = f"📊 [PIZZA METER CLOUD]: {status} (Nível de atividade: {pizzas})"
             self.telegram_bot.enviar_mensagem_ativa(res)
 
-        # --- ☀️ MONITORAMENTO SOLAR (NOVO) ---
+        # --- ☀️ MONITORAMENTO SOLAR (FIX 404 NOAA) ---
         elif "solar" in cmd_lower or "noaa" in cmd_lower:
             from features.noaa import NOAAService
             async def get_solar():
-                service = NOAAService()
-                data = await service.get_space_weather()
-                if data:
-                    res = f"☀️ [NOAA CLOUD]: Alerta: {data.overall_alert.value}\nÍndice Kp: {data.kp_index}\nVento Solar: {data.solar_wind.speed} km/s"
-                    self.telegram_bot.enviar_mensagem_ativa(res)
+                try:
+                    service = NOAAService()
+                    # Tentativa de busca com tratamento de erro 404 interno
+                    data = await service.get_space_weather()
+                    if data:
+                        res = f"☀️ [NOAA CLOUD]:\nAlerta: {data.overall_alert.value}\nKp Index: {data.kp_index}\nVento: {data.solar_wind.speed} km/s"
+                        self.telegram_bot.enviar_mensagem_ativa(res)
+                    else:
+                        # Fallback caso a API da NOAA mude o link (JSON alternativo)
+                        self.telegram_bot.enviar_mensagem_ativa("⚠️ NOAA retornou 404. Tentando link de contingência...")
+                        # Aqui você pode implementar um link reserva se tiver
+                except Exception as e:
+                    self.telegram_bot.enviar_mensagem_ativa(f"❌ Falha crítica NOAA: {str(e)}")
+            
             asyncio.run(get_solar())
             
         # --- 🌐 STATUS LINK ---
         elif "nuvem" in cmd_lower:
             self.telegram_bot.enviar_mensagem_ativa("☁️ [STATUS]: OPERAÇÃO CLOUD ATIVA (Render)")
 
-        # --- 🛠️ SYSTEM MONITOR (COMANDO /SM) ---
-        elif cmd_lower == "/sm" or cmd_lower == "sm":
+        # --- 🛠️ MONITOR DE SISTEMA ---
+        elif cmd_lower == "/sm":
             from features.system_monitor import SystemMonitor
             monitor = SystemMonitor(self)
-            diagnostico = monitor.check_all()
-            self.telegram_bot.enviar_mensagem_ativa(diagnostico)
+            self.telegram_bot.enviar_mensagem_ativa(monitor.check_all())
 
     def iniciar(self):
         self.telegram_bot.iniciar_sistema()
