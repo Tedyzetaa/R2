@@ -1043,7 +1043,32 @@ Digite 'ajuda' para comandos ou apenas converse.
                 return
 
             # =================================================================
-            # 🗣️ MÓDULO DE CONVERSA
+            # 🛠️ MÓDULO SYSTEM MONITOR (COMANDO /SM)
+            # =================================================================
+            elif cmd == "/sm" or cmd == "sm" or cmd == "diagnóstico":
+                self.update_queue.put(lambda: self._print_system_msg("🔍 Iniciando Varredura Completa de Módulos..."))
+                
+                def run_diagnostic():
+                    try:
+                        from features.system_monitor import SystemMonitor
+                        monitor = SystemMonitor(self)
+                        diagnostico = monitor.check_all()
+                        
+                        # Exibe na interface do PC com cor de IA
+                        self.update_queue.put(lambda: self._print_ai_msg(diagnostico))
+                        
+                        # Se o comando veio do PC mas o Telegram está ativo, envia para lá também
+                        if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                             self.telegram_bot.enviar_mensagem_ativa(f"🖥️ [DIAGNÓSTICO LOCAL]:\n{diagnostico}")
+                             
+                    except Exception as e:
+                        self.update_queue.put(lambda: self._print_system_msg(f"❌ Falha no Diagnóstico: {e}"))
+
+                threading.Thread(target=run_diagnostic, daemon=True).start()
+                return
+
+            # =================================================================
+            # �️ MÓDULO DE CONVERSA
             # =================================================================
             
             if not acao_executada:

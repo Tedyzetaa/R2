@@ -124,6 +124,13 @@ class R2CloudCore:
         elif "nuvem" in cmd_lower:
             self.telegram_bot.enviar_mensagem_ativa("☁️ [STATUS]: OPERAÇÃO CLOUD ATIVA (Render)")
 
+        # --- 🛠️ SYSTEM MONITOR (COMANDO /SM) ---
+        elif cmd_lower == "/sm" or cmd_lower == "sm":
+            from features.system_monitor import SystemMonitor
+            monitor = SystemMonitor(self)
+            diagnostico = monitor.check_all()
+            self.telegram_bot.enviar_mensagem_ativa(diagnostico)
+
     def iniciar(self):
         self.telegram_bot.iniciar_sistema()
         self.telegram_bot.enviar_mensagem_ativa("☁️ [R2 CLOUD]: Link neural estabelecido via Render.")
