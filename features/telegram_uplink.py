@@ -27,7 +27,7 @@ class TelegramUplink:
     def _run_async_loop(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.app = ApplicationBuilder().token(self.token).build()
+        self.app = ApplicationBuilder().token(self.token).post_init(self.configurar_comandos_menu).build()
 
         self.app.add_handler(CommandHandler("start", self.cmd_menu)) 
         self.app.add_handler(CommandHandler("menu", self.cmd_menu))
@@ -38,6 +38,20 @@ class TelegramUplink:
         print("📡 [TELEGRAM]: Uplink Total Ativo.")
         try: self.app.run_polling(stop_signals=None)
         except: pass
+
+    async def configurar_comandos_menu(self, application):
+        from telegram import BotCommand
+        comandos = [
+            BotCommand("start", "Iniciar o Link Neural"),
+            BotCommand("help", "Abrir Manual Tático"),
+            BotCommand("sm", "Diagnóstico de Sistema (POST)"),
+            BotCommand("radar", "Varredura de Tráfego Aéreo"),
+            BotCommand("clima", "Consultar Previsão do Tempo"),
+            BotCommand("solar", "Telemetria Espacial NOAA"),
+            BotCommand("intel", "Relatório de Linha de Frente"),
+            BotCommand("sentinela", "Capturar imagem da Webcam (Local)")
+        ]
+        await application.bot.set_my_commands(comandos)
 
     def enviar_mensagem_ativa(self, texto):
         if self.app and self.loop:

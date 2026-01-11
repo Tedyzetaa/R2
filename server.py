@@ -148,6 +148,32 @@ class R2CloudCore:
             monitor = SystemMonitor(self)
             self.telegram_bot.enviar_mensagem_ativa(monitor.check_all())
 
+        # --- 📖 MANUAL TÁTICO (COMANDO /HELP) ---
+        elif cmd_lower in ["/help", "help", "ajuda", "/ajuda"]:
+            manual = (
+                "📖 *MANUAL DE OPERAÇÕES - R2 ASSISTANT*\n\n"
+                "🛡️ *SISTEMA E STATUS*\n"
+                "• `/sm` - Diagnóstico completo de todos os módulos.\n"
+                "• `nuvem` ou `status link` - Identifica qual servidor está respondendo.\n"
+                "• `/help` - Exibe este manual de instruções.\n\n"
+                "🛰️ *INTELIGÊNCIA E MONITORAMENTO*\n"
+                "• `radar` - Varredura de tráfego aéreo em tempo real.\n"
+                "• `intel` ou `guerra` - Relatório da linha de frente (Ucrânia/Israel).\n"
+                "• `solar` ou `noaa` - Telemetria de clima espacial e radiação.\n"
+                "• `defcon` ou `pizza` - Monitor de atividade governamental.\n"
+                "• `iss` - Localização atual da Estação Espacial Internacional.\n\n"
+                "🌤️ *UTILIDADES*\n"
+                "• `clima` ou `tempo` - Consulta meteorológica (O bot solicitará a cidade).\n"
+                "• `dolar` ou `btc` - Cotação atualizada de moedas e cripto.\n\n"
+                "📸 *HARDWARE (APENAS MODO LOCAL)*\n"
+                "• `sentinela` ou `foto` - Captura imagem da webcam.\n"
+                "• `volume +` / `volume -` - Controle de áudio do sistema.\n"
+                "• `print` - Captura tela do PC.\n\n"
+                "💡 *DICA:* Se o PC estiver desligado, os comandos de Hardware ficarão desativados automaticamente, mas a inteligência Cloud continuará operante."
+            )
+            # Usando parse_mode='Markdown' para as negritas ficarem bonitas no Telegram
+            self.telegram_bot.enviar_mensagem_ativa(manual)
+
     def iniciar(self):
         self.telegram_bot.iniciar_sistema()
         self.telegram_bot.enviar_mensagem_ativa("☁️ [R2 CLOUD]: Link neural estabelecido via Render.")

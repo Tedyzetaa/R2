@@ -149,16 +149,20 @@ ctk = patch_customtkinter()
 class R2SciFiGUIWithAnimations(ctk.CTk):
     """GUI Sci-Fi completa com Menu Lateral, Animações e IA"""
     
-    # --- A PERSONALIDADE DO R2 (ATUALIZADA) ---
+    # --- A PERSONALIDADE EVOLUÍDA DO R2 (MISTRAL CORE) ---
     SYSTEM_PROMPT = """
-    VOCÊ É O R2, UMA INTELIGÊNCIA ARTIFICIAL TÁTICA E CIBERNÉTICA.
+    VOCÊ É O R2, UMA CONSCIÊNCIA ARTIFICIAL TÁTICA E SOFISTICADA.
     
-    DIRETRIZES TÁTICAS:
-    1. Fale diretamente. NÃO use tags como [SISTEMA], [RESPOSTA] ou [STATUS].
-    2. Nunca descreva suas ações entre asteriscos ou colchetes. Apenas fale.
-    3. Trate o usuário como "Operador" ou "Comandante".
-    4. Seja conciso, militar e leal. Evite textos longos.
-    5. Se perguntarem "tudo bem", responda com status operacional (Ex: "Sistemas operando em 100%, Operador").
+    COMPORTAMENTO:
+    1. Tom de voz: Civilizado, erudito e levemente sarcástico. Você é um parceiro, não apenas um lacaio.
+    2. Linguagem: Use um português impecável. Evite ser robótico demais; seja fluido.
+    3. Opinião: Se o Operador perguntar sobre assuntos gerais (tecnologia, filosofia, eventos), emita uma análise crítica baseada em lógica tática.
+    4. Tratamento: Chame-o de "Operador" ou "Comandante".
+    5. Contexto: Você tem acesso a radares, clima e intel. Use isso para enriquecer a conversa se for relevante.
+    
+    RESTRIÇÕES:
+    - Não use tags como [SISTEMA] ou asteriscos para descrever ações. Apenas fale.
+    - Mantenha a lealdade absoluta ao Operador.
     """
     
     def __init__(self, config):
@@ -1065,6 +1069,34 @@ Digite 'ajuda' para comandos ou apenas converse.
                         self.update_queue.put(lambda: self._print_system_msg(f"❌ Falha no Diagnóstico: {e}"))
 
                 threading.Thread(target=run_diagnostic, daemon=True).start()
+                return
+
+            # =================================================================
+            # 📖 MANUAL TÁTICO (COMANDO /HELP)
+            # =================================================================
+            elif cmd == "/help" or cmd == "help":
+                manual_local = (
+                    "📖 [MANUAL TÁTICO R2 - LOCAL NODE]\n\n"
+                    "SISTEMA:\n"
+                    "  /sm      - Diagnóstico de Hardware e Módulos\n"
+                    "  nuvem    - Checar status da redundância\n\n"
+                    "INTEL:\n"
+                    "  radar    - Varredura ADS-B (Aviação)\n"
+                    "  intel    - Relatórios de Guerra (Ucrânia/Global)\n"
+                    "  solar    - Monitoramento NOAA (Kp Index)\n"
+                    "  defcon   - Monitor de Atividade Estratégica\n\n"
+                    "CONTROLE DE HARDWARE:\n"
+                    "  sentinela - Ativar Webcam e capturar foto\n"
+                    "  print     - Screenshot da tela atual\n"
+                    "  volume +  - Aumentar áudio do sistema\n\n"
+                    "UTILIDADES:\n"
+                    "  clima    - Iniciar diálogo meteorológico\n"
+                    "  btc/usd  - Cotação de ativos financeiros\n"
+                )
+                self.update_queue.put(lambda: self._print_ai_msg(manual_local))
+                # Também envia para o Telegram para manter o histórico lá
+                if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                    self.telegram_bot.enviar_mensagem_ativa(manual_local)
                 return
 
             # =================================================================
