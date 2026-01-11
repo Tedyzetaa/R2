@@ -4,9 +4,10 @@ requests
 beautifulsoup4
 python-dotenv
 openai
-customtkinter
-psutil
 matplotlib
-pyautogui
-opencv-python
-speedtest-cli
+aiohttp
+aiosignal
+attrs
+frozenlist
+multidict
+yarl
