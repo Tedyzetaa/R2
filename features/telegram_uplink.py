@@ -3,7 +3,14 @@ import asyncio
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-import pyautogui
+
+# PROTEÇÃO PARA AMBIENTES SEM INTERFACE (CLOUD)
+try:
+    import pyautogui
+    PYAUTOGUI_AVAILABLE = True
+except (ImportError, Exception):
+    PYAUTOGUI_AVAILABLE = False
+    print("⚠️ [SISTEMA]: PyAutoGUI não disponível. Comandos de Hardware (Print/Volume) desativados.")
 
 class TelegramUplink:
     def __init__(self, token, allowed_user_id, gui_instance):
@@ -160,6 +167,11 @@ class TelegramUplink:
         await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 MENU", callback_data='menu_main')]]))
 
     async def _enviar_print(self, query):
+        if not PYAUTOGUI_AVAILABLE:
+            await query.message.reply_text("❌ Função indisponível em ambiente Cloud (Sem monitor detectado).")
+            await self._mostrar_menu_principal(query)
+            return
+
         path = "temp_screen.png"
         try:
             pyautogui.screenshot(path)
