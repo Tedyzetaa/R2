@@ -1,58 +1,117 @@
 import os
-# Sinaliza que estamos em modo Cloud para evitar carregamento de GUIs
-os.environ["R2_CLOUD_MODE"] = "1"
-
 import threading
 import time
+import queue
 import asyncio
+import sys
+from pathlib import Path
 from flask import Flask
-from features.telegram_uplink import TelegramUplink
 
-# Servidor Web para manter o Render vivo
+# 1. AMBIENTE E PATHS
+current_dir = str(Path(__file__).parent)
+sys.path.append(current_dir)
+os.environ["R2_CLOUD_MODE"] = "1" # Sinaliza modo nuvem para os módulos
+
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "R2 TACTICAL OS - CLOUD CORE ACTIVE", 200
-
-# Configurações de chaves via Environment Variables (Otimizado para Render)
+# 2. CONFIGURAÇÕES (Lidas do Render Environment)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8346260753:AAHtkB-boAMcnS1t-wedf9NZLwVvOuIl0_Y")
 ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID", "8117345546")
+OPENWEATHER_KEY = os.environ.get("OPENWEATHER_KEY", "54a3351be38a30a0a283e5876395a31a")
 
 class R2CloudCore:
+    """Simulação do Córtex do R2 para rodar no Render (Headless)"""
     def __init__(self):
-        # Passamos None para a GUI, pois o Render não tem tela
-        self.telegram_bot = TelegramUplink(TELEGRAM_TOKEN, ADMIN_ID, self)
         self.running = True
-        # Cache de dados para simular o que a GUI faria
+        self.update_queue = queue.Queue() # O CORAÇÃO DA CORREÇÃO: Fila de comandos ativa
+        
+        # Módulos de Cache (Simulando Telemetria)
         self.dados_cpu = 0
         self.dados_ram = 0
+        self.status_rede = "CLOUD_ACTIVE"
+        
+        # Inicialização de Módulos (Igual ao seu modo offline)
+        try:
+            from features.telegram_uplink import TelegramUplink
+            self.telegram_bot = TelegramUplink(TELEGRAM_TOKEN, ADMIN_ID, self)
+        except Exception as e:
+            print(f"❌ Erro no Uplink: {e}")
 
-    def _print_system_msg(self, msg): print(f"[SISTEMA]: {msg}")
-    def _print_ai_msg(self, msg): print(f"[R2]: {msg}")
-    def _print_user_msg(self, msg): print(f"[USER]: {msg}")
+        # Carregar módulos táticos
+        self._carregar_modulos()
+        
+        # Iniciar o Loop de Fila (Consome os comandos que o Telegram envia)
+        threading.Thread(target=self._queue_processor, daemon=True).start()
+
+    def _carregar_modulos(self):
+        print("🛰️ [R2 CLOUD]: Carregando subsistemas...")
+        try:
+            from features.weather_system import WeatherSystem
+            self.weather_ops = WeatherSystem(OPENWEATHER_KEY)
+            from features.air_traffic import AirTrafficControl
+            self.radar_ops = AirTrafficControl()
+            from features.orbital_system import OrbitalSystem
+            self.orbital_ops = OrbitalSystem()
+            from features.market_system import MarketSystem
+            self.market_ops = MarketSystem()
+            from features.news_briefing import NewsBriefing
+            self.news_ops = NewsBriefing()
+            print("✅ Subsistemas integrados com sucesso.")
+        except Exception as e:
+            print(f"⚠️ Alguns subsistemas falharam (normal em nuvem): {e}")
+
+    def _queue_processor(self):
+        """Processa comandos remotos vindo do Telegram sem travar o bot"""
+        while self.running:
+            try:
+                task = self.update_queue.get(timeout=1)
+                task() # Executa a função (ex: _executar_comando_remoto)
+            except queue.Empty:
+                continue
+
+    # --- MÉTODOS DE COMPATIBILIDADE (O que o telegram_uplink chama) ---
+    def _print_system_msg(self, msg): print(f"💻 [SYS]: {msg}")
+    def _print_ai_msg(self, msg): print(f"🤖 [R2]: {msg}")
+    def _print_user_msg(self, msg): print(f"👤 [USER]: {msg}")
 
     def _executar_comando_remoto(self, cmd):
-        # Aqui o server processa comandos simples (Clima, News, etc)
-        # Como não temos a GUI aqui, ele age como um Bot puro
-        print(f"Executando comando remoto: {cmd}")
+        """Lógica de processamento de comandos idêntica à GUI"""
+        print(f"⚡ [CLOUD_EXEC]: {cmd}")
+        cmd_lower = cmd.lower()
+        
+        # Exemplo: Clima
+        if "clima" in cmd_lower or "previsão" in cmd_lower:
+            cidade = cmd_lower.replace("clima", "").replace("previsão", "").strip()
+            if not cidade: cidade = "Ivinhema"
+            res = self.weather_ops.obter_clima(cidade)
+            self.telegram_bot.enviar_mensagem_ativa(res)
+        
+        # Exemplo: Radar
+        elif "radar" in cmd_lower:
+            path, qtd, msg = self.radar_ops.radar_scan()
+            self.telegram_bot.enviar_mensagem_ativa(msg)
+            if path and qtd > 0:
+                self.telegram_bot.enviar_foto_ativa(path, legenda=f"Radar: {qtd} alvos")
 
-    def run(self):
+    def iniciar(self):
         self.telegram_bot.iniciar_sistema()
-        self.telegram_bot.enviar_mensagem_ativa("☁️ [R2 CLOUD]: Sistema assumido pelo Render. Operação Remota Ativa.")
+        self.telegram_bot.enviar_mensagem_ativa("☁️ [R2 CLOUD]: Link neural estabelecido via Render.")
 
-def run_web_server():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+# INSTÂNCIA GLOBAL
+r2_cloud = R2CloudCore()
+
+@app.route('/')
+def health():
+    return "R2 TACTICAL CLOUD ONLINE", 200
 
 if __name__ == "__main__":
-    # 1. Inicia Web Server em Thread separada
-    threading.Thread(target=run_web_server, daemon=True).start()
+    # Roda o Web Server (Flask)
+    port = int(os.environ.get("PORT", 10000))
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)).start()
     
-    # 2. Inicia o Bot
-    r2_cloud = R2CloudCore()
-    r2_cloud.run()
+    # Inicia o Cérebro do Bot
+    r2_cloud.iniciar()
     
-    # 3. Mantém o processo vivo
+    # Mantém o processo principal vivo
     while True:
         time.sleep(10)
