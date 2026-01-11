@@ -59,25 +59,21 @@ class TelegramUplink:
     async def cmd_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await self._check_auth(update): return
         keyboard = [
-            # Linha 1: Vigilância (NOVA)
-            [InlineKeyboardButton("👁️ SENTINELA", callback_data='acao_cam'),
-             InlineKeyboardButton("📶 SCAN REDE", callback_data='acao_netscan')],
-
-            # Linha 2: Informação
-            [InlineKeyboardButton("📡 WAR INTEL", callback_data='menu_intel'),
-             InlineKeyboardButton("💰 MARKET", callback_data='acao_market')],
-            
-            # Linha 3: Ambiente & Radar
-            [InlineKeyboardButton("🌦️ CLIMA", callback_data='menu_clima'),
-             InlineKeyboardButton("✈️ RADAR ADS-B", callback_data='acao_radar')],
-            
-            # Linha 4: Técnicos
-            [InlineKeyboardButton("⚡ SPEEDTEST", callback_data='acao_speed'),
-             InlineKeyboardButton("🛰️ ISS ORBIT", callback_data='acao_iss')],
-             
-            # Linha 5: Controle & Sistema
-            [InlineKeyboardButton("🎛️ CONTROLE PC", callback_data='menu_pc'),
-             InlineKeyboardButton("📸 PRINT", callback_data='acao_print')]
+            # Linha 1: Comandos já existentes
+            [
+                InlineKeyboardButton("🌤️ Clima", callback_data='cmd_clima'),
+                InlineKeyboardButton("✈️ Radar", callback_data='cmd_radar')
+            ],
+            # Linha 2: Intel e Novos Comandos (DEFCON e SOLAR)
+            [
+                InlineKeyboardButton("🛰️ Intel", callback_data='cmd_intel'),
+                InlineKeyboardButton("🍕 DEFCON", callback_data='cmd_defcon'),
+                InlineKeyboardButton("☀️ Solar", callback_data='cmd_solar')
+            ],
+            # Linha 3: Status do Sistema
+            [
+                InlineKeyboardButton("🌐 Status do Link", callback_data='cmd_nuvem')
+            ]
         ]
         await update.message.reply_text("📟 **COMANDO CENTRAL R2 - DEFCON 1**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
@@ -92,6 +88,16 @@ class TelegramUplink:
         elif data == 'menu_intel': await self._mostrar_menu_intel(query)
         elif data == 'menu_clima': await self._mostrar_menu_clima(query)
         elif data == 'menu_pc': await self._mostrar_menu_pc(query)
+
+        # --- COMANDOS ESPECÍFICOS ---
+        elif data == 'cmd_defcon': await self._executar_no_pc("defcon", query, "📊 Verificando nível DEFCON...")
+        elif data == 'cmd_solar': await self._executar_no_pc("solar", query, "☀️ Acessando dados NOAA...")
+        elif data == 'cmd_nuvem': await self._executar_no_pc("nuvem", query, "🌐 Verificando status do link...")
+
+        # --- COMANDOS DIRETOS (NOVOS) ---
+        elif data.startswith('cmd_'):
+            cmd = data.replace('cmd_', '')
+            await self._executar_no_pc(cmd, query, f"🔄 Executando: {cmd}...")
 
         # --- NOVAS AÇÕES (COMBO TRIPLO) ---
         elif data == 'acao_cam': await self._executar_no_pc("sentinela", query, "👁️ Acessando câmera...")
@@ -127,11 +133,21 @@ class TelegramUplink:
     async def _mostrar_menu_principal(self, query):
         # (Mesma estrutura do cmd_menu)
         keyboard = [
-            [InlineKeyboardButton("👁️ SENTINELA", callback_data='acao_cam'), InlineKeyboardButton("📶 SCAN REDE", callback_data='acao_netscan')],
-            [InlineKeyboardButton("📡 WAR INTEL", callback_data='menu_intel'), InlineKeyboardButton("💰 MARKET", callback_data='acao_market')],
-            [InlineKeyboardButton("🌦️ CLIMA", callback_data='menu_clima'), InlineKeyboardButton("✈️ RADAR ADS-B", callback_data='acao_radar')],
-            [InlineKeyboardButton("⚡ SPEEDTEST", callback_data='acao_speed'), InlineKeyboardButton("🛰️ ISS ORBIT", callback_data='acao_iss')],
-            [InlineKeyboardButton("🎛️ CONTROLE PC", callback_data='menu_pc'), InlineKeyboardButton("📸 PRINT", callback_data='acao_print')]
+            # Linha 1: Comandos já existentes
+            [
+                InlineKeyboardButton("🌤️ Clima", callback_data='cmd_clima'),
+                InlineKeyboardButton("✈️ Radar", callback_data='cmd_radar')
+            ],
+            # Linha 2: Intel e Novos Comandos (DEFCON e SOLAR)
+            [
+                InlineKeyboardButton("🛰️ Intel", callback_data='cmd_intel'),
+                InlineKeyboardButton("🍕 DEFCON", callback_data='cmd_defcon'),
+                InlineKeyboardButton("☀️ Solar", callback_data='cmd_solar')
+            ],
+            # Linha 3: Status do Sistema
+            [
+                InlineKeyboardButton("🌐 Status do Link", callback_data='cmd_nuvem')
+            ]
         ]
         await query.edit_message_text("📟 **COMANDO CENTRAL R2**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
