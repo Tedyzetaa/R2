@@ -297,7 +297,7 @@ class R2SciFiGUIWithAnimations(ctk.CTk):
         def avisar_nuvem_pc_ligado():
             try:
                 # Substitua pela URL que o Render te der (ex: https://r2-bot.onrender.com)
-                url_render = "SUA_URL_DO_RENDER_AQUI"
+                url_render = "https://r2-l9f4.onrender.com"
                 requests.get(f"{url_render}/assumir_comando")
             except:
                 pass
@@ -864,6 +864,16 @@ Digite 'ajuda' para comandos ou apenas converse.
             # INTENÇÃO: TRADE
             elif "trade" in cmd or "mercado" in cmd:
                 self.update_queue.put(lambda: self._iniciar_quantum_core())
+                acao_executada = True
+
+            elif "nuvem" in cmd or "status link" in cmd:
+                status_msg = (
+                    "🏠 [STATUS DO LINK]: OPERAÇÃO LOCAL ATIVA\n"
+                    "🖥️ SERVIDOR: Estação de Trabalho Principal (PC)\n"
+                    "🎮 INTERFACE: Sci-Fi GUI On-line\n"
+                    "🛡️ CONTROLE: Acesso total ao hardware e periféricos."
+                )
+                self.update_queue.put(lambda: self._print_ai_msg(status_msg))
                 acao_executada = True
 
             # INTENÇÃO: STATUS

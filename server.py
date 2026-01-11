@@ -79,6 +79,17 @@ class R2CloudCore:
         print(f"⚡ [CLOUD_EXEC]: {cmd}")
         cmd_lower = cmd.lower()
         
+        # Comando de identificação de instância
+        if "nuvem" in cmd_lower or "status link" in cmd_lower:
+            status_msg = (
+                "🌐 [STATUS DO LINK]: OPERAÇÃO CLOUD ATIVA\n"
+                "🛰️ SERVIDOR: Render.com (Headless)\n"
+                "🔋 REDUNDÂNCIA: Ativada\n"
+                "⚠️ OBS: Comandos de hardware (Webcam/Som) indisponíveis neste nó."
+            )
+            self.telegram_bot.enviar_mensagem_ativa(status_msg)
+            return
+
         # Exemplo: Clima
         if "clima" in cmd_lower or "previsão" in cmd_lower:
             cidade = cmd_lower.replace("clima", "").replace("previsão", "").strip()
@@ -103,6 +114,24 @@ r2_cloud = R2CloudCore()
 @app.route('/')
 def health():
     return "R2 TACTICAL CLOUD ONLINE", 200
+
+@app.route('/assumir_comando')
+def assumir_comando():
+    print("⚠️ [CLOUD]: PC assumiu o controle. Pausando bot...")
+    if r2_cloud.telegram_bot and r2_cloud.telegram_bot.app:
+        try:
+            asyncio.run_coroutine_threadsafe(r2_cloud.telegram_bot.app.updater.stop(), r2_cloud.telegram_bot.loop)
+        except Exception as e:
+            print(f"Erro ao pausar: {e}")
+
+        def religar():
+            time.sleep(600)
+            print("♻️ [CLOUD]: Retomando controle...")
+            r2_cloud.telegram_bot.iniciar_sistema()
+            
+        threading.Thread(target=religar, daemon=True).start()
+        
+    return "OK", 200
 
 if __name__ == "__main__":
     # Roda o Web Server (Flask)
