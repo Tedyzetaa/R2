@@ -821,6 +821,26 @@ Digite 'ajuda' para comandos ou apenas converse.
                 self._executar_busca_clima(texto) # Usa o texto original (com maiúsculas)
                 return
 
+            # 1.1 Se estava esperando cidade para Radar
+            if getattr(self, 'esperando_cidade_radar', False):
+                self.esperando_cidade_radar = False
+                cidade_alvo = texto.strip()
+                self.update_queue.put(lambda: self._print_system_msg(f"📡 Iniciando varredura ADS-B em {cidade_alvo}..."))
+                
+                def run_radar_scan():
+                    if self.radar_ops:
+                        path_img, qtd, msg_status = self.radar_ops.radar_scan(cidade_alvo)
+                        self.update_queue.put(lambda: self._print_ai_msg(msg_status))
+                        
+                        if path_img and qtd > 0:
+                            if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                                self.telegram_bot.enviar_foto_ativa(path_img, legenda=f"📡 Radar Tático: {qtd} alvos em {cidade_alvo}.")
+                            import os
+                            try: os.startfile(path_img)
+                            except: pass
+                threading.Thread(target=run_radar_scan, daemon=True).start()
+                return
+
             # 2. Comando de Clima (Direto ou Indireto)
             elif "previsão" in cmd or "clima" in cmd or "tempo" in cmd:
                 # Remove as palavras-chave para ver se sobrou o nome da cidade
@@ -892,34 +912,36 @@ Digite 'ajuda' para comandos ou apenas converse.
                 acao_executada = True
 
             # =================================================================
-            # ✈️ MÓDULO DE RADAR AÉREO (CORRIGIDO)
+            # ✈️ MÓDULO DE RADAR AÉREO (ATUALIZADO)
             # =================================================================
             elif "radar" in cmd or "trafego aereo" in cmd or "aviões" in cmd:
-                self.update_queue.put(lambda: self._print_system_msg("🛰️ Iniciando varredura ADS-B..."))
+                # Verifica se o usuário já forneceu a cidade (ex: "radar londres")
+                termo_limpo = cmd.replace("radar", "").replace("trafego aereo", "").replace("aviões", "").strip()
                 
-                if self.radar_ops:
-                    # Executa a varredura
-                    path_img, qtd, msg_status = self.radar_ops.radar_scan()
+                if len(termo_limpo) > 2:
+                    # Executa direto
+                    cidade_alvo = termo_limpo
+                    self.update_queue.put(lambda: self._print_system_msg(f"📡 Iniciando varredura ADS-B em {cidade_alvo}..."))
                     
-                    # R2 reporta o status (que já vem correto do módulo: "Setor Ivinhema")
-                    self.update_queue.put(lambda: self._print_ai_msg(msg_status))
-                    
-                    if path_img and qtd > 0:
-                        # Envia a foto pro Telegram
-                        if hasattr(self, 'telegram_bot') and self.telegram_bot:
-                             self.telegram_bot.enviar_foto_ativa(path_img, legenda=f"📡 Radar Tático: {qtd} alvos.")
-                        
-                        # Abre a foto no PC também
-                        import os
-                        try:
-                            os.startfile(path_img)
-                        except: pass
-                    
-                    elif qtd == 0:
-                        # CORREÇÃO AQUI: Mudado de Nova Andradina para Ivinhema
-                        self.update_queue.put(lambda: self._print_ai_msg("Nenhum tráfego aéreo detectado no setor de Ivinhema."))
-
-                acao_executada = True
+                    def run_radar_scan():
+                        if self.radar_ops:
+                            path_img, qtd, msg_status = self.radar_ops.radar_scan(cidade_alvo)
+                            self.update_queue.put(lambda: self._print_ai_msg(msg_status))
+                            if path_img and qtd > 0:
+                                if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                                    self.telegram_bot.enviar_foto_ativa(path_img, legenda=f"📡 Radar Tático: {qtd} alvos em {cidade_alvo}.")
+                                import os
+                                try: os.startfile(path_img)
+                                except: pass
+                    threading.Thread(target=run_radar_scan, daemon=True).start()
+                else:
+                    # Pergunta a cidade
+                    self.esperando_cidade_radar = True
+                    self.update_queue.put(lambda: self._print_ai_msg("📡 Qual o setor (cidade) para varredura?"))
+                    if VOZ_ATIVA:
+                        from voz import falar
+                        self.update_queue.put(lambda: falar("Qual cidade para o radar?"))
+                return
 
             # =================================================================
             # 🛰️ MÓDULO ORBITAL

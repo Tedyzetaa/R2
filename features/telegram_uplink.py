@@ -32,7 +32,7 @@ class TelegramUplink:
         self.app.add_handler(CommandHandler("start", self.cmd_menu)) 
         self.app.add_handler(CommandHandler("menu", self.cmd_menu))
         self.app.add_handler(CallbackQueryHandler(self.btn_handler))
-        self.app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.handle_text))
+        self.app.add_handler(MessageHandler(filters.TEXT, self.handle_text))
         self.app.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
 
         print("📡 [TELEGRAM]: Uplink Total Ativo.")
@@ -213,7 +213,11 @@ class TelegramUplink:
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await self._check_auth(update): return
-        self.gui.update_queue.put(lambda: self.gui._executar_comando_remoto(update.message.text))
+        
+        # Correção do erro da Barra (/)
+        comando_puro = update.message.text.lower().replace('/', '').strip()
+        
+        self.gui.update_queue.put(lambda: self.gui._executar_comando_remoto(comando_puro))
 
     async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await self._check_auth(update): return

@@ -92,12 +92,24 @@ class R2CloudCore:
             self.telegram_bot.enviar_mensagem_ativa(res)
             return
         
-        # --- ✈️ RADAR ---
-        if "radar" in cmd_lower:
-            path, qtd, msg = self.radar_ops.radar_scan()
+        # --- ✈️ RADAR (FLUXO DE PERGUNTA) ---
+        if cmd_lower in ["radar", "/radar", "scan"]:
+            self.esperando_cidade_radar = True  # Ativa a trava específica para o Radar
+            self.telegram_bot.enviar_mensagem_ativa("📡 [RADAR]: Informe a cidade ou coordenada para varredura:")
+            return
+
+        # Processamento da resposta para o Radar
+        if getattr(self, 'esperando_cidade_radar', False):
+            self.esperando_cidade_radar = False
+            cidade_alvo = cmd.strip()
+            
+            # Chama o radar passando a cidade escolhida
+            path, qtd, msg = self.radar_ops.radar_scan(cidade_alvo)
+            
             self.telegram_bot.enviar_mensagem_ativa(msg)
             if path and qtd > 0:
-                self.telegram_bot.enviar_foto_ativa(path, legenda=f"Radar: {qtd} alvos")
+                self.telegram_bot.enviar_foto_ativa(path, legenda=f"Radar: {qtd} alvos em {cidade_alvo}")
+            return
 
         # --- 🛰️ INTEL LINHA DE FRENTE (REPARADO) ---
         elif any(p in cmd_lower for p in ["guerra", "front", "intel", "ucrânia", "israel"]):
