@@ -130,25 +130,28 @@ class R2CloudCore:
             res = f"📊 [PIZZA METER CLOUD]: {status} (Nível de atividade: {pizzas})"
             self.telegram_bot.enviar_mensagem_ativa(res)
 
-        # --- ☀️ MONITORAMENTO SOLAR (FIX 404 NOAA) ---
-        elif "solar" in cmd_lower or "noaa" in cmd_lower:
-            from features.noaa import NOAAService
-            async def get_solar():
-                try:
-                    service = NOAAService()
-                    # Tentativa de busca com tratamento de erro 404 interno
-                    data = await service.get_space_weather()
-                    if data:
-                        res = f"☀️ [NOAA CLOUD]:\nAlerta: {data.overall_alert.value}\nKp Index: {data.kp_index}\nVento: {data.solar_wind.speed} km/s"
-                        self.telegram_bot.enviar_mensagem_ativa(res)
-                    else:
-                        # Fallback caso a API da NOAA mude o link (JSON alternativo)
-                        self.telegram_bot.enviar_mensagem_ativa("⚠️ NOAA retornou 404. Tentando link de contingência...")
-                        # Aqui você pode implementar um link reserva se tiver
-                except Exception as e:
-                    self.telegram_bot.enviar_mensagem_ativa(f"❌ Falha crítica NOAA: {str(e)}")
+        # --- ☀️ MONITORAMENTO SOLAR REFORMULADO ---
+        elif any(p in cmd_lower for p in ["solar", "noaa", "cme", "sol"]):
+            import os
+            self.telegram_bot.enviar_mensagem_ativa("☀️ [R2 INTEL]: Sincronizando com satélites SOHO/SDO... Capturando atividade coronal.")
             
-            asyncio.run(get_solar())
+            from features.noaa.noaa_service import NOAAService
+            noaa = NOAAService()
+            
+            # 1. Captura Imagem e Vídeo
+            img_path = noaa.get_latest_solar_image()
+            video_path = noaa.get_solar_video()
+            
+            # 2. Envia para o Telegram
+            if img_path:
+                self.telegram_bot.enviar_foto_ativa(img_path, legenda="📸 Foto atualizada do Sol (LASCO C3)")
+            if video_path:
+                # O Telegram trata .mgif da NOAA como animação/vídeo
+                self.telegram_bot.enviar_video_solar(video_path, legenda="🎞️ Atividade Coronal (Últimas 24h)")
+            
+            # 3. Mostra na Interface (Se Local)
+            if not os.environ.get("R2_CLOUD_MODE"):
+                if img_path: os.startfile(img_path)
             
         # --- 🌐 STATUS LINK ---
         elif "nuvem" in cmd_lower:

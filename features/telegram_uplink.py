@@ -1,231 +1,165 @@
-import threading
-import asyncio
 import os
+import asyncio
+import threading
+import time
+from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
-# PROTEÇÃO PARA AMBIENTES SEM INTERFACE (CLOUD)
-try:
-    import pyautogui
-    PYAUTOGUI_AVAILABLE = True
-except (ImportError, Exception):
-    PYAUTOGUI_AVAILABLE = False
-    print("⚠️ [SISTEMA]: PyAutoGUI não disponível. Comandos de Hardware (Print/Volume) desativados.")
+# --- 1. CARREGAMENTO AUTOMÁTICO DE CREDENCIAIS (.ENV) ---
+# Detecta a pasta raiz (C:\R2) independente de onde o script é chamado
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+env_path = os.path.join(root_dir, '.env')
 
-class TelegramUplink:
-    def __init__(self, token, allowed_user_id, gui_instance):
-        self.token = token
-        self.allowed_id = int(allowed_user_id)
-        self.gui = gui_instance
+load_dotenv(env_path)
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+# --- 2. PROTOCOLO DE SEGURANÇA ---
+# Seus IDs autorizados
+AUTHORIZED_USERS = {8117345546, 8379481331} 
+
+class TelegramBotUplink:
+    def __init__(self, server_ref):
+        self.server_ref = server_ref # Referência ao cérebro (r2_server.py)
         self.app = None
-        self.loop = None
+        self.loop = asyncio.new_event_loop()
+        self.thread = None
+        
+        # Verificação de segurança na inicialização
+        if not TOKEN:
+            print(f"❌ [ERRO CRÍTICO]: Token não encontrado em {env_path}")
+            raise ValueError("Token ausente. Configure o arquivo .env")
 
     def iniciar_sistema(self):
-        thread = threading.Thread(target=self._run_async_loop, daemon=True)
-        thread.start()
-
-    def _run_async_loop(self):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.app = ApplicationBuilder().token(self.token).post_init(self.configurar_comandos_menu).build()
-
-        self.app.add_handler(CommandHandler("start", self.cmd_menu)) 
-        self.app.add_handler(CommandHandler("menu", self.cmd_menu))
-        self.app.add_handler(CallbackQueryHandler(self.btn_handler))
-        self.app.add_handler(MessageHandler(filters.TEXT, self.handle_text))
-        self.app.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
-
-        print("📡 [TELEGRAM]: Uplink Total Ativo.")
-        try: self.app.run_polling(stop_signals=None)
-        except: pass
-
-    async def configurar_comandos_menu(self, application):
-        from telegram import BotCommand
-        comandos = [
-            BotCommand("start", "Iniciar o Link Neural"),
-            BotCommand("help", "Abrir Manual Tático"),
-            BotCommand("sm", "Diagnóstico de Sistema (POST)"),
-            BotCommand("radar", "Varredura de Tráfego Aéreo"),
-            BotCommand("clima", "Consultar Previsão do Tempo"),
-            BotCommand("solar", "Telemetria Espacial NOAA"),
-            BotCommand("intel", "Relatório de Linha de Frente"),
-            BotCommand("sentinela", "Capturar imagem da Webcam (Local)")
-        ]
-        await application.bot.set_my_commands(comandos)
-
-    def enviar_mensagem_ativa(self, texto):
-        if self.app and self.loop:
-            asyncio.run_coroutine_threadsafe(self.app.bot.send_message(chat_id=self.allowed_id, text=texto, parse_mode=None), self.loop)
-
-    def enviar_foto_ativa(self, caminho_foto, legenda=""):
-        if self.app and self.loop and os.path.exists(caminho_foto):
-            asyncio.run_coroutine_threadsafe(self.app.bot.send_photo(chat_id=self.allowed_id, photo=open(caminho_foto, 'rb'), caption=legenda), self.loop)
-
-    async def _check_auth(self, update: Update):
-        if update.effective_user.id != self.allowed_id:
-            await update.effective_message.reply_text("⛔ ACESSO NEGADO.")
-            return False
-        return True
-
-    # =========================================================================
-    # MENU PRINCIPAL (TODOS OS MÓDULOS)
-    # =========================================================================
-    async def cmd_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self._check_auth(update): return
-        keyboard = [
-            # Linha 1: Comandos já existentes
-            [
-                InlineKeyboardButton("🌤️ Clima", callback_data='cmd_clima'),
-                InlineKeyboardButton("✈️ Radar", callback_data='cmd_radar')
-            ],
-            # Linha 2: Intel e Novos Comandos (DEFCON e SOLAR)
-            [
-                InlineKeyboardButton("🛰️ Intel", callback_data='cmd_intel'),
-                InlineKeyboardButton("🍕 DEFCON", callback_data='cmd_defcon'),
-                InlineKeyboardButton("☀️ Solar", callback_data='cmd_solar')
-            ],
-            # Linha 3: Status do Sistema
-            [
-                InlineKeyboardButton("🌐 Status do Link", callback_data='cmd_nuvem')
-            ]
-        ]
-        await update.message.reply_text("📟 **COMANDO CENTRAL R2 - DEFCON 1**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-    async def btn_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-        if query.from_user.id != self.allowed_id: return
-        data = query.data
-
-        # --- NAVEGAÇÃO ---
-        if data == 'menu_main': await self._mostrar_menu_principal(query)
-        elif data == 'menu_intel': await self._mostrar_menu_intel(query)
-        elif data == 'menu_clima': await self._mostrar_menu_clima(query)
-        elif data == 'menu_pc': await self._mostrar_menu_pc(query)
-
-        # --- COMANDOS ESPECÍFICOS ---
-        elif data == 'cmd_defcon': await self._executar_no_pc("defcon", query, "📊 Verificando nível DEFCON...")
-        elif data == 'cmd_solar': await self._executar_no_pc("solar", query, "☀️ Acessando dados NOAA...")
-        elif data == 'cmd_nuvem': await self._executar_no_pc("nuvem", query, "🌐 Verificando status do link...")
-
-        # --- COMANDOS DIRETOS (NOVOS) ---
-        elif data.startswith('cmd_'):
-            cmd = data.replace('cmd_', '')
-            await self._executar_no_pc(cmd, query, f"🔄 Executando: {cmd}...")
-
-        # --- NOVAS AÇÕES (COMBO TRIPLO) ---
-        elif data == 'acao_cam': await self._executar_no_pc("sentinela", query, "👁️ Acessando câmera...")
-        elif data == 'acao_netscan': await self._executar_no_pc("escanear rede", query, "📶 Escaneando IPs...")
-        elif data == 'acao_speed': await self._executar_no_pc("velocidade", query, "⚡ Testando link (Aguarde 20s)...")
-
-        # --- AÇÕES ANTIGAS ---
-        elif data == 'acao_market': await self._executar_no_pc("cotação", query, "💰 Buscando cotações...")
-        elif data == 'acao_iss': await self._executar_no_pc("iss", query, "🛰️ Rastreando ISS...")
-        elif data == 'acao_radar': await self._executar_no_pc("radar aereo", query, "✈️ Radar ADS-B...")
-        elif data == 'acao_print': 
-            await query.edit_message_text("📸 Capturando...")
-            await self._enviar_print(query)
-
-        # PC Control
-        elif data == 'pc_vol_up': await self._executar_no_pc("aumentar volume", query, "🔊 +Volume")
-        elif data == 'pc_vol_down': await self._executar_no_pc("baixar volume", query, "🔉 -Volume")
-        elif data == 'pc_mute': await self._executar_no_pc("mutar", query, "🔇 Mute")
-        elif data == 'pc_off': await self._executar_no_pc("desligar pc", query, "⚠️ Desligando...")
-        elif data == 'pc_abort': await self._executar_no_pc("cancelar desligamento", query, "✅ Cancelado.")
-
-        # Clima & Intel
-        elif data.startswith('clima_'):
-            cidade = data.replace('clima_', '')
-            if cidade == 'digitar': await self._executar_no_pc("clima", query, "📡 Digite a cidade...")
-            else: await self._executar_no_pc(f"clima {cidade}", query, f"🌤️ Clima: {cidade}...")
-        elif data.startswith('intel_'):
-            regiao = data.split('_')[1]
-            if regiao == "mapa": await self._executar_no_pc("abrir mapa", query, "🗺️ Abrindo mapa...")
-            else: await self._executar_no_pc(f"monitorar {regiao}", query, f"🛰️ Intel: {regiao}...")
-
-    # --- MENUS ---
-    async def _mostrar_menu_principal(self, query):
-        # (Mesma estrutura do cmd_menu)
-        keyboard = [
-            # Linha 1: Comandos já existentes
-            [
-                InlineKeyboardButton("🌤️ Clima", callback_data='cmd_clima'),
-                InlineKeyboardButton("✈️ Radar", callback_data='cmd_radar')
-            ],
-            # Linha 2: Intel e Novos Comandos (DEFCON e SOLAR)
-            [
-                InlineKeyboardButton("🛰️ Intel", callback_data='cmd_intel'),
-                InlineKeyboardButton("🍕 DEFCON", callback_data='cmd_defcon'),
-                InlineKeyboardButton("☀️ Solar", callback_data='cmd_solar')
-            ],
-            # Linha 3: Status do Sistema
-            [
-                InlineKeyboardButton("🌐 Status do Link", callback_data='cmd_nuvem')
-            ]
-        ]
-        await query.edit_message_text("📟 **COMANDO CENTRAL R2**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-    async def _mostrar_menu_pc(self, query):
-        keyboard = [
-            [InlineKeyboardButton("🔊 +VOL", callback_data='pc_vol_up'), InlineKeyboardButton("🔉 -VOL", callback_data='pc_vol_down'), InlineKeyboardButton("🔇 MUTE", callback_data='pc_mute')],
-            [InlineKeyboardButton("⚠️ DESLIGAR PC", callback_data='pc_off')],
-            [InlineKeyboardButton("🚫 ABORTAR", callback_data='pc_abort')],
-            [InlineKeyboardButton("🔙 VOLTAR", callback_data='menu_main')]
-        ]
-        await query.edit_message_text("🎛️ **CONTROLE DE HARDWARE**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-    async def _mostrar_menu_intel(self, query):
-        keyboard = [
-            [InlineKeyboardButton("🇺🇦 UCRÂNIA", callback_data='intel_ukraine'), InlineKeyboardButton("🇮🇱 ISRAEL", callback_data='intel_israel')],
-            [InlineKeyboardButton("🇸🇾 SÍRIA", callback_data='intel_syria'), InlineKeyboardButton("🌍 GLOBAL", callback_data='intel_global')],
-            [InlineKeyboardButton("🗺️ MAPA (PC)", callback_data='intel_mapa')],
-            [InlineKeyboardButton("🔙 VOLTAR", callback_data='menu_main')]
-        ]
-        await query.edit_message_text("📡 **INTEL**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-    async def _mostrar_menu_clima(self, query):
-        keyboard = [
-            [InlineKeyboardButton("🏡 NOVA ANDRADINA", callback_data='clima_nova andradina')],
-            [InlineKeyboardButton("🏙️ CAMPO GRANDE", callback_data='clima_campo grande'), InlineKeyboardButton("🏖️ DOURADOS", callback_data='clima_dourados')],
-            [InlineKeyboardButton("📝 DIGITAR OUTRA", callback_data='clima_digitar')],
-            [InlineKeyboardButton("🔙 VOLTAR", callback_data='menu_main')]
-        ]
-        await query.edit_message_text("🌦️ **CLIMA**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-
-    async def _executar_no_pc(self, cmd, query, msg):
-        self.gui.update_queue.put(lambda: self.gui._executar_comando_remoto(cmd))
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 MENU", callback_data='menu_main')]]))
-
-    async def _enviar_print(self, query):
-        if not PYAUTOGUI_AVAILABLE:
-            await query.message.reply_text("❌ Função indisponível em ambiente Cloud (Sem monitor detectado).")
-            await self._mostrar_menu_principal(query)
+        if self.thread and self.thread.is_alive():
             return
 
-        path = "temp_screen.png"
-        try:
-            pyautogui.screenshot(path)
-            await query.message.reply_photo(open(path, 'rb'))
-            await self._mostrar_menu_principal(query)
-        except: await query.message.reply_text("Erro print.")
-        finally: 
-            if os.path.exists(path): os.remove(path)
+        def run_bot():
+            asyncio.set_event_loop(self.loop)
+            
+            # --- 🛡️ CONFIGURAÇÃO DE ALTA DISPONIBILIDADE ---
+            self.app = (
+                Application.builder()
+                .token(TOKEN)
+                .connect_timeout(30)
+                .read_timeout(30)
+                .write_timeout(30)
+                .pool_timeout(30)
+                .build()
+            )
 
-    async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self._check_auth(update): return
-        
-        # Correção do erro da Barra (/)
-        comando_puro = update.message.text.lower().replace('/', '').strip()
-        
-        self.gui.update_queue.put(lambda: self.gui._executar_comando_remoto(comando_puro))
+            # Handlers (Ouvidos do Bot)
+            self.app.add_handler(CommandHandler("start", self.start_command))
+            self.app.add_handler(CallbackQueryHandler(self.lidar_com_botoes))
+            self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.lidar_com_mensagem))
+            
+            # Tratamento de erros de rede
+            self.app.add_error_handler(self.error_handler)
 
-    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not await self._check_auth(update): return
-        
-        doc = update.message.document
-        arquivo = await doc.get_file()
-        caminho_final = os.path.join(self.gui.dead_drop_path, doc.file_name)
-        
-        await arquivo.download_to_drive(caminho_final)
-        await update.message.reply_text(f"📥 **ARQUIVO RECEBIDO:** {doc.file_name}\nSalvo em: {self.gui.dead_drop_path}")
-        self.gui.update_queue.put(lambda: self.gui._print_system_msg(f"📁 Dead Drop: {doc.file_name} recebido."))
+            print("📡 [TELEGRAM]: Uplink Total Ativo com Interface de Botões.")
+            
+            # Polling Resiliente (Não para se a internet cair)
+            self.loop.run_until_complete(self.app.run_polling(drop_pending_updates=True, close_loop=False))
+
+        self.thread = threading.Thread(target=run_bot, daemon=True)
+        self.thread.start()
+
+    # --- GERENCIADOR DE ERROS DE REDE ---
+    async def error_handler(self, update, context):
+        """Evita que o bot crash por oscilação de internet"""
+        print(f"⚠️ [TELEGRAM ERROR]: {context.error}")
+        # Ignora erros de conexão passageiros
+        if "httpx" in str(context.error) or "Network" in str(context.error):
+            pass
+
+    # --- MENU TÁTICO ---
+    async def start_command(self, update: Update, context):
+        uid = update.effective_user.id
+        if uid in AUTHORIZED_USERS:
+            # Seus botões personalizados
+            keyboard = [
+                [InlineKeyboardButton("☀️ RELATÓRIO SOLAR COMPLETO", callback_data='solar')],
+                [InlineKeyboardButton("☄️ RASTREADOR DE ASTEROIDES (NASA)", callback_data='asteroides')], 
+                [InlineKeyboardButton("✈️ RADAR DE VOOS (API 200KM)", callback_data='pedir_voos')],
+                [InlineKeyboardButton("⛈️ RADAR DE CHUVA (POR CIDADE)", callback_data='pedir_cidade')],
+                [InlineKeyboardButton("☢️ NÍVEL DE ALERTA: DEFCON", callback_data='defcon')],
+                [InlineKeyboardButton("🌍 MONITOR SÍSMICO (TERREMOTOS)", callback_data='terremotos')],
+                [InlineKeyboardButton("🌋 ALERTA VULCÂNICO (MAGMA)", callback_data='vulcao')], 
+                [InlineKeyboardButton("🇺🇦 INTEL: FRONT UCRÂNIA", callback_data='intel ucrania')],
+                [InlineKeyboardButton("🇮🇱 INTEL: FRONT ISRAEL", callback_data='intel israel')],
+                [InlineKeyboardButton("🚨 BREAKING NEWS (CONFLITOS)", callback_data='intel_news')],
+                [InlineKeyboardButton("💻 STATUS DO SISTEMA (PC)", callback_data='status')],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                "🤖 *R2 ASSISTANT - CONSOLE DE COMANDO*\nSelecione uma operação tática abaixo:",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text("⛔ ACESSO NEGADO.")
+
+    # --- PROCESSADOR DE BOTÕES ---
+    async def lidar_com_botoes(self, update: Update, context):
+        query = update.callback_query
+        user_id = query.from_user.id
+        comando = query.data
+
+        try: await query.answer()
+        except: pass
+
+        if user_id in AUTHORIZED_USERS:
+            print(f"🔘 Botão pressionado por {user_id}: {comando}")
+            
+            # Envia para o SERVIDOR processar (r2_server.py)
+            self.server_ref.update_queue.put(
+                lambda: self.server_ref.processar_comando_remoto(comando, sender_id=user_id)
+            )
+        else:
+            try: await query.edit_message_text("⛔ Não autorizado.")
+            except: pass
+
+    # --- PROCESSADOR DE MENSAGENS DE TEXTO ---
+    async def lidar_com_mensagem(self, update: Update, context):
+        user_id = update.effective_user.id
+        if user_id in AUTHORIZED_USERS:
+            texto = update.message.text
+            # Envia texto para o servidor (ex: nome de cidade)
+            self.server_ref.update_queue.put(
+                lambda: self.server_ref.processar_comando_remoto(texto, sender_id=user_id)
+            )
+
+    # --- ENVIOS ATIVOS (Server -> Telegram) ---
+    def enviar_mensagem_ativa(self, texto, target_chat_id):
+        if not self.app: return
+        async def send():
+            try:
+                await self.app.bot.send_message(chat_id=target_chat_id, text=texto, parse_mode='Markdown')
+            except Exception as e:
+                print(f"❌ Erro envio msg: {e}")
+        asyncio.run_coroutine_threadsafe(send(), self.loop)
+
+    def enviar_foto_ativa(self, file_path, legenda="", target_chat_id=None):
+        if not self.app: return
+        async def send():
+            for tentativa in range(3):
+                try:
+                    if os.path.exists(file_path):
+                        with open(file_path, 'rb') as f:
+                            # Detecta se é GIF ou Foto
+                            if file_path.lower().endswith('.gif'):
+                                await self.app.bot.send_animation(chat_id=target_chat_id, animation=f, caption=legenda)
+                            else:
+                                await self.app.bot.send_photo(chat_id=target_chat_id, photo=f, caption=legenda)
+                        break 
+                    else:
+                        print(f"⚠️ Arquivo sumiu: {file_path}")
+                        break
+                except PermissionError:
+                    await asyncio.sleep(1)
+                except Exception as e:
+                    print(f"❌ Erro envio mídia: {e}")
+                    break
+        asyncio.run_coroutine_threadsafe(send(), self.loop)

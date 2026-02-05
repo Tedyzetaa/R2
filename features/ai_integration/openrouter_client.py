@@ -122,6 +122,9 @@ EXEMPLO DE RESPOSTA IDEAL:
             raw_content = response.choices[0].message.content
             ai_reply = self._limpar_sujeira_llm(raw_content)
 
+            # Trava de segurança para alucinações de diálogo
+            ai_reply = ai_reply.split("Operador:")[0].split("VOCÊ>")[0].strip()
+
             # CORREÇÃO: Se a limpeza removeu tudo, devolve o cru ou mensagem de erro
             if not ai_reply or len(ai_reply) < 2:
                 logger.warning(f"⚠️ [DEBUG]: Resposta crua era: {raw_content}")

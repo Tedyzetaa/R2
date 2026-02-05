@@ -1,61 +1,72 @@
+import os
+import pygame
 import asyncio
 import edge_tts
-import pygame
-import os
-import uuid  # Biblioteca para gerar nomes únicos
+import pyttsx3
+import threading
 
-# Configuração da Voz (pode testar 'pt-BR-FranciscaNeural' se preferir)
-VOZ = "pt-BR-AntonioNeural"
+# 1. TENTA INICIAR O MIXER DE AUDIO (ONLINE)
+try:
+    pygame.mixer.init()
+except:
+    pass
+
+# 2. TENTA INICIAR O MOTOR OFFLINE (ROBÔ)
+try:
+    engine_offline = pyttsx3.init()
+    voices = engine_offline.getProperty('voices')
+    # Tenta pegar voz em PT-BR
+    for v in voices:
+        if "brazil" in v.id.lower() or "portuguese" in v.name.lower():
+            engine_offline.setProperty('voice', v.id)
+            break
+    engine_offline.setProperty('rate', 190) 
+except:
+    engine_offline = None
+
+AUDIO_FILE = "fala_r2.mp3"
+
+async def _gerar_audio_online(texto):
+    """Gera o arquivo de áudio usando a Microsoft"""
+    communicate = edge_tts.Communicate(texto, "pt-BR-AntonioNeural")
+    await communicate.save(AUDIO_FILE)
+
+def _tocar_audio_online():
+    if os.path.exists(AUDIO_FILE):
+        try:
+            pygame.mixer.music.load(AUDIO_FILE)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                pygame.time.Clock().tick(10)
+            pygame.mixer.music.unload()
+        except Exception as e:
+            print(f"❌ Erro player: {e}")
+
+def falar_offline(texto):
+    """Fallback para voz robótica"""
+    if engine_offline:
+        try:
+            engine_offline.say(texto)
+            engine_offline.runAndWait()
+        except:
+            pass
 
 def falar(texto):
-    """Gera um arquivo único para cada fala, evitando erros de arquivo corrompido"""
     if not texto: return
 
-    # Gera um nome aleatório (ex: tts_4f8a1...mp3)
-    arquivo_temp = f"tts_{uuid.uuid4().hex}.mp3"
-
-    try:
-        # 1. Limpeza de Lixo (Remove áudios velhos que já tocaram)
-        _limpar_audios_antigos()
-
-        # 2. Geração do Áudio
-        async def gerar():
-            communicate = edge_tts.Communicate(texto, VOZ)
-            await communicate.save(arquivo_temp)
-
-        asyncio.run(gerar())
-
-        # 3. Reprodução
-        if not pygame.mixer.get_init():
-            pygame.mixer.init()
-
-        # Para qualquer som anterior e libera o arquivo
+    def _thread_voz():
         try:
-            pygame.mixer.music.stop()
-            pygame.mixer.music.unload()
+            # Tenta Online
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_gerar_audio_online(texto))
+            loop.close()
+            _tocar_audio_online()
         except:
-            pass # Versões antigas do pygame podem não ter unload, ignorar
+            # Falhou? Usa o Offline sem reclamar no terminal
+            falar_offline(texto)
 
-        pygame.mixer.music.load(arquivo_temp)
-        pygame.mixer.music.play()
+    threading.Thread(target=_thread_voz, daemon=True).start()
 
-        # Opcional: Se quiser esperar terminar de falar para não encavalar
-        # while pygame.mixer.music.get_busy():
-        #     pygame.time.Clock().tick(10)
-
-    except Exception as e:
-        print(f"❌ [ERRO DE VOZ]: {e}")
-
-def _limpar_audios_antigos():
-    """Remove arquivos tts_*.mp3 antigos da pasta"""
-    try:
-        diretorio = os.getcwd()
-        for arquivo in os.listdir(diretorio):
-            if arquivo.startswith("tts_") and arquivo.endswith(".mp3"):
-                try:
-                    # Tenta deletar. Se o Pygame estiver usando, vai dar erro e ignoramos.
-                    os.remove(os.path.join(diretorio, arquivo))
-                except PermissionError:
-                    pass # Arquivo ainda em uso, deixa para a próxima
-    except Exception:
-        pass
+if __name__ == "__main__":
+    falar("Módulo de voz R2 operacional.")

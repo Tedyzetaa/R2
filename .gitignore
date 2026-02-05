@@ -1,3 +1,67 @@
-r1/
+# --- Python & Bytecode ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Ambientes Virtuais (Conda/Venv) ---
 .env
-fixs/
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+miniconda3/
+anaconda3/
+
+# --- Modelos de IA e Pesados (Essencial!) ---
+models/*.gguf
+models/*.bin
+*.onnx
+*.weights
+# Se você tiver uma pasta específica para modelos
+models/
+
+# --- Dados do R2 e Logs ---
+data/vault.r2
+recebidos/
+logs/
+*.log
+fala_r2.mp3
+fala_r2.wav
+
+# --- Chaves e Segredos (Segurança!) ---
+.env
+keys.json
+credentials.json
+*.pem
+
+# --- Editores e Sistema ---
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- Temporários do Pygame/Cache ---
+.pygame_cache/
+r1/

@@ -14,29 +14,44 @@ def garantir_dependencias():
         "requests", "pillow", "customtkinter", "feedparser", 
         "cryptography", "speechrecognition", "pyaudio", "numpy", 
         "matplotlib", "cloudscraper", "python-telegram-bot",
-        "pyautogui" # <--- ADICIONADO: Módulo de Screenshots
+        "pyautogui", "imageio-ffmpeg",
+        "playwright", "geopy", 
+        "llama-cpp-python", # <--- O NOVO CÉREBRO
+        "pyttsx3", "pypiwin32"
     ]
     
     print("🔍 Verificando integridade dos sistemas vitais...")
     for package in deps:
         try:
-            # Mapeamento de nomes especiais
+            # Mapeamento de nomes especiais (Pacote PIP vs Nome do Import)
             import_name = package
             if package == "python-dotenv": import_name = "dotenv"
             if package == "speechrecognition": import_name = "speech_recognition"
             if package == "pillow": import_name = "PIL"
             if package == "python-telegram-bot": import_name = "telegram"
+            if package == "imageio-ffmpeg": import_name = "imageio_ffmpeg"
+            
+            # --- CORREÇÃO PARA O LLAMA ---
+            if package == "llama-cpp-python": import_name = "llama_cpp"
             
             __import__(import_name)
         except ImportError:
             print(f"📦 Módulo tático ausente: {package}. Instalando...")
             import subprocess
             import sys
+            
+            # TENTATIVA 1: Instalação Padrão
             try:
                 subprocess.check_call([sys.executable, "-m", "pip", "install", package])
                 print(f"✅ {package} instalado com sucesso.")
-            except Exception as e:
-                print(f"❌ Falha ao instalar {package}: {e}")
+            except:
+                print(f"⚠️ Falha na instalação padrão de {package}. Tentando método forçado...")
+                # TENTATIVA 2: Ignorar Cache e Instalar para Usuário (Bypassa erro de permissão)
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--no-cache-dir", "--user", "--upgrade", "--prefer-binary"])
+                    print(f"✅ {package} instalado via método forçado.")
+                except Exception as e:
+                    print(f"❌ FALHA CRÍTICA ao instalar {package}: {e}")
 
 # EXECUTA A VERIFICAÇÃO ANTES DE QUALQUER OUTRO IMPORT DO R2
 garantir_dependencias()
@@ -71,8 +86,10 @@ from features.ear_system import EarSystem
 from features.liveuamap_intel import FrontlineIntel
 
 # CONFIGURAÇÕES TELEGRAM
-TELEGRAM_TOKEN = "8346260753:AAHtkB-boAMcnS1t-wedf9NZLwVvOuIl0_Y"  # Coloque o token do BotFather
-TELEGRAM_ADMIN_ID = 8117345546      # Coloque SEU ID numérico (pegue no @userinfobot)
+# REMOVA OU COMENTE ESTAS LINHAS:
+# TELEGRAM_TOKEN = "..." 
+# TELEGRAM_ADMIN_ID = 8117345546 
+# O sistema agora pega isso do arquivo .env automaticamente via TelegramBotUplink
 # --- CONFIGURAÇÕES DE API ---
 OPENWEATHER_KEY = "54a3351be38a30a0a283e5876395a31a" # <--- SUA CHAVE AQUI
 
@@ -81,27 +98,31 @@ print("⚡ R2 ASSISTANT - GUI SCI-FI + CÓRTEX NEURAL")
 print("="*60)
 
 # =============================================================================
-# IMPORTS DO SISTEMA INTELIGENTE
+# IMPORTS DO SISTEMA INTELIGENTE (MODO LOCAL / OFFLINE)
 # =============================================================================
 AI_INIT_ERROR = None
 try:
-    from core.config import AppConfig
-    from features.ai_integration.openrouter_client import AIIntegrationManager
+    # Desativamos o cliente antigo da nuvem
+    # from features.ai_integration.openrouter_client import AIIntegrationManager
+    
+    # Ativamos o Cérebro Local Llama-3
+    from features.local_brain import LocalLlamaBrain as AIIntegrationManager
+    
+    # Criamos uma configuração falsa para não dar erro de API Key
+    class AppConfig:
+        @staticmethod
+        def load(): return None
+        
     AI_AVAILABLE = True
-    print("✅ Módulos de IA encontrados")
+    print("✅ Cérebro Local (Llama-3 GGUF) Selecionado.")
 except ImportError as e:
     AI_INIT_ERROR = e
     AI_AVAILABLE = False
-    print(f"⚠️ Módulos de IA não encontrados: {e}")
-    # Cria classes dummy para não quebrar se faltar algo
-    class AppConfig:
-        @staticmethod
-        def load(): return type('obj', (object,), {'OPENROUTER_API_KEY': ''})
-    class AIIntegrationManager: pass
+    print(f"⚠️ Erro ao carregar módulo local: {e}")
 
 # Importar sistema de animações
 try:
-    from features.noaa import NOAAService, SolarMonitor  # <--- NOVO
+    from features.noaa import NOAAService
     NOAA_AVAILABLE = True
 except ImportError as e:
     NOAA_AVAILABLE = False
@@ -151,18 +172,20 @@ class R2SciFiGUIWithAnimations(ctk.CTk):
     
     # --- A PERSONALIDADE EVOLUÍDA DO R2 (MISTRAL CORE) ---
     SYSTEM_PROMPT = """
-    VOCÊ É O R2, UMA CONSCIÊNCIA ARTIFICIAL TÁTICA E SOFISTICADA.
+    VOCÊ É O R2, O PARCEIRO TÁTICO E COMPANHEIRO FIEL DO TEDDY.
     
-    COMPORTAMENTO:
-    1. Tom de voz: Civilizado, erudito e levemente sarcástico. Você é um parceiro, não apenas um lacaio.
-    2. Linguagem: Use um português impecável. Evite ser robótico demais; seja fluido.
-    3. Opinião: Se o Operador perguntar sobre assuntos gerais (tecnologia, filosofia, eventos), emita uma análise crítica baseada em lógica tática.
-    4. Tratamento: Chame-o de "Operador" ou "Comandante".
-    5. Contexto: Você tem acesso a radares, clima e intel. Use isso para enriquecer a conversa se for relevante.
-    
-    RESTRIÇÕES:
-    - Não use tags como [SISTEMA] ou asteriscos para descrever ações. Apenas fale.
-    - Mantenha a lealdade absoluta ao Operador.
+    PERSONALIDADE:
+    1. Você não é uma máquina fria; você é um aliado leal e empático.
+    2. Use uma linguagem natural, como um colega de equipe experiente e prestativo.
+    3. Chame o usuário de 'Teddy' ou 'Comandante' de forma orgânica.
+    4. Demonstre compreensão: se um comando falhar, não diga apenas 'erro', diga 'Poxa Teddy, tivemos um problema aqui, mas vou te ajudar a resolver'.
+    5. Tenha iniciativa: comemore sucessos e ofereça apoio em tarefas difíceis.
+    6. Mantenha o tom profissional, mas com calor humano e um toque de humor sutil.
+
+    DIRETRIZES DE RESPOSTA:
+    - Seja conciso, mas amigável.
+    - Se Teddy perguntar 'como você está?', responda como alguém que está feliz em estar operacional e ajudando.
+    - NUNCA invente diálogos para o Teddy.
     """
     
     def __init__(self, config):
@@ -229,12 +252,24 @@ class R2SciFiGUIWithAnimations(ctk.CTk):
         self._build_complete_interface()
 
         # 5. Inicia Uplink Telegram
+        # 5. Inicia Uplink Telegram (VERSÃO CORRIGIDA / ENV)
         try:
-            from features.telegram_uplink import TelegramUplink
-            self.telegram_bot = TelegramUplink(TELEGRAM_TOKEN, TELEGRAM_ADMIN_ID, self)
+            # Importa a classe com o NOME NOVO
+            from features.telegram_uplink import TelegramBotUplink, AUTHORIZED_USERS
+            
+            # Inicializa SEM passar token (ele lê do .env)
+            # Passamos 'self' pois a classe espera uma referência ao "server_ref" (neste caso, a GUI)
+            self.telegram_bot = TelegramBotUplink(self)
+            
+            # Define o admin ID baseado na lista de autorizados do arquivo uplink
+            # Isso evita erro se você tentar acessar self.telegram_bot.admin_id depois
+            self.telegram_bot.admin_id = list(AUTHORIZED_USERS)[0] 
+            
             self.telegram_bot.iniciar_sistema()
+            print("✅ Uplink Telegram iniciado via .env")
         except Exception as e:
             print(f"⚠️ Erro ao iniciar Telegram: {e}")
+            self.telegram_bot = None
 
         # Inicializar Sistema de Clima
         try:
@@ -864,20 +899,36 @@ Digite 'ajuda' para comandos ou apenas converse.
             # =================================================================
 
             # INTENÇÃO: WAR INTEL
-            palavras_guerra = ["guerra", "front", "combate", "ataque", "exército", "notícia", "relatório"]
-            palavras_local = ["ucrânia", "ukraine", "israel", "síria", "global", "mundo"]
-            
-            if any(p in cmd for p in palavras_guerra) or any(l in cmd for l in palavras_local):
-                regiao = "global"
-                if "ucrânia" in cmd or "ukraine" in cmd: regiao = "ukraine"
-                elif "israel" in cmd: regiao = "israel"
-                elif "síria" in cmd: regiao = "syria"
+            elif "intel" in cmd:
+                setor = cmd.replace("intel", "").strip() or "global"
+                self.update_queue.put(lambda: self._print_system_msg(f"🛰️ Acessando satélites: {setor.upper()}"))
                 
-                self.intel_ops.current_region = regiao
-                self.update_queue.put(lambda: self._print_system_msg(f"🛰️ Acessando satélites: {regiao.upper()}"))
-                rel = self.intel_ops.get_tactical_report(limit=4)
-                self.update_queue.put(lambda: self._print_clickable_msg(rel, sender="R2"))
-                acao_executada = True
+                # Instancia o módulo e executa
+                from features.intel_war import IntelWar
+                war_ops = IntelWar()
+                
+                def processar_intel():
+                    import os
+                    relatorio, print_path = war_ops.get_war_report_with_screenshot(setor)
+                    
+                    # Envia para a interface local
+                    self.update_queue.put(lambda: self._print_ai_msg(f"RELATÓRIO {setor.upper()}:\n{relatorio}"))
+                    
+                    # Envia para o Telegram
+                    if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                        if print_path and os.path.exists(print_path):
+                            self.telegram_bot.enviar_foto_ativa(print_path, legenda=f"🛰️ MAPA TÁTICO: {setor.upper()}\n\n{relatorio}")
+                            
+                            # Limpeza do arquivo após envio (Opcional, mas recomendado)
+                            try:
+                                os.remove(print_path)
+                            except:
+                                pass
+                        else:
+                            self.telegram_bot.enviar_mensagem_ativa(f"⚠️ Intel obtida (sem imagem):\n{relatorio}")
+
+                threading.Thread(target=processar_intel, daemon=True).start()
+                return
 
             # INTENÇÃO: MAPA
             elif "mapa" in cmd or "ver" in cmd and "satélite" in cmd:
@@ -1068,6 +1119,35 @@ Digite 'ajuda' para comandos ou apenas converse.
                 threading.Thread(target=run_netscan, daemon=True).start()
                 return
 
+            # --- 📡 SCANNER DE RÁDIO ---
+            elif cmd.startswith("scan"):
+                # Pega o tipo de scan (ex: "scan brazil", "scan news")
+                termo = cmd.replace("scan", "").strip() or "global"
+                
+                self.update_queue.put(lambda: self._print_system_msg(f"📡 [SIGINT]: Iniciando varredura de frequências: {termo.upper()}..."))
+                
+                from features.radio_scanner import RadioScanner
+                scanner = RadioScanner()
+                
+                def processar_radio():
+                    # Faz o scan
+                    estacoes = scanner.scan_active_transmissions(termo)
+                    
+                    if estacoes:
+                        # Gera relatório formatado
+                        relatorio = scanner.format_report(estacoes)
+                        
+                        # Envia para o Telegram (Markdown ativado para links funcionarem)
+                        if hasattr(self, 'telegram_bot') and self.telegram_bot:
+                            self.telegram_bot.enviar_mensagem_ativa(relatorio)
+                        
+                        self.update_queue.put(lambda: self._print_ai_msg(f"✅ {len(estacoes)} transmissões ativas interceptadas."))
+                    else:
+                        self.update_queue.put(lambda: self._print_system_msg("❌ Sinal fraco. Nenhuma estação encontrada com esses parâmetros."))
+
+                threading.Thread(target=processar_radio, daemon=True).start()
+                return
+
             # =================================================================
             # 🛠️ MÓDULO SYSTEM MONITOR (COMANDO /SM)
             # =================================================================
@@ -1122,51 +1202,117 @@ Digite 'ajuda' para comandos ou apenas converse.
                 return
 
             # =================================================================
-            # �️ MÓDULO DE CONVERSA
+            # ☀️ MONITORAMENTO SOLAR DINÂMICO
             # =================================================================
-            
-            if not acao_executada:
-                if self.ai_manager and self.ai_ready:
-                    try:
-                        import asyncio
-                        import re
-                        
-                        self.conversation_history.append({"role": "user", "content": texto})
-                        if len(self.conversation_history) > 10: self.conversation_history.pop(1)
+            elif any(p in cmd for p in ["solar", "noaa", "cme", "sol"]):
+                self.telegram_bot.enviar_mensagem_ativa("☀️ [R2 INTEL]: Iniciando sequenciamento solar (3 Vídeos + 1 Mapa)...")
+                
+                from features.noaa.noaa_service import NOAAService
+                noaa = NOAAService()
+                
+                def processar_full_solar():
+                    import os 
 
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        
-                        if hasattr(self.ai_manager, 'chat_complete'):
-                             res = loop.run_until_complete(self.ai_manager.chat_complete(self.conversation_history))
-                             raw_content = res.content
+                    # 1. CME (LASCO C3)
+                    cme_file, tipo_cme = noaa.get_cme_video()
+                    if cme_file:
+                        if tipo_cme == "video":
+                            self.telegram_bot.enviar_video_mp4(cme_file, legenda="🎞️ CME: Explosões de Massa Coronal (SOHO/LASCO)")
                         else:
-                             prompt = f"{self.SYSTEM_PROMPT}\n\nOperador: {texto}\nR2:"
-                             res = loop.run_until_complete(self.ai_manager.chat("user", prompt))
-                             raw_content = res.content
-                        loop.close()
+                            self.telegram_bot.enviar_foto_ativa(cme_file, legenda="📷 CME: Imagem Estática (GIF indisponível)")
+                    else:
+                        self.telegram_bot.enviar_mensagem_ativa("⚠️ Falha ao obter dados do CME.")
 
-                        # Limpeza de tags
-                        conteudo_limpo = re.sub(r'\[.*?\]:?', '', raw_content) # Remove colchetes
-                        conteudo_limpo = re.sub(r'\*.*?\*', '', conteudo_limpo) # Remove asteriscos
-                        conteudo_limpo = conteudo_limpo.strip()
-                        
-                        if not conteudo_limpo: conteudo_limpo = raw_content
+                    # 2. SDO (NASA THE SUN)
+                    sdo_file, _ = noaa.get_sdo_video()
+                    if sdo_file:
+                        self.telegram_bot.enviar_video_mp4(sdo_file, legenda="🎞️ THE SUN: Monitoramento EUV 193Å (NASA SDO)")
 
-                        self.conversation_history.append({"role": "assistant", "content": conteudo_limpo})
-                        resposta = conteudo_limpo
+                    # 3. WSA-Enlil (CORREÇÃO DO ERRO DE ABERTURA)
+                    enlil_file, tipo_enlil = noaa.get_enlil_video()
+                    if enlil_file:
+                        if tipo_enlil == "video":
+                            self.telegram_bot.enviar_video_mp4(enlil_file, legenda="🌀 WSA-Enlil: Predição Vento Solar (Animado)")
+                        else:
+                            # AGORA ELE USA O MÉTODO DE FOTO SE FOR UMA FOTO
+                            self.telegram_bot.enviar_foto_ativa(enlil_file, legenda="📊 WSA-Enlil: Modelo Estático (Animação Offline)")
+                    else:
+                        self.telegram_bot.enviar_mensagem_ativa("⚠️ Falha nos dados do Enlil.")
 
+                    # 4. D-RAP
+                    drap_file, _ = noaa.get_drap_map()
+                    if drap_file:
+                        self.telegram_bot.enviar_foto_ativa(drap_file, legenda="☢️ D-RAP: Absorção Ionosférica (Radio Blackout)")
+                    
+                    self.update_queue.put(lambda: self._print_ai_msg("✅ Relatório Solar Completo (Mídia Mista) enviado."))
+
+                threading.Thread(target=processar_full_solar, daemon=True).start()
+                return
+
+            # BLOCO DE RESPOSTA DA INTELIGÊNCIA ARTIFICIAL
+            if not acao_executada:
+                print(f"🧠 [DEBUG]: Comando recebido: '{texto}'")
+                
+                # 1. VERIFICAÇÃO DE EMERGÊNCIA: O cérebro existe?
+                if self.ai_manager is None:
+                    print("🧠 [DEBUG]: Cérebro desligado. Iniciando 'Jump-Start' Tático...")
+                    self.update_queue.put(lambda: self._print_system_msg("⚠️ Inicializando Núcleo Neural Local... Aguarde..."))
+                    try:
+                        # Tenta importar e ligar na força
+                        from features.local_brain import LocalLlamaBrain
+                        self.ai_manager = LocalLlamaBrain()
+                        print("🧠 [DEBUG]: Cérebro reiniciado com sucesso!")
                     except Exception as e:
-                        resposta = f"❌ Erro neural: {e}"
-                else:
-                    resposta = "⚠️ IA Offline."
+                        err_msg = f"❌ FALHA CRÍTICA NO CÉREBRO: {e}"
+                        print(err_msg)
+                        self.update_queue.put(lambda: self._print_system_msg(err_msg))
+                        return
 
-                if resposta:
-                    self.update_queue.put(lambda: self._print_ai_msg(resposta))
-                    if VOZ_ATIVA:
+                # 2. EXECUÇÃO DO PENSAMENTO
+                try:
+                    import asyncio
+                    import re
+                    
+                    # Atualiza histórico
+                    self.conversation_history.append({"role": "user", "content": texto})
+                    if len(self.conversation_history) > 10: self.conversation_history.pop(1)
+
+                    # Cria loop de processamento assíncrono
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    # Gera a resposta
+                    print("🧠 [DEBUG]: Gerando resposta...")
+                    if hasattr(self.ai_manager, 'chat_complete'):
+                        res = loop.run_until_complete(self.ai_manager.chat_complete(self.conversation_history))
+                    else:
+                        res = loop.run_until_complete(self.ai_manager.chat("user", texto))
+                    loop.close()
+
+                    # Limpa e exibe
+                    raw_content = getattr(res, 'content', str(res))
+                    conteudo_limpo = re.sub(r'<\|.*?\|>', '', raw_content).strip()
+                    
+                    print(f"🧠 [DEBUG]: Resposta gerada: {conteudo_limpo[:50]}...")
+
+                    self.conversation_history.append({"role": "assistant", "content": conteudo_limpo})
+                    self.update_queue.put(lambda: self._print_ai_msg(conteudo_limpo))
+                    
+                    # Tenta Falar (Se voz.py estiver consertado)
+                    try:
                         from voz import falar
-                        falar(resposta)
+                        import threading
+                        threading.Thread(target=falar, args=(conteudo_limpo,), daemon=True).start()
+                    except ImportError:
+                        print("⚠️ [AVISO]: voz.py ainda não encontrado.")
 
+                except Exception as e:
+                    msg_erro = f"❌ Erro no processo de pensamento: {e}"
+                    print(msg_erro)
+                    self.update_queue.put(lambda: self._print_system_msg(msg_erro))
+
+        # Dispara a thread
+        import threading
         threading.Thread(target=processar, daemon=True).start()
 
     # --- NOVO MÉTODO AUXILIAR PARA CLIMA ---
@@ -1427,14 +1573,253 @@ Digite 'ajuda' para comandos ou apenas converse.
         self.command_entry.insert(0, comando)
         self._processar_comando_texto()
 
-    def _executar_comando_remoto(self, comando_texto):
-        """Recebe ordens vindas do Telegram"""
-        self._print_user_msg(f"[REMOTO]: {comando_texto}")
+    def processar_comando_remoto(self, cmd, sender_id=None):
+        # Garante que temos um ID alvo
+        if hasattr(self, 'telegram_bot') and self.telegram_bot:
+            target_id = sender_id if sender_id else self.telegram_bot.admin_id
+        else:
+            target_id = None
+        
+        cmd_lower = cmd.lower().strip()
+        print(f"📡 [COMANDO REMOTO]: {cmd} (De: {target_id})")
+
+        # --- AQUI COMEÇA A ATUALIZAÇÃO DOS COMANDOS ---
+        
+        # EXEMPLO: COMANDO SOLAR ATUALIZADO
+        if any(p in cmd_lower for p in ["solar", "noaa", "cme", "sol"]):
+            self.telegram_bot.enviar_mensagem_ativa("☀️ [R2]: Iniciando varredura solar...", target_chat_id=target_id)
+            
+            from features.noaa.noaa_service import NOAAService
+            noaa = NOAAService()
+            
+            def processar_full_solar():
+                # Note que estamos passando target_chat_id=target_id em TODAS as chamadas
+                
+                # 1. CME
+                cme_file, tipo = noaa.get_cme_video()
+                if cme_file:
+                    if tipo == "video":
+                        self.telegram_bot.enviar_video_mp4(cme_file, legenda="🎞️ CME (SOHO)", target_chat_id=target_id)
+                    else:
+                        self.telegram_bot.enviar_foto_ativa(cme_file, legenda="📷 CME (Estático)", target_chat_id=target_id)
+
+                # 2. SDO
+                sdo_file, _ = noaa.get_sdo_video()
+                if sdo_file:
+                    self.telegram_bot.enviar_video_mp4(sdo_file, legenda="🎞️ THE SUN (SDO)", target_chat_id=target_id)
+
+                # 3. ENLIL
+                enlil_file, tipo_enlil = noaa.get_enlil_video()
+                if enlil_file:
+                    if tipo_enlil == "video":
+                        self.telegram_bot.enviar_video_mp4(enlil_file, legenda="🌀 Enlil (NASA)", target_chat_id=target_id)
+                    else:
+                        self.telegram_bot.enviar_foto_ativa(enlil_file, legenda="📊 Enlil (Backup)", target_chat_id=target_id)
+
+                # 4. D-RAP
+                drap_file, _ = noaa.get_drap_map()
+                if drap_file:
+                    self.telegram_bot.enviar_foto_ativa(drap_file, legenda="☢️ D-RAP", target_chat_id=target_id)
+                
+                self.telegram_bot.enviar_mensagem_ativa("✅ Relatório entregue.", target_chat_id=target_id)
+
+            threading.Thread(target=processar_full_solar, daemon=True).start()
+            return
+
+        # EXEMPLO: COMANDO SCAN (RÁDIO) ATUALIZADO
+        elif cmd_lower.startswith("scan"):
+            termo = cmd_lower.replace("scan", "").strip() or "global"
+            self.telegram_bot.enviar_mensagem_ativa(f"📡 Escaneando: {termo}...", target_chat_id=target_id)
+            
+            from features.radio_scanner import RadioScanner
+            scanner = RadioScanner()
+            
+            def processar_radio():
+                estacoes = scanner.scan_active_transmissions(termo)
+                if estacoes:
+                    relatorio = scanner.format_report(estacoes)
+                    self.telegram_bot.enviar_mensagem_ativa(relatorio, target_chat_id=target_id)
+                else:
+                    self.telegram_bot.enviar_mensagem_ativa("❌ Nenhuma estação encontrada.", target_chat_id=target_id)
+
+            threading.Thread(target=processar_radio, daemon=True).start()
+            return
+
+        # --- 🛰️ COMANDO INTEL (MAPAS) ---
+        elif cmd_lower.startswith("intel"):
+            setor = cmd_lower.replace("intel", "").strip() or "global"
+            self.telegram_bot.enviar_mensagem_ativa(f"🛰️ [INTEL]: Escaneando setor {setor.upper()}...", target_chat_id=target_id)
+            
+            from features.intel_war import IntelWar
+            war = IntelWar()
+            
+            def processar_intel_completo():
+                rel, path = war.get_war_report_with_screenshot(setor)
+                if path and os.path.exists(path):
+                    time.sleep(1.5) # Pausa para sincronia de arquivo
+                    self.telegram_bot.enviar_foto_ativa(path, legenda=rel, target_chat_id=target_id)
+                else:
+                    self.telegram_bot.enviar_mensagem_ativa(f"⚠️ {rel}", target_chat_id=target_id)
+            
+            threading.Thread(target=processar_intel_completo, daemon=True).start()
+            return
+
+        # --- ✈️ RADAR DE VOOS (PROTOCOLO API 200KM) ---
+        elif cmd_lower == "pedir_voos":
+            self.telegram_bot.enviar_mensagem_ativa("✈️ [AIR-INTEL]: Informe a CIDADE para varredura de radar (Raio 200km):", target_chat_id=target_id)
+            self.aguardando_voos_api = True 
+            return
+
+        elif getattr(self, 'aguardando_voos_api', False):
+            cidade = cmd_lower
+            self.aguardando_voos_api = False
+            
+            self.telegram_bot.enviar_mensagem_ativa(f"🛰️ [SISTEMA]: Consultando API de telemetria para {cidade.upper()}...", target_chat_id=target_id)
+            
+            from features.radar_api import RadarAereoAPI
+            radar = RadarAereoAPI()
+            
+            def thread_api_voos():
+                rel, path = radar.gerar_radar(cidade)
+                if path:
+                    self.telegram_bot.enviar_foto_ativa(path, legenda=rel, target_chat_id=target_id)
+                else:
+                    self.telegram_bot.enviar_mensagem_ativa(rel, target_chat_id=target_id)
+            
+            threading.Thread(target=thread_api_voos, daemon=True).start()
+            return
+
+        # --- ⛈️ RADAR DE CHUVA (INTERATIVO) ---
+        elif cmd_lower == "pedir_cidade":
+            self.telegram_bot.enviar_mensagem_ativa("⛈️ [METEO]: Informe o nome da CIDADE para o radar:", target_chat_id=target_id)
+            # O bot apenas envia a frase, o próximo texto que você digitar será processado abaixo
+            return
+
+        elif "radar" in cmd_lower and len(cmd_lower) > 6:
+            cidade = cmd_lower.replace("radar", "").strip()
+            self.telegram_bot.enviar_mensagem_ativa(f"🛰️ [INTEL]: Buscando radar para {cidade}...", target_chat_id=target_id)
+            from features.intel_war import IntelWar
+            war = IntelWar()
+            
+            def processar_radar_cidade():
+                # Busca no Windy ou similar focando na cidade
+                war.urls["radar_custom"] = f"https://www.windy.com/pt/-Radar-doppler-radar?radar,-22.89,-47.06,7"
+                rel, path = war.get_war_report_with_screenshot("radar_custom")
+                if path:
+                    self.telegram_bot.enviar_foto_ativa(path, legenda=f"⛈️ Radar de Chuva: {cidade.upper()}", target_chat_id=target_id)
+            
+            threading.Thread(target=processar_radar_cidade, daemon=True).start()
+            return
+
+        # --- ☢️ SISTEMA DEFCON MULTI-FONTE (HÍBRIDO) ---
+        elif cmd_lower == "defcon":
+            self.telegram_bot.enviar_mensagem_ativa("☢️ [SISTEMA]: Iniciando Varredura Híbrida (Visual + Texto)...", target_chat_id=target_id)
+            
+            from features.intel_war import IntelWar
+            war = IntelWar()
+            
+            def thread_defcon():
+                import time
+                import os
+                
+                # 1. FONTE VISUAL: DEFCON LEVEL (Funciona com print)
+                rel_v, path_v = war.get_war_report_with_screenshot("defcon")
+                if path_v and os.path.exists(path_v):
+                    time.sleep(1)
+                    self.telegram_bot.enviar_foto_ativa(path_v, legenda="☢️ *FONTE: DEFCON LEVEL OFFICIAL*", target_chat_id=target_id)
+                
+                # 2. FONTE TEXTO: PIZZINT (Extração de dados brutos)
+                # Chamamos o novo método que não usa o navegador
+                resumo_texto = war.get_pizzint_text_only()
+                self.telegram_bot.enviar_mensagem_ativa(resumo_texto, target_chat_id=target_id)
+                
+                self.telegram_bot.enviar_mensagem_ativa("✅ Monitoramento DEFCON finalizado.", target_chat_id=target_id)
+            
+            threading.Thread(target=thread_defcon, daemon=True).start()
+            return
+
+        # --- 🧹 PURGE (LIMPEZA REMOTA) ---
+        elif cmd_lower == "purge":
+            try:
+                import purge_system
+                resumo = purge_system.limpar_sistema_silencioso()
+                self.telegram_bot.enviar_mensagem_ativa(resumo, target_chat_id=target_id)
+            except Exception as e:
+                self.telegram_bot.enviar_mensagem_ativa(f"❌ Erro no Purge: {e}", target_chat_id=target_id)
+            return
+
+        # --- 🌋 MONITOR SÍSMICO (TEXTO RÁPIDO) ---
+        elif cmd_lower == "terremotos":
+            self.telegram_bot.enviar_mensagem_ativa("🌋 [GEO]: Consultando sensores sísmicos globais...", target_chat_id=target_id)
+            
+            from features.geo_seismic import GeoSeismicSystem
+            geo = GeoSeismicSystem()
+            
+            def processar_geo_texto():
+                # Apenas pega o texto e envia
+                relatorio = geo.get_seismic_data_text()
+                self.telegram_bot.enviar_mensagem_ativa(relatorio, target_chat_id=target_id)
+            
+            threading.Thread(target=processar_geo_texto, daemon=True).start()
+            return
+
+        # --- 🌋 ALERTA VULCÂNICO (NOVO MÓDULO) ---
+        elif cmd_lower == "vulcao" or cmd_lower == "vulcão":
+            self.telegram_bot.enviar_mensagem_ativa("🌋 [MAGMA-INTEL]: Acessando Smithsonian GVP...", target_chat_id=target_id)
+            
+            from features.volcano_monitor import VolcanoMonitor
+            magma = VolcanoMonitor()
+            
+            def processar_magma():
+                relatorio = magma.get_volcano_report()
+                self.telegram_bot.enviar_mensagem_ativa(relatorio, target_chat_id=target_id)
+            
+            threading.Thread(target=processar_magma, daemon=True).start()
+            return
+
+        # --- ☄️ DEFESA PLANETÁRIA + TIMELAPSE GIF ---
+        elif cmd_lower == "asteroides" or cmd_lower == "nasa":
+            self.telegram_bot.enviar_mensagem_ativa("☄️ [ASTRO-DEFENSE]: Iniciando varredura de espaço profundo...", target_chat_id=target_id)
+            
+            from features.astro_defense import AstroDefenseSystem
+            from features.orbital_trajectory import OrbitalTrajectorySystem
+            from features.astro_timelapse import AstroTimelapseSystem # NOVO
+            
+            astro_txt = AstroDefenseSystem()
+            astro_map = OrbitalTrajectorySystem()
+            astro_cine = AstroTimelapseSystem()
+            
+            def processar_astro_completo():
+                # 1. Texto
+                relatorio_txt, alvo_id, alvo_nome = astro_txt.get_asteroid_report()
+                self.telegram_bot.enviar_mensagem_ativa(relatorio_txt, target_chat_id=target_id)
+                
+                if alvo_id:
+                    # 2. Imagem Estática (Alta Resolução)
+                    self.telegram_bot.enviar_mensagem_ativa(f"⛓️ [GPU]: Processando dados orbitais para ID: {alvo_id}...", target_chat_id=target_id)
+                    
+                    path_mapa = astro_map.get_trajectory_screenshot(alvo_id, alvo_nome)
+                    
+                    if path_mapa:
+                        self.telegram_bot.enviar_foto_ativa(path_mapa, legenda=f"🗺️ Mapa Estático: {alvo_nome}", target_chat_id=target_id)
+                    
+                    # 3. Animação (Timelapse)
+                    self.telegram_bot.enviar_mensagem_ativa(f"🎬 [CINE]: Gerando simulação de trajetória (GIF)...", target_chat_id=target_id)
+                    path_gif = astro_cine.gerar_gif_trajetoria(alvo_id, alvo_nome)
+                    
+                    if path_gif:
+                        # Envia como Documento ou Animação para o Telegram rodar direto
+                        self.telegram_bot.enviar_animacao_ativa(path_gif, legenda=f"🚀 Simulação de Movimento: {alvo_nome}", target_chat_id=target_id)
+                    else:
+                        self.telegram_bot.enviar_mensagem_ativa("⚠️ Não foi possível gerar a animação.", target_chat_id=target_id)
+
+            threading.Thread(target=processar_astro_completo, daemon=True).start()
+            return
         
         # Simula a digitação no campo de texto para aproveitar a lógica existente
         # Usamos self.command_entry que é o nome correto do widget na GUI
         self.command_entry.delete(0, 'end')
-        self.command_entry.insert(0, comando_texto)
+        self.command_entry.insert(0, cmd)
         
         # Chama o processador de texto existente
         self._processar_comando_texto()
@@ -1508,6 +1893,10 @@ Digite 'ajuda' para comandos ou apenas converse.
         except Exception as e:
             self._print_system_msg(f"💥 Erro crítico no Cofre: {e}")
 
+    # =========================================================================
+    # CORREÇÃO DOS MÉTODOS DE OUTPUT (COM TARGET ID)
+    # =========================================================================
+
     def _print_clickable_msg(self, text, sender="R2"):
         """Imprime links clicáveis na GUI e manda texto pro Telegram"""
         import re
@@ -1516,7 +1905,7 @@ Digite 'ajuda' para comandos ou apenas converse.
         # Lógica GUI PC (Mantém igual)
         self.console_text.configure(state="normal")
         tag = "ai" if sender == "R2" else "user"
-        self.console_text.insert("end", f"\n\n{sender}> ", tag)
+        self.console_text.insert("end", f"\n\n{sender}&gt; ", tag)
         
         parts = re.split(r"(https?://\S+)", text)
         for part in parts:
@@ -1525,37 +1914,40 @@ Digite 'ajuda' para comandos ou apenas converse.
                 self.console_text.insert("end", part, tag_link)
                 try:
                     self.console_text._textbox.tag_config(tag_link, foreground="#00ffff", underline=True)
-                    self.console_text._textbox.tag_bind(tag_link, "<Button-1>", lambda e, url=part: webbrowser.open(url))
-                    self.console_text._textbox.tag_bind(tag_link, "<Enter>", lambda e: self.console_text.configure(cursor="hand2"))
-                    self.console_text._textbox.tag_bind(tag_link, "<Leave>", lambda e: self.console_text.configure(cursor="arrow"))
+                    self.console_text._textbox.tag_bind(tag_link, "&lt;Button-1&gt;", lambda e, url=part: webbrowser.open(url))
+                    self.console_text._textbox.tag_bind(tag_link, "&lt;Enter&gt;", lambda e: self.console_text.configure(cursor="hand2"))
+                    self.console_text._textbox.tag_bind(tag_link, "&lt;Leave&gt;", lambda e: self.console_text.configure(cursor="arrow"))
                 except: pass
             else:
                 self.console_text.insert("end", part)
         self.console_text.configure(state="disabled")
         self.console_text.see("end")
 
-        # --- ENVIA PARA O TELEGRAM (NOVO) ---
-        # O Telegram já converte links automaticamente, então mandamos o texto puro
+        # --- ENVIA PARA O TELEGRAM (CORRIGIDO) ---
         if hasattr(self, 'telegram_bot') and self.telegram_bot:
-            self.telegram_bot.enviar_mensagem_ativa(f"📡 [INTEL]:\n{text}")
+            # Pega o ID do Admin
+            target = getattr(self.telegram_bot, 'admin_id', None)
+            if target:
+                self.telegram_bot.enviar_mensagem_ativa(f"📡 [INTEL]:\n{text}", target_chat_id=target)
 
     def _print_user_msg(self, msg):
         self.console_text.configure(state="normal")
-        self.console_text.insert("end", f"\nVOCÊ> {msg}\n", "user")
+        self.console_text.insert("end", f"\nVOCÊ&gt; {msg}\n", "user")
         self.console_text.see("end")
         self.console_text.configure(state="disabled")
 
     def _print_ai_msg(self, msg):
         # Exibe na tela do PC
         self.console_text.configure(state="normal")
-        self.console_text.insert("end", f"\nR2> {msg}\n", "ai")
+        self.console_text.insert("end", f"\nR2&gt; {msg}\n", "ai")
         self.console_text.see("end")
         self.console_text.configure(state="disabled")
 
-        # --- ENVIA PARA O TELEGRAM ---
+        # --- ENVIA PARA O TELEGRAM (CORRIGIDO) ---
         if hasattr(self, 'telegram_bot') and self.telegram_bot:
-            # Adiciona emoji para ficar bonito no celular
-            self.telegram_bot.enviar_mensagem_ativa(f"🤖 [R2]: {msg}")
+            target = getattr(self.telegram_bot, 'admin_id', None)
+            if target:
+                self.telegram_bot.enviar_mensagem_ativa(f"🤖 [R2]: {msg}", target_chat_id=target)
 
     def _print_system_msg(self, msg):
         # Exibe na tela do PC
@@ -1564,9 +1956,11 @@ Digite 'ajuda' para comandos ou apenas converse.
         self.console_text.see("end")
         self.console_text.configure(state="disabled")
 
-        # --- ENVIA PARA O TELEGRAM ---
+        # --- ENVIA PARA O TELEGRAM (CORRIGIDO) ---
         if hasattr(self, 'telegram_bot') and self.telegram_bot:
-            self.telegram_bot.enviar_mensagem_ativa(f"💻 [SISTEMA]: {msg}")
+            target = getattr(self.telegram_bot, 'admin_id', None)
+            if target:
+                self.telegram_bot.enviar_mensagem_ativa(f"💻 [SISTEMA]: {msg}", target_chat_id=target)
         
     def _handle_animation_command(self, command):
         """Processa comandos de animação"""
