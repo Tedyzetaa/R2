@@ -37,14 +37,28 @@ def listar_modulos():
 MODULOS_ATIVOS = listar_modulos()
 
 # =============================================================================
-# CONFIGURAÇÕES E IA
+# CONFIGURAÇÕES E TOKEN (VERSÃO INFALÍVEL)
 # =============================================================================
 def get_token():
+    # 1. Tenta buscar na variável de ambiente (injetada pela célula do Colab)
+    token = os.environ.get('TELEGRAM_TOKEN')
+    if token and len(token) > 10:
+        return token
+
+    # 2. Tenta buscar nas Secrets do Colab
     try:
         from google.colab import userdata
-        return userdata.get('TELEGRAM_TOKEN')
+        token = userdata.get('TELEGRAM_TOKEN')
+        if token: return token
     except:
-        return os.environ.get('TELEGRAM_TOKEN')
+        pass
+
+    # 3. Tenta buscar em um arquivo temporário (plano B)
+    if os.path.exists("/content/token.txt"):
+        with open("/content/token.txt", "r") as f:
+            return f.read().strip()
+            
+    return None
 
 TOKEN = get_token()
 AUTHORIZED_USERS = {8117345546, 8379481331}
