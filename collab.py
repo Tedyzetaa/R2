@@ -35,15 +35,32 @@ except ImportError:
 
 # Importando SEUS módulos offline
 sys.path.append(os.getcwd())
+# =============================================================================
+# IMPORTAÇÃO FORÇADA DE MÓDULOS LOCAIS
+# =============================================================================
+import os
+import sys
+
+# Garante que o Python olhe primeiro para a pasta do repositório
+repo_path = "/content/R2"
+if repo_path not in sys.path:
+    sys.path.insert(0, repo_path)
+
 try:
+    # Importa os arquivos .py que você me enviou
     from radar_api import RadarAereoAPI
     from weather_system import WeatherSystem
     from geo_seismic import GeoSeismicSystem
     from volcano_monitor import VolcanoMonitor
     from intel_war import IntelWar
     from news_briefing import NewsBriefing
+    print("✅ [SISTEMA] Todos os módulos offline foram integrados.")
 except ImportError as e:
     print(f"⚠️ Erro ao carregar módulo específico: {e}")
+    print(f"❌ [ERRO CRÍTICO] Falha ao carregar módulos: {e}")
+    # Cria classes "fantasma" para o código não quebrar se um arquivo faltar
+    class RadarAereoAPI: 
+        def gerar_radar(self, *args): return "⚠️ Módulo radar_api.py ausente no repo.", None
 
 # =============================================================================
 # 2. INICIALIZAÇÃO DE COMPONENTES
