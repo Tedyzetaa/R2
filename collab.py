@@ -8,16 +8,15 @@ from pathlib import Path
 # 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
 # =============================================================================
 def setup_full_system():
-    print("🚀 [SISTEMA] Preparando ambiente para módulos integrados...")
+    print("🚀 [SISTEMA] Preparando ambiente...")
     packages = [
         "llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
         "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
-        "requests", "beautifulsoup4", "feedparser", "cloudscraper", "playwright"
+        "requests", "beautifulsoup4", "feedparser", "cloudscraper", "playwright",
+        "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography"
     ]
     for pkg in packages:
         subprocess.check_call([sys.executable, "-m", "pip", "install", *pkg.split(), "--quiet"])
-    
-    # Instala o navegador para o IntelWar
     subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
     print("✅ [SISTEMA] Todos os módulos estão prontos.")
 
@@ -39,53 +38,17 @@ except ImportError:
 import os
 import sys
 
-# Diretório onde este script está
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-# 1. Verificação e diagnóstico
-print("📁 Diretório atual:", os.getcwd())
-print("📁 Diretório do script:", SCRIPT_DIR)
-try:
-    print("📁 Conteúdo de SCRIPT_DIR:", os.listdir(SCRIPT_DIR))
-except Exception as e:
-    print(f"⚠️ Erro ao listar diretório: {e}")
-print("📁 Python path:", sys.path)
-
-# Opcional: criar __init__.py
+# Cria __init__.py na raiz (opcional)
 init_file = os.path.join(SCRIPT_DIR, "__init__.py")
 if not os.path.exists(init_file):
     with open(init_file, "w") as f:
         f.write("# R2 package\n")
 
-# 2. Instale as dependências necessárias
-def instalar_dependencias():
-    deps = [
-        "geopy", "matplotlib", "requests", "beautifulsoup4",
-        "feedparser", "cloudscraper", "playwright", "python-telegram-bot",
-        "huggingface_hub", "llama-cpp-python"
-    ]
-    print("📦 Verificando dependências externas...")
-    for dep in deps:
-        module_name = dep.replace("-", "_")
-        if "beautifulsoup4" in dep: module_name = "bs4"
-        if "python_telegram_bot" in module_name: module_name = "telegram"
-        if "llama_cpp_python" in module_name: module_name = "llama_cpp"
-        
-        try:
-            __import__(module_name)
-        except ImportError:
-            print(f"📦 Instalando {dep}...")
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--quiet"])
-            except Exception as e:
-                print(f"⚠️ Falha ao instalar {dep}: {e}")
-
-instalar_dependencias()
-
-# 3. Defina classes fallback completas
-# Fallbacks
+# Classes fallback (definidas antes)
 class DummyRadarAereoAPI:
     def __init__(self): pass
     def gerar_radar(self, cidade_nome):
@@ -118,31 +81,29 @@ class DummyNewsBriefing:
     def get_top_headlines(self):
         return "⚠️ Módulo news_briefing.py não disponível."
 
-# 4. Importe cada módulo com fallback individual
 modules = {}
 required = [
-    ("radar_api", "RadarAereoAPI", DummyRadarAereoAPI),
-    ("weather_system", "WeatherSystem", DummyWeatherSystem),
-    ("geo_seismic", "GeoSeismicSystem", DummyGeoSeismicSystem),
-    ("volcano_monitor", "VolcanoMonitor", DummyVolcanoMonitor),
-    ("intel_war", "IntelWar", DummyIntelWar),
-    ("news_briefing", "NewsBriefing", DummyNewsBriefing),
+    ("features.radar_api", "RadarAereoAPI", DummyRadarAereoAPI),
+    ("features.weather_system", "WeatherSystem", DummyWeatherSystem),
+    ("features.geo_seismic", "GeoSeismicSystem", DummyGeoSeismicSystem),
+    ("features.volcano_monitor", "VolcanoMonitor", DummyVolcanoMonitor),
+    ("features.intel_war", "IntelWar", DummyIntelWar),
+    ("features.news_briefing", "NewsBriefing", DummyNewsBriefing),
 ]
 
-for mod_name, class_name, dummy_class in required:
+for mod_path, class_name, dummy_class in required:
     try:
-        module = __import__(mod_name)
+        module = __import__(mod_path, fromlist=[class_name])
         cls = getattr(module, class_name)
-        modules[mod_name] = cls
-        print(f"✅ {mod_name} carregado com sucesso.")
+        modules[mod_path.split('.')[-1]] = cls
+        print(f"✅ {mod_path} carregado com sucesso.")
     except ImportError as e:
-        print(f"⚠️ Falha ao carregar {mod_name}: {e}. Usando fallback.")
-        modules[mod_name] = dummy_class
+        print(f"⚠️ Falha ao carregar {mod_path}: {e}. Usando fallback.")
+        modules[mod_path.split('.')[-1]] = dummy_class
     except Exception as e:
-        print(f"❌ Erro inesperado ao carregar {mod_name}: {e}. Usando fallback.")
-        modules[mod_name] = dummy_class
+        print(f"❌ Erro inesperado ao carregar {mod_path}: {e}. Usando fallback.")
+        modules[mod_path.split('.')[-1]] = dummy_class
 
-# Atribui às variáveis globais
 RadarAereoAPI = modules["radar_api"]
 WeatherSystem = modules["weather_system"]
 GeoSeismicSystem = modules["geo_seismic"]
@@ -153,17 +114,28 @@ NewsBriefing = modules["news_briefing"]
 # =============================================================================
 # 2. INICIALIZAÇÃO DE COMPONENTES
 # =============================================================================
-TOKEN = sys.argv[1] if len(sys.argv) > 1 else None
+from huggingface_hub import hf_hub_download
+import os
+from getpass import getpass
+
+# Obter token do Telegram
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+if not TOKEN:
+    TOKEN = getpass("Digite o token do Telegram: ")
+
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
 # IA Llama-3
-from huggingface_hub import hf_hub_download
-model_path = hf_hub_download(repo_id="MaziyarPanahi/Llama-3-8B-Instruct-v0.1-GGUF", filename="Llama-3-8B-Instruct-v0.1.Q4_K_M.gguf", local_dir="/content/models")
+model_path = hf_hub_download(
+    repo_id="MaziyarPanahi/Llama-3-8B-Instruct-v0.1-GGUF",
+    filename="Llama-3-8B-Instruct-v0.1.Q4_K_M.gguf",
+    local_dir="/content/models"
+)
 llm = Llama(model_path=model_path, n_gpu_layers=-1, n_ctx=2048, verbose=False)
 
 # Instâncias dos seus sistemas
 radar = RadarAereoAPI()
-clima = WeatherSystem(api_key="SUA_API_KEY_AQUI") # Lembre de colocar sua key
+clima = WeatherSystem(api_key="SUA_API_KEY_AQUI")   # substitua pela sua chave
 seismico = GeoSeismicSystem()
 vulcao = VolcanoMonitor()
 intel = IntelWar()
