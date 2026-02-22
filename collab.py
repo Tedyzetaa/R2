@@ -77,6 +77,7 @@ def setup_full_system():
         "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
         "requests", "beautifulsoup4", "feedparser", "cloudscraper", "playwright",
         "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography", "playwright"
+        "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography"
     ]
     for pkg in packages:
         try:
