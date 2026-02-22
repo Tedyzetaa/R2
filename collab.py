@@ -8,7 +8,7 @@ from pathlib import Path
 # 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
 # =============================================================================
 def setup_full_system():
-    print("🚀 [SISTEMA] Preparando ambiente para módulos integrados...")
+    print("🚀 [SISTEMA] Preparando ambiente...")
     packages = [
         "llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
         "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
@@ -16,13 +16,25 @@ def setup_full_system():
         "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography"
     ]
     for pkg in packages:
-        subprocess.check_call([sys.executable, "-m", "pip", "install"] + pkg.split() + ["--quiet"])
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install"] + pkg.split() + ["--quiet"])
+        except Exception as e:
+            print(f"⚠️ Falha ao instalar {pkg}: {e}")
     
-    # Instala os navegadores do Playwright (necessário para módulos como intel_war)
-    print("📦 Instalando navegadores do Playwright...")
-    subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+    # Configurar Playwright
+    os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/content/playwright-browsers'
+    browser_dir = '/content/playwright-browsers'
+    if not os.path.exists(browser_dir) or not os.listdir(browser_dir):
+        print("📦 Instalando navegadores do Playwright...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+            print("✅ Navegadores instalados.")
+        except Exception as e:
+            print(f"❌ Falha na instalação: {e}")
+    else:
+        print("✅ Navegadores já disponíveis.")
     
-    print("✅ [SISTEMA] Todos os módulos e navegadores estão prontos.")
+    print("✅ [SISTEMA] Pronto.")
 
 try:
     from llama_cpp import Llama
