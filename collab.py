@@ -13,7 +13,7 @@ def setup_full_system():
         "llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
         "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
         "requests", "beautifulsoup4", "feedparser", "cloudscraper", "playwright",
-        "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography"
+        "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography", "playwright"
     ]
     for pkg in packages:
         try:
