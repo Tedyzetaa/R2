@@ -108,6 +108,34 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
+# =============================================================================
+# PATCH: INTEL_WAR.PY (Tratamento de Bloqueio)
+# =============================================================================
+try:
+    import re
+    # Tenta localizar o arquivo no diretório features
+    intel_war_path = os.path.join(SCRIPT_DIR, 'features', 'intel_war.py')
+    
+    if os.path.exists(intel_war_path):
+        with open(intel_war_path, 'r') as f:
+            content = f.read()
+
+        # Inserir a verificação de bloqueio logo após page.goto()
+        pattern = r'(page\.goto\(.*?\).*?)(\s+time\.sleep\()'
+        replacement = r'''\1
+            # Verificar se a página bloqueou
+            if "Attention Required" in page.title() or "attention required" in page.content().lower():
+                browser.close()
+                return "⚠️ O site liveuamap bloqueou nosso acesso automatizado. Tente novamente mais tarde ou use outra fonte.", None
+            \2'''
+        new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+
+        with open(intel_war_path, 'w') as f:
+            f.write(new_content)
+        print("✅ Módulo intel_war atualizado com tratamento de bloqueio.")
+except Exception as e:
+    print(f"⚠️ Erro ao aplicar patch no intel_war: {e}")
+
 # Cria __init__.py na raiz (opcional)
 init_file = os.path.join(SCRIPT_DIR, "__init__.py")
 if not os.path.exists(init_file):
