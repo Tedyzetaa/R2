@@ -10,20 +10,24 @@ from pathlib import Path
 def setup_colab():
     print("🚀 [SISTEMA] Iniciando Protocolos de Dependência...")
     
-    # Define variáveis para compilação com suporte a GPU NVIDIA
-    os.environ["FORCE_CMAKE"] = "1"
-    os.environ["CMAKE_ARGS"] = "-DLLAMA_CUBLAS=on"
-    
-    deps = [
-        "python-dotenv", 
-        "python-telegram-bot", 
-        "llama-cpp-python", 
-        "requests", 
-        "huggingface_hub" # Necessário para download seguro
-    ]
-    
-    for dep in deps:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--quiet"])
+    # 1. Instala dependências básicas
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-dotenv", "python-telegram-bot", "requests", "huggingface_hub", "--quiet"])
+
+    # 2. Instala llama-cpp-python usando um binário pré-compilado para CUDA 12.x (Padrão do Colab)
+    # Isso evita o erro de "Building wheel"
+    print("📦 Instalando Cérebro Neural (Llama-CPP) otimizado para GPU...")
+    try:
+        # Comando para instalar versão com suporte a CUDA sem compilar do zero
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install", "llama-cpp-python", 
+            "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cu121"
+        ])
+    except:
+        # Fallback caso o link acima falhe
+        os.environ["FORCE_CMAKE"] = "1"
+        os.environ["CMAKE_ARGS"] = "-DLLAMA_CUBLAS=on"
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "llama-cpp-python", "--no-cache-dir"])
+        
     print("✅ [SISTEMA] Ambiente configurado com sucesso.")
 
 # =============================================================================
