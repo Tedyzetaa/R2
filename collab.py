@@ -8,7 +8,7 @@ from pathlib import Path
 # 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
 # =============================================================================
 def setup_full_system():
-    print("🚀 [SISTEMA] Preparando ambiente...")
+    print("🚀 [SISTEMA] Preparando ambiente para módulos integrados...")
     packages = [
         "llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
         "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
@@ -16,9 +16,13 @@ def setup_full_system():
         "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography"
     ]
     for pkg in packages:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", *pkg.split(), "--quiet"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install"] + pkg.split() + ["--quiet"])
+    
+    # Instala os navegadores do Playwright (necessário para módulos como intel_war)
+    print("📦 Instalando navegadores do Playwright...")
     subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
-    print("✅ [SISTEMA] Todos os módulos estão prontos.")
+    
+    print("✅ [SISTEMA] Todos os módulos e navegadores estão prontos.")
 
 try:
     from llama_cpp import Llama
