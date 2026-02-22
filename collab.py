@@ -3,101 +3,136 @@ import sys
 import asyncio
 import subprocess
 from pathlib import Path
-from telegram.request import HTTPXRequest
 
-# 1. AJUSTE DE PATH (Para carregar seus módulos .py do repo)
-# Isso permite que você faça 'import modulo_x' de qualquer arquivo no seu GitHub
-sys.path.append(os.getcwd())
-
-def setup():
-    print("🚀 [SISTEMA] Verificando integridade dos módulos...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "llama-cpp-python", "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cu121", "--quiet"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot", "huggingface_hub", "python-dotenv", "--quiet"])
+# =============================================================================
+# 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
+# =============================================================================
+def setup_full_system():
+    print("🚀 [SISTEMA] Preparando ambiente para módulos integrados...")
+    packages = [
+        "llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
+        "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
+        "requests", "beautifulsoup4", "feedparser", "cloudscraper", "playwright"
+    ]
+    for pkg in packages:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", *pkg.split(), "--quiet"])
+    
+    # Instala o navegador para o IntelWar
+    subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+    print("✅ [SISTEMA] Todos os módulos estão prontos.")
 
 try:
     from llama_cpp import Llama
     from telegram import Update
-    from telegram.ext import Application, MessageHandler, filters
-    # Tente importar seus módulos específicos aqui para teste
-    # import seu_modulo_personalizado 
+    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 except ImportError:
-    setup()
+    setup_full_system()
     from llama_cpp import Llama
     from telegram import Update
-    from telegram.ext import Application, MessageHandler, filters
+    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+# Importando SEUS módulos offline
+sys.path.append(os.getcwd())
+try:
+    from radar_api import RadarAereoAPI
+    from weather_system import WeatherSystem
+    from geo_seismic import GeoSeismicSystem
+    from volcano_monitor import VolcanoMonitor
+    from intel_war import IntelWar
+    from news_briefing import NewsBriefing
+except ImportError as e:
+    print(f"⚠️ Erro ao carregar módulo específico: {e}")
 
 # =============================================================================
-# CARREGAMENTO DINÂMICO DE MÓDULOS DO REPOSITÓRIO
+# 2. INICIALIZAÇÃO DE COMPONENTES
 # =============================================================================
-def listar_modulos():
-    arquivos = [f for f in os.listdir('.') if f.endswith('.py') and f != 'collab.py']
-    print(f"📦 [MÓDULOS ENCONTRADOS]: {arquivos}")
-    return arquivos
-
-MODULOS_ATIVOS = listar_modulos()
-
-# =============================================================================
-# CONFIGURAÇÕES E TOKEN (VERSÃO INFALÍVEL)
-# =============================================================================
-def get_token():
-    # 1. Tenta buscar na variável de ambiente (injetada pela célula do Colab)
-    token = os.environ.get('TELEGRAM_TOKEN')
-    if token and len(token) > 10:
-        return token
-
-    # 2. Tenta buscar nas Secrets do Colab
-    try:
-        from google.colab import userdata
-        token = userdata.get('TELEGRAM_TOKEN')
-        if token: return token
-    except:
-        pass
-
-    # 3. Tenta buscar em um arquivo temporário (plano B)
-    if os.path.exists("/content/token.txt"):
-        with open("/content/token.txt", "r") as f:
-            return f.read().strip()
-            
-    return None
-
-TOKEN = get_token()
+TOKEN = sys.argv[1] if len(sys.argv) > 1 else None
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
+# IA Llama-3
 from huggingface_hub import hf_hub_download
 model_path = hf_hub_download(repo_id="MaziyarPanahi/Llama-3-8B-Instruct-v0.1-GGUF", filename="Llama-3-8B-Instruct-v0.1.Q4_K_M.gguf", local_dir="/content/models")
 llm = Llama(model_path=model_path, n_gpu_layers=-1, n_ctx=2048, verbose=False)
 
-# =============================================================================
-# LÓGICA DE PROCESSAMENTO (IA + MÓDULOS)
-# =============================================================================
-async def handler(update: Update, context):
-    if update.effective_user.id not in AUTHORIZED_USERS: return
-    
-    user_input = update.message.text
-    
-    # Exemplo de como usar os módulos:
-    # Se o input for "status", você pode chamar uma função de outro arquivo seu
-    if user_input.lower() == "status":
-        msg_modulos = f"🛰️ Servidor Colab Ativo.\nMódulos detectados: {len(MODULOS_ATIVOS)}"
-        await update.message.reply_text(msg_modulos)
-        return
+# Instâncias dos seus sistemas
+radar = RadarAereoAPI()
+clima = WeatherSystem(api_key="SUA_API_KEY_AQUI") # Lembre de colocar sua key
+seismico = GeoSeismicSystem()
+vulcao = VolcanoMonitor()
+intel = IntelWar()
+noticias = NewsBriefing()
 
-    # Processamento padrão pela IA
-    template = f"<|start_header_id|>system<|end_header_id|>\n\nVocê é o R2. Use as ferramentas disponíveis.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-    
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    output = llm(template, max_tokens=256, stop=["<|eot_id|>"], echo=False)
-    await update.message.reply_text(f"🤖 *R2:* {output['choices'][0]['text'].strip()}", parse_mode='Markdown')
+# =============================================================================
+# 3. LÓGICA DE COMANDO TÁTICO
+# =============================================================================
+
+async def menu_principal(update: Update):
+    keyboard = [
+        [InlineKeyboardButton("✈️ RADAR DE VOOS", callback_data='radar'),
+         InlineKeyboardButton("⛈️ CLIMA", callback_data='clima')],
+        [InlineKeyboardButton("🌍 SISMOS", callback_data='sismos'),
+         InlineKeyboardButton("🌋 VULCÕES", callback_data='vulcoes')],
+        [InlineKeyboardButton("🇺🇦 INTEL UCRÂNIA", callback_data='war_ucrania'),
+         InlineKeyboardButton("🇮🇱 INTEL ISRAEL", callback_data='war_israel')],
+        [InlineKeyboardButton("📰 NOTÍCIAS", callback_data='news')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("🤖 *R2 TÁTICO: OPERACIONAL*\nEscolha um protocolo:", reply_markup=reply_markup, parse_mode='Markdown')
+
+async def processar_botoes(update: Update, context):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == 'sismos':
+        res = seismico.get_seismic_data_text()
+        await query.message.reply_text(res, parse_mode='Markdown')
+    elif data == 'vulcoes':
+        res = vulcao.get_volcano_report()
+        await query.message.reply_text(res, parse_mode='Markdown')
+    elif data == 'news':
+        res = noticias.get_top_headlines()
+        await query.message.reply_text(res, parse_mode='Markdown')
+    elif data.startswith('war_'):
+        setor = data.split('_')[1]
+        await query.message.reply_text(f"🛰️ Acessando satélites no setor {setor.upper()}...")
+        headlines, path = intel.get_war_report_with_screenshot(setor)
+        if path:
+            with open(path, 'rb') as f:
+                await query.message.reply_photo(photo=f, caption=f"📸 *Relatório {setor.upper()}*\n{headlines}", parse_mode='Markdown')
+        else:
+            await query.message.reply_text(f"❌ Erro na extração: {headlines}")
+
+async def handle_message(update: Update, context):
+    if update.effective_user.id not in AUTHORIZED_USERS: return
+    text = update.message.text.lower()
+
+    if "start" in text or "menu" in text:
+        await menu_principal(update)
+    elif "radar em" in text:
+        cidade = text.replace("radar em", "").strip()
+        await update.message.reply_text(f"📡 Iniciando varredura em {cidade}...")
+        msg, path = radar.gerar_radar(cidade)
+        if path:
+            with open(path, 'rb') as f:
+                await update.message.reply_photo(photo=f, caption=msg)
+    else:
+        # IA Responde (Llama-3)
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+        template = f"<|start_header_id|>system<|end_header_id|>\n\nVocê é o R2.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        output = llm(template, max_tokens=256, stop=["<|eot_id|>"], echo=False)
+        await update.message.reply_text(f"🤖: {output['choices'][0]['text'].strip()}")
 
 async def main():
-    t_request = HTTPXRequest(connect_timeout=30, read_timeout=30)
-    app = Application.builder().token(TOKEN).request(t_request).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handler))
-    
-    print("🛰️ [UPLINK] R2 Online. Módulos integrados ao Path.")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CallbackQueryHandler(processar_botoes))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print("🛰️ [UPLINK] R2 Online com Módulos Táticos Integrados.")
     await app.initialize()
     await app.start()
-    await app.updater.start_polling(drop_pending_updates=True)
+    await app.updater.start_polling()
     while True: await asyncio.sleep(1)
 
 if __name__ == "__main__":
