@@ -43,23 +43,18 @@ from telegram.ext import Application, MessageHandler, filters
 # 2. VERIFICAÇÃO DINÂMICA DO TOKEN (INTEGRADO)
 # =============================================================================
 def obter_token_seguro():
-    # 1. Tenta pegar via Secrets (Método Oficial)
+    # 1. Tenta ler a variável de ambiente (injetada pela célula do Colab)
+    token = os.environ.get('TELEGRAM_TOKEN')
+    
+    if token and "SEU_TOKEN" not in token:
+        return token
+        
+    # 2. Se falhar, tenta o método direto (apenas se rodar a célula direto)
     try:
         from google.colab import userdata
-        # O Colab exige que você clique em 'Sim' no popup de permissão que aparecer
-        token = userdata.get('TELEGRAM_TOKEN')
-        if token:
-            print("✅ [SISTEMA] Token recuperado via Google Secrets.")
-            return token
-    except Exception as e:
-        print(f"⚠️ Erro ao acessar Secrets: {e}")
-
-    # 2. SE FALHAR: Ele vai procurar um arquivo chamado token.txt na raiz do Drive/Colab
-    if os.path.exists("/content/token.txt"):
-        with open("/content/token.txt", "r") as f:
-            return f.read().strip()
-
-    return None
+        return userdata.get('TELEGRAM_TOKEN')
+    except:
+        return None
 
 TOKEN = obter_token_seguro()
 AUTHORIZED_USERS = {8117345546, 8379481331}
