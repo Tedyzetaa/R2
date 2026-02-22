@@ -38,6 +38,7 @@ setup_colab()
 from llama_cpp import Llama
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters
+from telegram.request import HTTPXRequest
 
 # =============================================================================
 # 2. VERIFICAÇÃO DINÂMICA DO TOKEN (INTEGRADO)
@@ -83,7 +84,8 @@ llm = Llama(model_path=caminho_ia, n_gpu_layers=-1, n_ctx=2048, verbose=False)
 # 4. HANDLERS E EXECUÇÃO
 # =============================================================================
 async def gerar_ia(prompt):
-    template = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nVocê é o R2.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    # Removido o <|begin_of_text|> do início
+    template = f"<|start_header_id|>system<|end_header_id|>\n\nVocê é o R2.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
     output = llm(template, max_tokens=256, stop=["<|eot_id|>"], echo=False)
     return output['choices'][0]['text'].strip()
 
@@ -105,12 +107,17 @@ async def main():
         print("3. Ativar o botão 'Notebook access'.\n")
         return
 
+    # Criamos um objeto de requisição com timeouts maiores (30 seg)
+    t_request = HTTPXRequest(connect_timeout=30, read_timeout=30)
+    
     print("🛰️ [UPLINK] Servidor R2 Online no Colab.")
-    app = Application.builder().token(TOKEN).build()
+    # Passamos o request_kwargs para a aplicação
+    app = Application.builder().token(TOKEN).request(t_request).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handler))
     await app.initialize()
     await app.start()
-    await app.updater.start_polling()
+    # O polling também precisa de tolerância
+    await app.updater.start_polling(drop_pending_updates=True, read_timeout=30)
     while True: await asyncio.sleep(1)
 
 if __name__ == "__main__":
