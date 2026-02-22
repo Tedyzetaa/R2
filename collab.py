@@ -1,8 +1,53 @@
+#!/usr/bin/env python3
 import os
 import sys
-import asyncio
 import subprocess
+import shutil
+import asyncio
 from pathlib import Path
+
+# =============================================================================
+# CONFIGURAÇÃO DO PLAYWRIGHT (ANTES DE QUALQUER OUTRO IMPORT)
+# =============================================================================
+# Define um diretório acessível no Colab
+os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/content/playwright-browsers'
+browsers_path = '/content/playwright-browsers'
+
+# Remove o cache padrão para evitar conflitos
+default_cache = '/root/.cache/ms-playwright'
+if os.path.exists(default_cache):
+    print("🗑️ Removendo cache antigo do Playwright...")
+    shutil.rmtree(default_cache, ignore_errors=True)
+
+# Garante que o pacote playwright esteja instalado
+try:
+    import playwright
+except ImportError:
+    print("📦 Instalando pacote Playwright...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright", "--quiet"])
+
+# Instala os navegadores se necessário
+if not os.path.exists(browsers_path) or not os.listdir(browsers_path):
+    print("📦 Instalando navegadores do Playwright...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+        print("✅ Navegadores instalados.")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Falha na instalação: {e}")
+        sys.exit(1)
+else:
+    print("✅ Navegadores já disponíveis.")
+
+# Teste rápido para verificar se o Playwright consegue lançar o navegador
+try:
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        browser.close()
+    print("✅ Playwright está funcionando corretamente.")
+except Exception as e:
+    print(f"❌ Playwright ainda com problemas: {e}")
+    sys.exit(1)
 
 # =============================================================================
 # 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
@@ -20,19 +65,6 @@ def setup_full_system():
             subprocess.check_call([sys.executable, "-m", "pip", "install"] + pkg.split() + ["--quiet"])
         except Exception as e:
             print(f"⚠️ Falha ao instalar {pkg}: {e}")
-    
-    # Configurar Playwright
-    os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/content/playwright-browsers'
-    browser_dir = '/content/playwright-browsers'
-    if not os.path.exists(browser_dir) or not os.listdir(browser_dir):
-        print("📦 Instalando navegadores do Playwright...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
-            print("✅ Navegadores instalados.")
-        except Exception as e:
-            print(f"❌ Falha na instalação: {e}")
-    else:
-        print("✅ Navegadores já disponíveis.")
     
     print("✅ [SISTEMA] Pronto.")
 
