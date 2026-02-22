@@ -33,34 +33,61 @@ except ImportError:
     from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-# Importando SEUS módulos offline
-sys.path.append(os.getcwd())
 # =============================================================================
-# IMPORTAÇÃO FORÇADA DE MÓDULOS LOCAIS
+# CONFIGURAÇÃO DO PATH E IMPORTS LOCAIS
 # =============================================================================
 import os
 import sys
 
-# Garante que o Python olhe primeiro para a pasta do repositório
-repo_path = "/content/R2"
-if repo_path not in sys.path:
-    sys.path.insert(0, repo_path)
+# Diretório onde este script está
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 
-try:
-    # Importa os arquivos .py que você me enviou
-    from radar_api import RadarAereoAPI
-    from weather_system import WeatherSystem
-    from geo_seismic import GeoSeismicSystem
-    from volcano_monitor import VolcanoMonitor
-    from intel_war import IntelWar
-    from news_briefing import NewsBriefing
-    print("✅ [SISTEMA] Todos os módulos offline foram integrados.")
-except ImportError as e:
-    print(f"⚠️ Erro ao carregar módulo específico: {e}")
-    print(f"❌ [ERRO CRÍTICO] Falha ao carregar módulos: {e}")
-    # Cria classes "fantasma" para o código não quebrar se um arquivo faltar
-    class RadarAereoAPI: 
-        def gerar_radar(self, *args): return "⚠️ Módulo radar_api.py ausente no repo.", None
+# Opcional: criar __init__.py
+init_file = os.path.join(SCRIPT_DIR, "__init__.py")
+if not os.path.exists(init_file):
+    with open(init_file, "w") as f:
+        f.write("# R2 package\n")
+
+# Importações locais com fallback
+modules = {}
+required_modules = [
+    ("radar_api", "RadarAereoAPI"),
+    ("weather_system", "WeatherSystem"),
+    ("geo_seismic", "GeoSeismicSystem"),
+    ("volcano_monitor", "VolcanoMonitor"),
+    ("intel_war", "IntelWar"),
+    ("news_briefing", "NewsBriefing"),
+]
+
+for mod_name, class_name in required_modules:
+    try:
+        module = __import__(mod_name)
+        cls = getattr(module, class_name)
+        modules[mod_name] = cls
+        print(f"✅ {mod_name} carregado.")
+    except ImportError as e:
+        print(f"⚠️ Falha ao carregar {mod_name}: {e}")
+        # Cria uma classe dummy
+        def dummy(self, *args, **kwargs):
+            return f"⚠️ Módulo {mod_name}.py indisponível.", None
+        dummy_class = type(class_name, (), {"__init__": lambda self: None})
+        setattr(dummy_class, "gerar_radar" if "radar" in mod_name else 
+                ("obter_clima" if "weather" in mod_name else 
+                 ("get_seismic_data_text" if "seismic" in mod_name else
+                  ("get_volcano_report" if "volcano" in mod_name else
+                   ("get_war_report_with_screenshot" if "intel" in mod_name else
+                    "get_top_headlines")))), dummy)
+        modules[mod_name] = dummy_class
+
+# Atribui às variáveis globais
+RadarAereoAPI = modules["radar_api"]
+WeatherSystem = modules["weather_system"]
+GeoSeismicSystem = modules["geo_seismic"]
+VolcanoMonitor = modules["volcano_monitor"]
+IntelWar = modules["intel_war"]
+NewsBriefing = modules["news_briefing"]
 
 # =============================================================================
 # 2. INICIALIZAÇÃO DE COMPONENTES
