@@ -7,9 +7,25 @@ import asyncio
 from pathlib import Path
 
 # =============================================================================
+# INSTALAÇÃO DE DEPENDÊNCIAS DE SISTEMA (ANTES DE TUDO)
+# =============================================================================
+print("📦 Instalando dependências de sistema para o Chromium...")
+try:
+    subprocess.check_call(["apt-get", "update", "-qq"])
+    subprocess.check_call([
+        "apt-get", "install", "-y", "-qq",
+        "libnss3", "libatk-bridge2.0-0", "libdrm2", "libxkbcommon0",
+        "libgbm1", "libasound2", "libatk1.0-0", "libcups2",
+        "libxcomposite1", "libxdamage1", "libxrandr2", "libpango-1.0-0",
+        "libcairo2"
+    ])
+    print("✅ Dependências de sistema instaladas.")
+except Exception as e:
+    print(f"⚠️ Falha ao instalar dependências de sistema: {e}")
+
+# =============================================================================
 # CONFIGURAÇÃO DO PLAYWRIGHT (ANTES DE QUALQUER OUTRO IMPORT)
 # =============================================================================
-# Define um diretório acessível no Colab
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/content/playwright-browsers'
 browsers_path = '/content/playwright-browsers'
 
@@ -47,7 +63,9 @@ try:
     print("✅ Playwright está funcionando corretamente.")
 except Exception as e:
     print(f"❌ Playwright ainda com problemas: {e}")
-    sys.exit(1)
+    # Não saímos, pois podemos tentar seguir com fallback nos módulos que usam playwright
+    # Se quiser interromper, descomente a linha abaixo:
+    # sys.exit(1)
 
 # =============================================================================
 # 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
