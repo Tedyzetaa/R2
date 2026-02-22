@@ -118,10 +118,13 @@ from huggingface_hub import hf_hub_download
 import os
 from getpass import getpass
 
-# Obter token do Telegram
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-if not TOKEN:
-    TOKEN = getpass("Digite o token do Telegram: ")
+# Obter token: prioridade para argumento da linha de comando, depois variável de ambiente, depois input
+if len(sys.argv) > 1:
+    TOKEN = sys.argv[1]
+else:
+    TOKEN = os.getenv("TELEGRAM_TOKEN")
+    if not TOKEN:
+        TOKEN = getpass("Digite o token do Telegram: ")
 
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
