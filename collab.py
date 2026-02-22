@@ -44,41 +44,102 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
+# 1. Verificação e diagnóstico
+print("📁 Diretório atual:", os.getcwd())
+print("📁 Diretório do script:", SCRIPT_DIR)
+try:
+    print("📁 Conteúdo de SCRIPT_DIR:", os.listdir(SCRIPT_DIR))
+except Exception as e:
+    print(f"⚠️ Erro ao listar diretório: {e}")
+print("📁 Python path:", sys.path)
+
 # Opcional: criar __init__.py
 init_file = os.path.join(SCRIPT_DIR, "__init__.py")
 if not os.path.exists(init_file):
     with open(init_file, "w") as f:
         f.write("# R2 package\n")
 
-# Importações locais com fallback
+# 2. Instale as dependências necessárias
+def instalar_dependencias():
+    deps = [
+        "geopy", "matplotlib", "requests", "beautifulsoup4",
+        "feedparser", "cloudscraper", "playwright", "python-telegram-bot",
+        "huggingface_hub", "llama-cpp-python"
+    ]
+    print("📦 Verificando dependências externas...")
+    for dep in deps:
+        module_name = dep.replace("-", "_")
+        if "beautifulsoup4" in dep: module_name = "bs4"
+        if "python_telegram_bot" in module_name: module_name = "telegram"
+        if "llama_cpp_python" in module_name: module_name = "llama_cpp"
+        
+        try:
+            __import__(module_name)
+        except ImportError:
+            print(f"📦 Instalando {dep}...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--quiet"])
+            except Exception as e:
+                print(f"⚠️ Falha ao instalar {dep}: {e}")
+
+instalar_dependencias()
+
+# 3. Defina classes fallback completas
+# Fallbacks
+class DummyRadarAereoAPI:
+    def __init__(self): pass
+    def gerar_radar(self, cidade_nome):
+        return "⚠️ Módulo radar_api.py não disponível.", None
+
+class DummyWeatherSystem:
+    def __init__(self, api_key=None): pass  # aceita api_key, mas ignora
+    def obter_clima(self, cidade_input):
+        return "⚠️ Módulo weather_system.py não disponível."
+
+class DummyGeoSeismicSystem:
+    def __init__(self): pass
+    def get_seismic_data_text(self):
+        return "⚠️ Módulo geo_seismic.py não disponível."
+
+class DummyVolcanoMonitor:
+    def __init__(self): pass
+    def get_volcano_report(self):
+        return "⚠️ Módulo volcano_monitor.py não disponível."
+
+class DummyIntelWar:
+    def __init__(self): pass
+    def get_war_report_with_screenshot(self, setor_input="global"):
+        return "⚠️ Módulo intel_war.py não disponível.", None
+    def get_pizzint_text_only(self):
+        return "⚠️ Módulo intel_war.py não disponível."
+
+class DummyNewsBriefing:
+    def __init__(self): pass
+    def get_top_headlines(self):
+        return "⚠️ Módulo news_briefing.py não disponível."
+
+# 4. Importe cada módulo com fallback individual
 modules = {}
-required_modules = [
-    ("radar_api", "RadarAereoAPI"),
-    ("weather_system", "WeatherSystem"),
-    ("geo_seismic", "GeoSeismicSystem"),
-    ("volcano_monitor", "VolcanoMonitor"),
-    ("intel_war", "IntelWar"),
-    ("news_briefing", "NewsBriefing"),
+required = [
+    ("radar_api", "RadarAereoAPI", DummyRadarAereoAPI),
+    ("weather_system", "WeatherSystem", DummyWeatherSystem),
+    ("geo_seismic", "GeoSeismicSystem", DummyGeoSeismicSystem),
+    ("volcano_monitor", "VolcanoMonitor", DummyVolcanoMonitor),
+    ("intel_war", "IntelWar", DummyIntelWar),
+    ("news_briefing", "NewsBriefing", DummyNewsBriefing),
 ]
 
-for mod_name, class_name in required_modules:
+for mod_name, class_name, dummy_class in required:
     try:
         module = __import__(mod_name)
         cls = getattr(module, class_name)
         modules[mod_name] = cls
-        print(f"✅ {mod_name} carregado.")
+        print(f"✅ {mod_name} carregado com sucesso.")
     except ImportError as e:
-        print(f"⚠️ Falha ao carregar {mod_name}: {e}")
-        # Cria uma classe dummy
-        def dummy(self, *args, **kwargs):
-            return f"⚠️ Módulo {mod_name}.py indisponível.", None
-        dummy_class = type(class_name, (), {"__init__": lambda self: None})
-        setattr(dummy_class, "gerar_radar" if "radar" in mod_name else 
-                ("obter_clima" if "weather" in mod_name else 
-                 ("get_seismic_data_text" if "seismic" in mod_name else
-                  ("get_volcano_report" if "volcano" in mod_name else
-                   ("get_war_report_with_screenshot" if "intel" in mod_name else
-                    "get_top_headlines")))), dummy)
+        print(f"⚠️ Falha ao carregar {mod_name}: {e}. Usando fallback.")
+        modules[mod_name] = dummy_class
+    except Exception as e:
+        print(f"❌ Erro inesperado ao carregar {mod_name}: {e}. Usando fallback.")
         modules[mod_name] = dummy_class
 
 # Atribui às variáveis globais
