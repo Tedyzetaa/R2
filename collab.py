@@ -23,13 +23,13 @@ def setup_full_system():
 try:
     from llama_cpp import Llama
     from telegram import Update
-    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler
+    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 except ImportError:
     setup_full_system()
     from llama_cpp import Llama
     from telegram import Update
-    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler
+    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 # =============================================================================
@@ -148,68 +148,196 @@ noticias = NewsBriefing()
 # 3. LÓGICA DE COMANDO TÁTICO
 # =============================================================================
 
-async def menu_principal(update: Update):
+async def menu_principal(update: Update, context):
+    """Exibe menu principal com botões"""
     keyboard = [
-        [InlineKeyboardButton("✈️ RADAR DE VOOS", callback_data='radar'),
-         InlineKeyboardButton("⛈️ CLIMA", callback_data='clima')],
-        [InlineKeyboardButton("🌍 SISMOS", callback_data='sismos'),
-         InlineKeyboardButton("🌋 VULCÕES", callback_data='vulcoes')],
-        [InlineKeyboardButton("🇺🇦 INTEL UCRÂNIA", callback_data='war_ucrania'),
-         InlineKeyboardButton("🇮🇱 INTEL ISRAEL", callback_data='war_israel')],
-        [InlineKeyboardButton("📰 NOTÍCIAS", callback_data='news')]
+        [InlineKeyboardButton("✈️ RADAR DE VOOS", callback_data='radar')],
+        [InlineKeyboardButton("⛈️ CLIMA", callback_data='clima')],
+        [InlineKeyboardButton("🌍 SISMOS", callback_data='sismos')],
+        [InlineKeyboardButton("🌋 VULCÕES", callback_data='vulcoes')],
+        [InlineKeyboardButton("🇺🇦 INTEL UCRÂNIA", callback_data='intel_ucrania')],
+        [InlineKeyboardButton("🇮🇱 INTEL ISRAEL", callback_data='intel_israel')],
+        [InlineKeyboardButton("📰 NOTÍCIAS", callback_data='news')],
+        [InlineKeyboardButton("☀️ RELATÓRIO SOLAR", callback_data='solar')],
+        [InlineKeyboardButton("☄️ ASTEROIDES", callback_data='asteroides')],
+        [InlineKeyboardButton("📊 STATUS DO SISTEMA", callback_data='status')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🤖 *R2 TÁTICO: OPERACIONAL*\nEscolha um protocolo:", reply_markup=reply_markup, parse_mode='Markdown')
+    await update.message.reply_text(
+        "🤖 *R2 TÁTICO - MENU DE COMANDOS*\nEscolha uma operação:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 async def processar_botoes(update: Update, context):
+    """Processa os botões do menu"""
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = query.from_user.id
 
-    if data == 'sismos':
-        res = seismico.get_seismic_data_text()
-        await query.message.reply_text(res, parse_mode='Markdown')
+    if user_id not in AUTHORIZED_USERS:
+        await query.edit_message_text("⛔ Acesso negado.")
+        return
+
+    # Roda as funções em threads separadas para não travar o bot (Adaptado para Asyncio)
+    async def executar_funcao(func, *args):
+        try:
+            resultado = await asyncio.to_thread(func, *args)
+            # Se for uma tupla (texto, caminho_imagem), envia como mensagem ou foto
+            if isinstance(resultado, tuple) and len(resultado) == 2:
+                texto, caminho = resultado
+                if caminho and os.path.exists(caminho):
+                    with open(caminho, 'rb') as f:
+                        await context.bot.send_photo(chat_id=user_id, photo=f, caption=texto, parse_mode='Markdown')
+                else:
+                    await context.bot.send_message(chat_id=user_id, text=texto, parse_mode='Markdown')
+            else:
+                await context.bot.send_message(chat_id=user_id, text=resultado, parse_mode='Markdown')
+        except Exception as e:
+            await context.bot.send_message(chat_id=user_id, text=f"❌ Erro: {e}")
+
+    # Mapeia os callbacks para as funções
+    if data == 'radar':
+        await query.edit_message_text("✈️ Envie o nome da cidade para o radar:")
+        # Precisamos armazenar o estado para aguardar a cidade
+        context.user_data['aguardando_radar'] = True
+    elif data == 'clima':
+        await query.edit_message_text("⛈️ Envie o nome da cidade para o clima:")
+        context.user_data['aguardando_clima'] = True
+    elif data == 'sismos':
+        asyncio.create_task(executar_funcao(seismico.get_seismic_data_text))
+        await query.edit_message_text("🌍 Consultando sensores sísmicos...")
     elif data == 'vulcoes':
-        res = vulcao.get_volcano_report()
-        await query.message.reply_text(res, parse_mode='Markdown')
+        asyncio.create_task(executar_funcao(vulcao.get_volcano_report))
+        await query.edit_message_text("🌋 Consultando atividade vulcânica...")
+    elif data == 'intel_ucrania':
+        asyncio.create_task(executar_funcao(intel.get_war_report_with_screenshot, "ucrania"))
+        await query.edit_message_text("🇺🇦 Obtendo inteligência da Ucrânia...")
+    elif data == 'intel_israel':
+        asyncio.create_task(executar_funcao(intel.get_war_report_with_screenshot, "israel"))
+        await query.edit_message_text("🇮🇱 Obtendo inteligência de Israel...")
     elif data == 'news':
-        res = noticias.get_top_headlines()
-        await query.message.reply_text(res, parse_mode='Markdown')
-    elif data.startswith('war_'):
-        setor = data.split('_')[1]
-        await query.message.reply_text(f"🛰️ Acessando satélites no setor {setor.upper()}...")
-        headlines, path = intel.get_war_report_with_screenshot(setor)
-        if path:
-            with open(path, 'rb') as f:
-                await query.message.reply_photo(photo=f, caption=f"📸 *Relatório {setor.upper()}*\n{headlines}", parse_mode='Markdown')
-        else:
-            await query.message.reply_text(f"❌ Erro na extração: {headlines}")
+        asyncio.create_task(executar_funcao(noticias.get_top_headlines))
+        await query.edit_message_text("📰 Coletando notícias...")
+    elif data == 'solar':
+        await query.edit_message_text("☀️ Iniciando relatório solar...")
+        asyncio.create_task(processar_solar(user_id, context))
+    elif data == 'asteroides':
+        asyncio.create_task(executar_funcao(get_asteroid_report))
+        await query.edit_message_text("☄️ Consultando asteroides...")
+    elif data == 'status':
+        asyncio.create_task(executar_funcao(get_status))
+        await query.edit_message_text("📊 Coletando status do sistema...")
 
-async def handle_message(update: Update, context):
-    if update.effective_user.id not in AUTHORIZED_USERS: return
-    text = update.message.text.lower()
+async def lidar_com_mensagem(update: Update, context):
+    """Processa mensagens de texto normais"""
+    user_id = update.effective_user.id
+    if user_id not in AUTHORIZED_USERS:
+        return
 
-    if "start" in text or "menu" in text:
-        await menu_principal(update)
-    elif "radar em" in text:
-        cidade = text.replace("radar em", "").strip()
-        await update.message.reply_text(f"📡 Iniciando varredura em {cidade}...")
-        msg, path = radar.gerar_radar(cidade)
-        if path:
-            with open(path, 'rb') as f:
-                await update.message.reply_photo(photo=f, caption=msg)
+    texto = update.message.text
+
+    # Verifica se está aguardando alguma entrada
+    if context.user_data.get('aguardando_radar'):
+        del context.user_data['aguardando_radar']
+        await update.message.reply_text(f"✈️ Iniciando radar para {texto}...")
+        asyncio.create_task(executar_funcao_radar(texto, user_id, context))
+        return
+    elif context.user_data.get('aguardando_clima'):
+        del context.user_data['aguardando_clima']
+        await update.message.reply_text(f"⛈️ Buscando clima para {texto}...")
+        asyncio.create_task(executar_funcao_clima(texto, user_id, context))
+        return
+
+    # Comandos especiais
+    if texto.lower() in ['/menu', 'menu', 'start']:
+        await menu_principal(update, context)
+        return
+
+    # Caso contrário, IA responde
+    await context.bot.send_chat_action(chat_id=user_id, action="typing")
+    # Executa a inferência da IA em uma thread para não bloquear
+    resposta = await asyncio.to_thread(gerar_resposta_ia, texto)
+    await update.message.reply_text(f"🤖 {resposta}")
+
+def gerar_resposta_ia(texto):
+    template = f"<|start_header_id|>system<|end_header_id|>\n\nVocê é o R2, um assistente tático inteligente e amigável. Responda em português de forma útil e concisa.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{texto}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    output = llm(template, max_tokens=256, stop=["<|eot_id|>"], echo=False)
+    return output['choices'][0]['text'].strip()
+
+# Funções auxiliares para executar em threads
+async def executar_funcao_radar(cidade, user_id, context):
+    msg, path = await asyncio.to_thread(radar.gerar_radar, cidade)
+    if path:
+        with open(path, 'rb') as f:
+            await context.bot.send_photo(chat_id=user_id, photo=f, caption=msg, parse_mode='Markdown')
     else:
-        # IA Responde (Llama-3)
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        template = f"<|start_header_id|>system<|end_header_id|>\n\nVocê é o R2.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        output = llm(template, max_tokens=256, stop=["<|eot_id|>"], echo=False)
-        await update.message.reply_text(f"🤖: {output['choices'][0]['text'].strip()}")
+        await context.bot.send_message(chat_id=user_id, text=msg, parse_mode='Markdown')
+
+async def executar_funcao_clima(cidade, user_id, context):
+    resultado = await asyncio.to_thread(clima.obter_clima, cidade)
+    await context.bot.send_message(chat_id=user_id, text=resultado, parse_mode='Markdown')
+
+def get_asteroid_report():
+    try:
+        from features.astro_defense import AstroDefenseSystem
+        astro = AstroDefenseSystem()
+        texto, _, _ = astro.get_asteroid_report()
+        return texto
+    except:
+        return "⚠️ Módulo de asteroides indisponível."
+
+def get_status():
+    import psutil
+    cpu = psutil.cpu_percent()
+    mem = psutil.virtual_memory().percent
+    return f"📊 **STATUS DO SISTEMA**\nCPU: {cpu}%\nMemória: {mem}%"
+
+async def processar_solar(user_id, context):
+    try:
+        from features.noaa.noaa_service import NOAAService
+        noaa = await asyncio.to_thread(NOAAService)
+        # Pode enviar múltiplas mensagens
+        await context.bot.send_message(chat_id=user_id, text="☀️ Coletando dados solares...")
+        
+        cme_file, tipo = await asyncio.to_thread(noaa.get_cme_video)
+        if cme_file:
+            if tipo == "video":
+                with open(cme_file, 'rb') as f:
+                    await context.bot.send_video(chat_id=user_id, video=f, caption="🎞️ CME (SOHO)")
+            else:
+                with open(cme_file, 'rb') as f:
+                    await context.bot.send_photo(chat_id=user_id, photo=f, caption="📷 CME")
+        
+        sdo_file, _ = await asyncio.to_thread(noaa.get_sdo_video)
+        if sdo_file:
+            with open(sdo_file, 'rb') as f:
+                await context.bot.send_video(chat_id=user_id, video=f, caption="🎞️ The Sun (SDO)")
+        
+        enlil_file, tipo_enlil = await asyncio.to_thread(noaa.get_enlil_video)
+        if enlil_file:
+            if tipo_enlil == "video":
+                with open(enlil_file, 'rb') as f:
+                    await context.bot.send_video(chat_id=user_id, video=f, caption="🌀 Enlil (NASA)")
+            else:
+                with open(enlil_file, 'rb') as f:
+                    await context.bot.send_photo(chat_id=user_id, photo=f, caption="📊 Enlil")
+        
+        drap_file, _ = await asyncio.to_thread(noaa.get_drap_map)
+        if drap_file:
+            with open(drap_file, 'rb') as f:
+                await context.bot.send_photo(chat_id=user_id, photo=f, caption="☢️ D-RAP")
+    except Exception as e:
+        await context.bot.send_message(chat_id=user_id, text=f"⚠️ Erro no módulo solar: {e}")
 
 async def main():
     app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", menu_principal))
+    app.add_handler(CommandHandler("menu", menu_principal))
     app.add_handler(CallbackQueryHandler(processar_botoes))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("🛰️ [UPLINK] R2 Online com Módulos Táticos Integrados.")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lidar_com_mensagem))
+    print("🛰️ [UPLINK] R2 Online com Módulos Táticos Integrados e Menu.")
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
