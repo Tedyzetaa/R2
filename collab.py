@@ -120,19 +120,60 @@ try:
         with open(intel_war_path, 'r') as f:
             content = f.read()
 
-        # Inserir a verificação de bloqueio logo após page.goto()
-        pattern = r'(page\.goto\(.*?\).*?)(\s+time\.sleep\()'
-        replacement = r'''\1
-            # Verificar se a página bloqueou
-            if "Attention Required" in page.title() or "attention required" in page.content().lower():
+        # Define o novo corpo da função
+        new_function = '''    def get_war_report_with_screenshot(self, setor_input="global"):
+        """Captura visual dos fronts de batalha (versão corrigida)"""
+        import time
+        import random
+        chave = self._obter_chave_segura(setor_input)
+        url = self.urls.get(chave, self.urls["global"])
+        pasta_raiz = os.path.dirname(os.path.abspath(__file__))
+        screenshot_path = os.path.join(os.path.dirname(pasta_raiz), f"intel_{chave}.png")
+
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    viewport={"width": 1280, "height": 720},
+                    user_agent=random.choice(self.user_agents)
+                )
+                page = context.new_page()
+                
+                print(f"🛰️ [INTEL]: Infiltrando no setor {chave.upper()}...")
+                page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                
+                # Verificar bloqueio
+                if "Attention Required" in page.title() or "attention required" in page.content().lower():
+                    browser.close()
+                    return "⚠️ O site liveuamap bloqueou nosso acesso automatizado. Tente novamente mais tarde ou use outra fonte.", None
+                
+                time.sleep(6)
+                try:
+                    page.locator("button:has-text('Accept'), .popup-close").click(timeout=2000)
+                except:
+                    pass
+                page.screenshot(path=screenshot_path)
+                
+                headlines = ""
+                if "liveuamap" in url:
+                    titles = page.locator(".title").all_text_contents()
+                    if titles:
+                        headlines = "\\n".join([f"• {t.strip()}" for t in titles[:5]])
                 browser.close()
-                return "⚠️ O site liveuamap bloqueou nosso acesso automatizado. Tente novamente mais tarde ou use outra fonte.", None
-            \2'''
-        new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+                return headlines, screenshot_path
+        except Exception as e:
+            print(f"❌ Erro na extração visual: {e}")
+            return f"⚠️ Falha técnica: {str(e)}", None
+'''
+
+        # Substitui a função antiga (procurando pelo início dela)
+        pattern = r'def get_war_report_with_screenshot\(self, setor_input="global"\):.*?(?=\n\s*def|\n\s*class|\n\s*$|\Z)'
+        new_content = re.sub(pattern, new_function, content, flags=re.DOTALL)
 
         with open(intel_war_path, 'w') as f:
             f.write(new_content)
-        print("✅ Módulo intel_war atualizado com tratamento de bloqueio.")
+        print("✅ Módulo intel_war atualizado com tratamento de loop de eventos.")
 except Exception as e:
     print(f"⚠️ Erro ao aplicar patch no intel_war: {e}")
 
