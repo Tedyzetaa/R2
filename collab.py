@@ -67,7 +67,17 @@ from telegram import Update
 from telegram.ext import Application, MessageHandler, filters
 
 # Configurações de Acesso
-TOKEN = "SEU_TOKEN_AQUI"
+try:
+    from google.colab import userdata
+    TOKEN = userdata.get('TELEGRAM_TOKEN')
+    print("🔑 [SISTEMA] Token carregado via Colab Secrets.")
+except Exception:
+    # Caso você esteja rodando fora do Colab ou não configurou a secret
+    TOKEN = os.getenv("TELEGRAM_TOKEN") or "COLE_SEU_TOKEN_AQUI_SE_NAO_USAR_SECRETS"
+
+if not TOKEN or "SEU_TOKEN" in TOKEN:
+    print("❌ ERRO: Token do Telegram não configurado!")
+    sys.exit(1)
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
 # Garante o modelo e carrega na GPU
