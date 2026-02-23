@@ -1,4 +1,4 @@
-⚡ R2 ASSISTANT - TACTICAL OS (v2.5)
+⚡ R2 ASSISTANT - TACTICAL OS (v2.5) 
 https://img.shields.io/badge/STATUS-OPERACIONAL-00ff00?style=for-the-badge&logo=probot
 https://img.shields.io/badge/ARCH-HYBRID_CLOUD-00ffff?style=for-the-badge&logo=googlecolab
 https://img.shields.io/badge/SECURITY-NEURAL_VAULT-ffff00?style=for-the-badge
