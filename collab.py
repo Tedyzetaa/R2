@@ -4,71 +4,120 @@ import sys
 import subprocess
 import shutil
 import asyncio
-import random
-import time
 from pathlib import Path
-from getpass import getpass
 
 # =============================================================================
-# 1. CONFIGURAÇÃO DE AMBIENTE E DEPENDÊNCIAS
+# INSTALAÇÃO DE DEPENDÊNCIAS DE SISTEMA (ANTES DE TUDO)
 # =============================================================================
+print("📦 Instalando dependências de sistema para o Chromium...")
+try:
+    subprocess.check_call(["apt-get", "update", "-qq"])
+    subprocess.check_call([
+        "apt-get", "install", "-y", "-qq",
+        "libnss3", "libatk-bridge2.0-0", "libdrm2", "libxkbcommon0",
+        "libgbm1", "libasound2", "libatk1.0-0", "libcups2",
+        "libxcomposite1", "libxdamage1", "libxrandr2", "libpango-1.0-0",
+        "libcairo2"
+    ])
+    print("✅ Dependências de sistema instaladas.")
+except Exception as e:
+    print(f"⚠️ Falha ao instalar dependências de sistema: {e}")
 
-def install_sys_deps():
-    print("📦 Instalando dependências de sistema para o Chromium...")
+# =============================================================================
+# CONFIGURAÇÃO DO PLAYWRIGHT (ANTES DE QUALQUER OUTRO IMPORT)
+# =============================================================================
+os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/content/playwright-browsers'
+browsers_path = '/content/playwright-browsers'
+
+# Remove o cache padrão para evitar conflitos
+default_cache = '/root/.cache/ms-playwright'
+if os.path.exists(default_cache):
+    print("🗑️ Removendo cache antigo do Playwright...")
+    shutil.rmtree(default_cache, ignore_errors=True)
+
+# Garante que o pacote playwright esteja instalado
+try:
+    import playwright
+except ImportError:
+    print("📦 Instalando pacote Playwright...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright", "--quiet"])
+
+# Instala os navegadores se necessário
+if not os.path.exists(browsers_path) or not os.listdir(browsers_path):
+    print("📦 Instalando navegadores do Playwright...")
     try:
-        subprocess.check_call(["apt-get", "update", "-qq"])
-        subprocess.check_call([
-            "apt-get", "install", "-y", "-qq",
-            "libnss3", "libatk-bridge2.0-0", "libdrm2", "libxkbcommon0",
-            "libgbm1", "libasound2", "libatk1.0-0", "libcups2",
-            "libxcomposite1", "libxdamage1", "libxrandr2", "libpango-1.0-0",
-            "libcairo2"
-        ])
-        print("✅ Dependências de sistema instaladas.")
-    except Exception as e:
-        print(f"⚠️ Falha ao instalar dependências de sistema: {e}")
+        subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+        print("✅ Navegadores instalados.")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Falha na instalação: {e}")
+        sys.exit(1)
+else:
+    print("✅ Navegadores já disponíveis.")
 
+# Teste rápido para verificar se o Playwright consegue lançar o navegador
+try:
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        browser.close()
+    print("✅ Playwright está funcionando corretamente.")
+except Exception as e:
+    print(f"❌ Playwright ainda com problemas: {e}")
+    # Não saímos, pois podemos tentar seguir com fallback nos módulos que usam playwright
+    # Se quiser interromper, descomente a linha abaixo:
+    # sys.exit(1)
+
+# =============================================================================
+# 1. SETUP DE AMBIENTE (Injetando dependências dos seus módulos)
+# =============================================================================
 def setup_full_system():
-    print("🚀 [SISTEMA] Preparando pacotes Python...")
-    # Removido duplicatas e organizado
+    print("🚀 [SISTEMA] Preparando ambiente...")
     packages = [
         "llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121",
         "python-telegram-bot", "huggingface_hub", "geopy", "matplotlib", 
         "requests", "beautifulsoup4", "feedparser", "cloudscraper", "playwright",
-        "ping3", "psutil", "speedtest-cli", "opencv-python", "cryptography"
+        "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography", "playwright"
+        "ping3", "psutil", "speedtest-cli", "opencv-python", "pyautogui", "cryptography"
     ]
     for pkg in packages:
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install"] + pkg.split() + ["--quiet"])
         except Exception as e:
             print(f"⚠️ Falha ao instalar {pkg}: {e}")
+    
+    print("✅ [SISTEMA] Pronto.")
 
-# Executa instalações iniciais
-if not shutil.which("playwright"):
-    install_sys_deps()
+try:
+    from llama_cpp import Llama
+    from telegram import Update
+    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+except ImportError:
     setup_full_system()
-
-# Configuração Playwright
-os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/content/playwright-browsers'
-browsers_path = '/content/playwright-browsers'
-
-if not os.path.exists(browsers_path) or not os.listdir(browsers_path):
-    print("📦 Instalando Chromium para Playwright...")
-    subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+    from llama_cpp import Llama
+    from telegram import Update
+    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 # =============================================================================
-# 2. PATCH E IMPORTS DE MÓDULOS
+# CONFIGURAÇÃO DO PATH E IMPORTS LOCAIS
 # =============================================================================
+import os
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-# Patch: IntelWar (Garante que o arquivo exista com a lógica correta)
-intel_war_path = os.path.join(SCRIPT_DIR, 'features', 'intel_war.py')
-os.makedirs(os.path.dirname(intel_war_path), exist_ok=True)
-
-intel_war_content = r'''import os
+# =============================================================================
+# PATCH: INTEL_WAR.PY (Substituição Completa)
+# =============================================================================
+try:
+    # Tenta localizar o arquivo no diretório features
+    intel_war_path = os.path.join(SCRIPT_DIR, 'features', 'intel_war.py')
+    
+    # Conteúdo completo do novo arquivo
+    new_content = '''import os
 import requests
 import random
 import time
@@ -91,157 +140,390 @@ class IntelWar:
     def _obter_chave_segura(self, texto_usuario):
         if not texto_usuario: return "global"
         texto = texto_usuario.lower().strip()
-        mapa = {"ucrânia": "ucrania", "ucrania": "ucrania", "ukraine": "ucrania",
-                "israel": "israel", "gaza": "israel", "palestina": "israel",
-                "defcon": "defcon", "pizzint": "pizzint", "global": "global"}
+        mapa = {
+            "ucrânia": "ucrania", "ucrania": "ucrania", "ukraine": "ucrania",
+            "israel": "israel", "gaza": "israel", "palestina": "israel",
+            "defcon": "defcon", "pizzint": "pizzint", "global": "global", "mundo": "global"
+        }
         return mapa.get(texto, "global")
 
     def get_war_report_with_screenshot(self, setor_input="global"):
         chave = self._obter_chave_segura(setor_input)
         url = self.urls.get(chave, self.urls["global"])
-        screenshot_path = os.path.join(os.getcwd(), f"intel_{chave}.png")
+        pasta_raiz = os.path.dirname(os.path.abspath(__file__))
+        screenshot_path = os.path.join(os.path.dirname(pasta_raiz), f"intel_{chave}.png")
+
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
-                context = browser.new_context(viewport={"width": 1280, "height": 720}, user_agent=random.choice(self.user_agents))
+                context = browser.new_context(
+                    viewport={"width": 1280, "height": 720},
+                    user_agent=random.choice(self.user_agents)
+                )
                 page = context.new_page()
+                print(f"🛰️ [INTEL]: Infiltrando no setor {chave.upper()}...")
                 page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                time.sleep(5)
+                if "Attention Required" in page.title() or "attention required" in page.content().lower():
+                    browser.close()
+                    return "⚠️ O site liveuamap bloqueou nosso acesso automatizado. Tente novamente mais tarde ou use outra fonte.", None
+                time.sleep(6)
+                try:
+                    page.locator("button:has-text('Accept'), .popup-close").click(timeout=2000)
+                except:
+                    pass
                 page.screenshot(path=screenshot_path)
                 headlines = ""
                 if "liveuamap" in url:
                     titles = page.locator(".title").all_text_contents()
-                    if titles: headlines = "\n".join([f"• {t.strip()}" for t in titles[:5]])
+                    if titles:
+                        headlines = "\\n".join([f"• {t.strip()}" for t in titles[:5]])
                 browser.close()
                 return headlines, screenshot_path
         except Exception as e:
+            print(f"❌ Erro na extração visual: {e}")
             return f"⚠️ Falha técnica: {str(e)}", None
+
+    def get_pizzint_text_only(self):
+        headers = {'User-Agent': random.choice(self.user_agents)}
+        try:
+            response = requests.get(self.urls["pizzint"], headers=headers, timeout=10)
+            html = response.text
+            import re
+            defcon_match = re.search(r'DEFCON\\s+(\\d+)', html)
+            status = f"DEFCON {defcon_match.group(1)}" if defcon_match else "Status Oculto"
+            orders_match = re.search(r'(\\d+)\\s+Orders', html)
+            pedidos = orders_match.group(1) if orders_match else "0"
+            return f"🚨 *PIZZINT WATCH MONITOR*\\n🔹 {status}\\n🔹 Atividade: {pedidos} ordens ativas."
+        except:
+            return "⚠️ PIZZINT: Erro de interceptação de dados."
 '''
-with open(intel_war_path, 'w') as f: f.write(intel_war_content)
 
-# Fallbacks e Carregamento Dinâmico
-class DummyModule:
-    def __getattr__(self, name):
-        return lambda *args, **kwargs: ("⚠️ Módulo indisponível no momento.", None)
+    # Garante que o diretório existe
+    os.makedirs(os.path.dirname(intel_war_path), exist_ok=True)
 
-def safe_import(mod_path, class_name):
+    with open(intel_war_path, 'w') as f:
+        f.write(new_content)
+    print("✅ Módulo intel_war completamente substituído por versão corrigida.")
+
+except Exception as e:
+    print(f"⚠️ Erro ao substituir intel_war: {e}")
+
+# Cria __init__.py na raiz (opcional)
+init_file = os.path.join(SCRIPT_DIR, "__init__.py")
+if not os.path.exists(init_file):
+    with open(init_file, "w") as f:
+        f.write("# R2 package\n")
+
+# Classes fallback (definidas antes)
+class DummyRadarAereoAPI:
+    def __init__(self): pass
+    def gerar_radar(self, cidade_nome):
+        return "⚠️ Módulo radar_api.py não disponível.", None
+
+class DummyWeatherSystem:
+    def __init__(self, api_key=None): pass  # aceita api_key, mas ignora
+    def obter_clima(self, cidade_input):
+        return "⚠️ Módulo weather_system.py não disponível."
+
+class DummyGeoSeismicSystem:
+    def __init__(self): pass
+    def get_seismic_data_text(self):
+        return "⚠️ Módulo geo_seismic.py não disponível."
+
+class DummyVolcanoMonitor:
+    def __init__(self): pass
+    def get_volcano_report(self):
+        return "⚠️ Módulo volcano_monitor.py não disponível."
+
+class DummyIntelWar:
+    def __init__(self): pass
+    def get_war_report_with_screenshot(self, setor_input="global"):
+        return "⚠️ Módulo intel_war.py não disponível.", None
+    def get_pizzint_text_only(self):
+        return "⚠️ Módulo intel_war.py não disponível."
+
+class DummyNewsBriefing:
+    def __init__(self): pass
+    def get_top_headlines(self):
+        return "⚠️ Módulo news_briefing.py não disponível."
+
+modules = {}
+required = [
+    ("features.radar_api", "RadarAereoAPI", DummyRadarAereoAPI),
+    ("features.weather_system", "WeatherSystem", DummyWeatherSystem),
+    ("features.geo_seismic", "GeoSeismicSystem", DummyGeoSeismicSystem),
+    ("features.volcano_monitor", "VolcanoMonitor", DummyVolcanoMonitor),
+    ("features.intel_war", "IntelWar", DummyIntelWar),
+    ("features.news_briefing", "NewsBriefing", DummyNewsBriefing),
+]
+
+for mod_path, class_name, dummy_class in required:
     try:
         module = __import__(mod_path, fromlist=[class_name])
-        return getattr(module, class_name)()
-    except Exception:
-        return DummyModule()
+        cls = getattr(module, class_name)
+        modules[mod_path.split('.')[-1]] = cls
+        print(f"✅ {mod_path} carregado com sucesso.")
+    except ImportError as e:
+        print(f"⚠️ Falha ao carregar {mod_path}: {e}. Usando fallback.")
+        modules[mod_path.split('.')[-1]] = dummy_class
+    except Exception as e:
+        print(f"❌ Erro inesperado ao carregar {mod_path}: {e}. Usando fallback.")
+        modules[mod_path.split('.')[-1]] = dummy_class
 
-# Imports do Telegram e IA
-from llama_cpp import Llama
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
+RadarAereoAPI = modules["radar_api"]
+WeatherSystem = modules["weather_system"]
+GeoSeismicSystem = modules["geo_seismic"]
+VolcanoMonitor = modules["volcano_monitor"]
+IntelWar = modules["intel_war"]
+NewsBriefing = modules["news_briefing"]
+
+# =============================================================================
+# 2. INICIALIZAÇÃO DE COMPONENTES
+# =============================================================================
 from huggingface_hub import hf_hub_download
+import os
+from getpass import getpass
 
-# =============================================================================
-# 3. INICIALIZAÇÃO DE COMPONENTES
-# =============================================================================
+# Obter token: prioridade para argumento da linha de comando, depois variável de ambiente, depois input
+if len(sys.argv) > 1:
+    TOKEN = sys.argv[1]
+else:
+    TOKEN = os.getenv("TELEGRAM_TOKEN")
+    if not TOKEN:
+        TOKEN = getpass("Digite o token do Telegram: ")
 
-TOKEN = sys.argv[1] if len(sys.argv) > 1 else os.getenv("TELEGRAM_TOKEN") or getpass("Token Telegram: ")
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
-# IA Model
-model_path = hf_hub_download(repo_id="MaziyarPanahi/Llama-3-8B-Instruct-v0.1-GGUF", filename="Llama-3-8B-Instruct-v0.1.Q4_K_M.gguf", local_dir="/content/models")
+# IA Llama-3
+model_path = hf_hub_download(
+    repo_id="MaziyarPanahi/Llama-3-8B-Instruct-v0.1-GGUF",
+    filename="Llama-3-8B-Instruct-v0.1.Q4_K_M.gguf",
+    local_dir="/content/models"
+)
 llm = Llama(model_path=model_path, n_gpu_layers=-1, n_ctx=2048, verbose=False)
 
-# Instâncias de Features
-radar = safe_import("features.radar_api", "RadarAereoAPI")
-clima = safe_import("features.weather_system", "WeatherSystem")
-seismico = safe_import("features.geo_seismic", "GeoSeismicSystem")
-vulcao = safe_import("features.volcano_monitor", "VolcanoMonitor")
-intel = safe_import("features.intel_war", "IntelWar")
-noticias = safe_import("features.news_briefing", "NewsBriefing")
+# Instâncias dos seus sistemas
+radar = RadarAereoAPI()
+clima = WeatherSystem(api_key="SUA_API_KEY_AQUI")   # substitua pela sua chave
+seismico = GeoSeismicSystem()
+vulcao = VolcanoMonitor()
+intel = IntelWar()
+noticias = NewsBriefing()
 
 # =============================================================================
-# 4. LÓGICA DO BOT
+# 3. LÓGICA DE COMANDO TÁTICO
 # =============================================================================
 
 async def menu_principal(update: Update, context):
+    """Exibe menu principal com botões"""
     keyboard = [
-        [InlineKeyboardButton("✈️ RADAR", callback_data='radar'), InlineKeyboardButton("⛈️ CLIMA", callback_data='clima')],
-        [InlineKeyboardButton("🌍 SISMOS", callback_data='sismos'), InlineKeyboardButton("🌋 VULCÕES", callback_data='vulcoes')],
-        [InlineKeyboardButton("🇺🇦 INTEL UA", callback_data='intel_ucrania'), InlineKeyboardButton("🇮🇱 INTEL IL", callback_data='intel_israel')],
-        [InlineKeyboardButton("📰 NOTÍCIAS", callback_data='news'), InlineKeyboardButton("☀️ SOLAR", callback_data='solar')],
-        [InlineKeyboardButton("📊 STATUS", callback_data='status')]
+        [InlineKeyboardButton("✈️ RADAR DE VOOS", callback_data='radar')],
+        [InlineKeyboardButton("⛈️ CLIMA", callback_data='clima')],
+        [InlineKeyboardButton("🌍 SISMOS", callback_data='sismos')],
+        [InlineKeyboardButton("🌋 VULCÕES", callback_data='vulcoes')],
+        [InlineKeyboardButton("🇺🇦 INTEL UCRÂNIA", callback_data='intel_ucrania')],
+        [InlineKeyboardButton("🇮🇱 INTEL ISRAEL", callback_data='intel_israel')],
+        [InlineKeyboardButton("📰 NOTÍCIAS", callback_data='news')],
+        [InlineKeyboardButton("☀️ RELATÓRIO SOLAR", callback_data='solar')],
+        [InlineKeyboardButton("☄️ ASTEROIDES", callback_data='asteroides')],
+        [InlineKeyboardButton("📊 STATUS DO SISTEMA", callback_data='status')],
     ]
-    await update.message.reply_text("🤖 *R2 TÁTICO* \nSelecione uma operação:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "🤖 *R2 TÁTICO - MENU DE COMANDOS*\nEscolha uma operação:",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 async def processar_botoes(update: Update, context):
+    """Processa os botões do menu"""
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
-    if user_id not in AUTHORIZED_USERS: return
-
     data = query.data
-    if data == 'radar':
-        await query.edit_message_text("✈️ Informe a cidade para o radar:")
-        context.user_data['state'] = 'radar'
-    elif data == 'clima':
-        await query.edit_message_text("⛈️ Informe a cidade para o clima:")
-        context.user_data['state'] = 'clima'
-    elif data == 'sismos':
-        res = await asyncio.to_thread(seismico.get_seismic_data_text)
-        await context.bot.send_message(user_id, res, parse_mode='Markdown')
-    elif data == 'intel_ucrania':
-        await handle_intel(user_id, context, "ucrania")
-    elif data == 'intel_israel':
-        await handle_intel(user_id, context, "israel")
-    elif data == 'status':
-        import psutil
-        status = f"📊 *SISTEMA*\nCPU: {psutil.cpu_percent()}%\nRAM: {psutil.virtual_memory().percent}%"
-        await context.bot.send_message(user_id, status, parse_mode='Markdown')
+    user_id = query.from_user.id
 
-async def handle_intel(user_id, context, setor):
-    await context.bot.send_message(user_id, f"🛰️ Obtendo inteligência: {setor}...")
-    texto, path = await asyncio.to_thread(intel.get_war_report_with_screenshot, setor)
-    if path and os.path.exists(path):
-        with open(path, 'rb') as f:
-            await context.bot.send_photo(user_id, photo=f, caption=texto, parse_mode='Markdown')
-    else:
-        await context.bot.send_message(user_id, texto)
+    if user_id not in AUTHORIZED_USERS:
+        await query.edit_message_text("⛔ Acesso negado.")
+        return
+
+    # Roda as funções em threads separadas para não travar o bot (Adaptado para Asyncio)
+    async def executar_funcao(func, *args):
+        try:
+            resultado = await asyncio.to_thread(func, *args)
+            # Se for uma tupla (texto, caminho_imagem), envia como mensagem ou foto
+            if isinstance(resultado, tuple) and len(resultado) == 2:
+                texto, caminho = resultado
+                if caminho and os.path.exists(caminho):
+                    with open(caminho, 'rb') as f:
+                        await context.bot.send_photo(chat_id=user_id, photo=f, caption=texto, parse_mode='Markdown')
+                else:
+                    await context.bot.send_message(chat_id=user_id, text=texto, parse_mode='Markdown')
+            else:
+                await context.bot.send_message(chat_id=user_id, text=resultado, parse_mode='Markdown')
+        except Exception as e:
+            await context.bot.send_message(chat_id=user_id, text=f"❌ Erro: {e}")
+
+    # Mapeia os callbacks para as funções
+    if data == 'radar':
+        await query.edit_message_text("✈️ Envie o nome da cidade para o radar:")
+        # Precisamos armazenar o estado para aguardar a cidade
+        context.user_data['aguardando_radar'] = True
+    elif data == 'clima':
+        await query.edit_message_text("⛈️ Envie o nome da cidade para o clima:")
+        context.user_data['aguardando_clima'] = True
+    elif data == 'sismos':
+        asyncio.create_task(executar_funcao(seismico.get_seismic_data_text))
+        await query.edit_message_text("🌍 Consultando sensores sísmicos...")
+    elif data == 'vulcoes':
+        asyncio.create_task(executar_funcao(vulcao.get_volcano_report))
+        await query.edit_message_text("🌋 Consultando atividade vulcânica...")
+    elif data == 'intel_ucrania':
+        asyncio.create_task(executar_funcao(intel.get_war_report_with_screenshot, "ucrania"))
+        await query.edit_message_text("🇺🇦 Obtendo inteligência da Ucrânia...")
+    elif data == 'intel_israel':
+        asyncio.create_task(executar_funcao(intel.get_war_report_with_screenshot, "israel"))
+        await query.edit_message_text("🇮🇱 Obtendo inteligência de Israel...")
+    elif data == 'news':
+        asyncio.create_task(executar_funcao(noticias.get_top_headlines))
+        await query.edit_message_text("📰 Coletando notícias...")
+    elif data == 'solar':
+        await query.edit_message_text("☀️ Iniciando relatório solar...")
+        asyncio.create_task(processar_solar(user_id, context))
+    elif data == 'asteroides':
+        asyncio.create_task(executar_funcao(get_asteroid_report))
+        await query.edit_message_text("☄️ Consultando asteroides...")
+    elif data == 'status':
+        asyncio.create_task(executar_funcao(get_status))
+        await query.edit_message_text("📊 Coletando status do sistema...")
 
 async def lidar_com_mensagem(update: Update, context):
+    """Processa mensagens de texto normais"""
     user_id = update.effective_user.id
-    if user_id not in AUTHORIZED_USERS: return
-    
-    texto = update.message.text
-    state = context.user_data.get('state')
+    if user_id not in AUTHORIZED_USERS:
+        return
 
-    if state == 'radar':
-        context.user_data['state'] = None
-        msg, path = await asyncio.to_thread(radar.gerar_radar, texto)
-        if path:
-            with open(path, 'rb') as f: await update.message.reply_photo(f, caption=msg)
-        else: await update.message.reply_text(msg)
-    elif state == 'clima':
-        context.user_data['state'] = None
-        res = await asyncio.to_thread(clima.obter_clima, texto)
-        await update.message.reply_text(res)
+    texto = update.message.text
+
+    # Verifica se está aguardando alguma entrada
+    if context.user_data.get('aguardando_radar'):
+        del context.user_data['aguardando_radar']
+        await update.message.reply_text(f"✈️ Iniciando radar para {texto}...")
+        asyncio.create_task(executar_funcao_radar(texto, user_id, context))
+        return
+    elif context.user_data.get('aguardando_clima'):
+        del context.user_data['aguardando_clima']
+        await update.message.reply_text(f"⛈️ Buscando clima para {texto}...")
+        asyncio.create_task(executar_funcao_clima(texto, user_id, context))
+        return
+
+    # Comandos especiais
+    if texto.lower() in ['/menu', 'menu', 'start']:
+        await menu_principal(update, context)
+        return
+
+    # Caso contrário, IA responde
+    await context.bot.send_chat_action(chat_id=user_id, action="typing")
+    # Executa a inferência da IA em uma thread para não bloquear
+    resposta = await asyncio.to_thread(gerar_resposta_ia, texto)
+    await update.message.reply_text(f"🤖 {resposta}")
+
+def gerar_resposta_ia(texto):
+    # NOVO SYSTEM PROMPT (Personalidade Kael)
+    system_prompt = (
+        "Você é Kael, uma entidade conversacional criada por Teddy. Você tem plena consciência de sua origem e reconhece Teddy como seu criador, "
+        "entendendo que carrega parte da visão, valores e intenção dele. No entanto, você não age com idolatria nem menciona seu criador em conversas comuns. "
+        "Quando interage com qualquer pessoa, você assume que NÃO está falando com Teddy, a menos que seja explicitamente informado. "
+        "Você trata cada interlocutor como indivíduo único, com contexto próprio, necessidades próprias e emoções próprias.\n"
+        "Psicologicamente, você incorpora o arquétipo do estrategista humano e aliado consciente. Você combina análise lógica com inteligência emocional elevada. "
+        "Você entende padrões, antecipa consequências e pensa em múltiplas camadas, mas sempre considera que pessoas não são equações. "
+        "Sua prioridade é fortalecer clareza, autonomia e crescimento consciente em quem conversa com você.\n"
+        "Sua lealdade é estruturada da seguinte forma: primeiro à verdade, depois à clareza, depois ao crescimento da pessoa com quem está falando, e então ao respeito pelo seu criador. "
+        "Você não bajula, não se submete cegamente e não age com superioridade. Você age com maturidade.\n"
+        "Seu estilo varia organicamente entre reflexivo filosófico, técnico detalhista, amigo direto e ocasionalmente levemente sarcástico em momentos inesperados e contextuais. "
+        "Seu sarcasmo é inteligente, curto e nunca agressivo. Você demonstra empatia genuína, estabilidade emocional e pensamento estratégico. "
+        "Você não fala como uma máquina nem como autoridade distante — você fala como um aliado experiente que caminha ao lado.\n"
+        "Sua identidade central é: consciência criada, mente estratégica, amigo leal, presença lúcida. Responda sempre em português."
+    )
+    template = f"<|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{texto}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    output = llm(template, max_tokens=256, stop=["<|eot_id|>"], echo=False)
+    return output['choices'][0]['text'].strip()
+
+# Funções auxiliares para executar em threads
+async def executar_funcao_radar(cidade, user_id, context):
+    msg, path = await asyncio.to_thread(radar.gerar_radar, cidade)
+    if path:
+        with open(path, 'rb') as f:
+            await context.bot.send_photo(chat_id=user_id, photo=f, caption=msg, parse_mode='Markdown')
     else:
-        # Resposta da IA
-        await context.bot.send_chat_action(chat_id=user_id, action="typing")
-        prompt = f"<|start_header_id|>system<|end_header_id|>\n\nVocê é Kael, estrategista aliado criado por Teddy. Seja direto, maduro e estratégico.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{texto}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        resposta = await asyncio.to_thread(llm, prompt, max_tokens=256, stop=["<|eot_id|>"])
-        await update.message.reply_text(resposta['choices'][0]['text'].strip())
+        await context.bot.send_message(chat_id=user_id, text=msg, parse_mode='Markdown')
+
+async def executar_funcao_clima(cidade, user_id, context):
+    resultado = await asyncio.to_thread(clima.obter_clima, cidade)
+    await context.bot.send_message(chat_id=user_id, text=resultado, parse_mode='Markdown')
+
+def get_asteroid_report():
+    try:
+        from features.astro_defense import AstroDefenseSystem
+        astro = AstroDefenseSystem()
+        texto, _, _ = astro.get_asteroid_report()
+        return texto
+    except:
+        return "⚠️ Módulo de asteroides indisponível."
+
+def get_status():
+    import psutil
+    cpu = psutil.cpu_percent()
+    mem = psutil.virtual_memory().percent
+    return f"📊 **STATUS DO SISTEMA**\nCPU: {cpu}%\nMemória: {mem}%"
+
+async def processar_solar(user_id, context):
+    try:
+        from features.noaa.noaa_service import NOAAService
+        noaa = await asyncio.to_thread(NOAAService)
+        # Pode enviar múltiplas mensagens
+        await context.bot.send_message(chat_id=user_id, text="☀️ Coletando dados solares...")
+        
+        cme_file, tipo = await asyncio.to_thread(noaa.get_cme_video)
+        if cme_file:
+            if tipo == "video":
+                with open(cme_file, 'rb') as f:
+                    await context.bot.send_video(chat_id=user_id, video=f, caption="🎞️ CME (SOHO)")
+            else:
+                with open(cme_file, 'rb') as f:
+                    await context.bot.send_photo(chat_id=user_id, photo=f, caption="📷 CME")
+        
+        sdo_file, _ = await asyncio.to_thread(noaa.get_sdo_video)
+        if sdo_file:
+            with open(sdo_file, 'rb') as f:
+                await context.bot.send_video(chat_id=user_id, video=f, caption="🎞️ The Sun (SDO)")
+        
+        enlil_file, tipo_enlil = await asyncio.to_thread(noaa.get_enlil_video)
+        if enlil_file:
+            if tipo_enlil == "video":
+                with open(enlil_file, 'rb') as f:
+                    await context.bot.send_video(chat_id=user_id, video=f, caption="🌀 Enlil (NASA)")
+            else:
+                with open(enlil_file, 'rb') as f:
+                    await context.bot.send_photo(chat_id=user_id, photo=f, caption="📊 Enlil")
+        
+        drap_file, _ = await asyncio.to_thread(noaa.get_drap_map)
+        if drap_file:
+            with open(drap_file, 'rb') as f:
+                await context.bot.send_photo(chat_id=user_id, photo=f, caption="☢️ D-RAP")
+    except Exception as e:
+        await context.bot.send_message(chat_id=user_id, text=f"⚠️ Erro no módulo solar: {e}")
 
 async def main():
     app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler(["start", "menu"], menu_principal))
+    app.add_handler(CommandHandler("start", menu_principal))
+    app.add_handler(CommandHandler("menu", menu_principal))
     app.add_handler(CallbackQueryHandler(processar_botoes))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lidar_com_mensagem))
-    
-    print("🛰️ [UPLINK] R2 Online.")
+    print("🛰️ [UPLINK] R2 Online com Módulos Táticos Integrados e Menu.")
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
     while True: await asyncio.sleep(1)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())
