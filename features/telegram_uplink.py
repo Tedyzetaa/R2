@@ -60,7 +60,7 @@ class TelegramBotUplink:
             print("📡 [TELEGRAM]: Uplink Total Ativo com Interface de Botões.")
             
             # Polling Resiliente (Não para se a internet cair)
-            self.loop.run_until_complete(self.app.run_polling(drop_pending_updates=True, close_loop=False))
+            self.loop.run_until_complete(self.app.run_polling(drop_pending_updates=True, close_loop=False, stop_signals=None))
 
         self.thread = threading.Thread(target=run_bot, daemon=True)
         self.thread.start()
