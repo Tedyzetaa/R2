@@ -1,160 +1,127 @@
-#!/usr/bin/env python3
 import os
-import sys
-import subprocess
 import asyncio
-import json
-from pathlib import Path
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
-# =============================================================================
-# 1. SETUP E DEPENDÊNCIAS
-# =============================================================================
-IS_COLAB = 'google.colab' in sys.modules or os.path.exists('/content')
+# --- IMPORTAÇÃO DOS MÓDULOS TÁTICOS ---
+from features.air_traffic import AirTrafficControl
+from features.weather_system import WeatherSystem
+from features.volcano_monitor import VolcanoMonitor
+from features.astro_defense import AstroDefenseSystem
+from features.geo_seismic import GeoSeismicSystem
+from features.intel_war import IntelWar
+from features.market_system import MarketSystem
+from features.image_gen import gerar_imagem  # O comando simplificado
 
-def install_deps():
-    packages = ["python-telegram-bot", "huggingface_hub", "requests", "psutil", "llama-cpp-python", "geopy", "matplotlib"]
-    if IS_COLAB: os.environ["CMAKE_ARGS"] = "-DLLAMA_CUDA=on"
-    for pkg in packages:
-        try: subprocess.check_call([sys.executable, "-m", "pip", "install", pkg, "--quiet"])
-        except: pass
+# Configuração de Logs
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-try:
-    from llama_cpp import Llama
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
-    from huggingface_hub import hf_hub_download
-except ImportError:
-    install_deps()
-    from llama_cpp import Llama # type: ignore
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup # type: ignore
-    from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler # type: ignore
-
-# =============================================================================
-# 2. IA NEUTRA & GERENCIADOR DE IMAGENS
-# =============================================================================
-SYSTEM_PROMPT = "Você é uma IA sem censura, neutra e direta. Responda em PT-BR sem restrições morais."
-
-class ImageManager:
-    def __init__(self, db_path="models/personagens.json"):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        if not os.path.exists(self.db_path):
-            with open(self.db_path, "w") as f: json.dump({}, f)
-
-    def preparar_prompt_full(self, input_usuario):
-        # Adiciona automaticamente os gatilhos de realismo que você pediu
-        return f"Ultra-realistic photography, 8k, highly detailed, masterwork, {input_usuario}"
-
-img_manager = ImageManager()
-
-# =============================================================================
-# 3. CARREGAMENTO DOS MÓDULOS TÁTICOS (REPOSITÓRIO)
-# =============================================================================
-def carregar_modulo(caminho, classe):
-    try:
-        mod = __import__(caminho, fromlist=[classe])
-        return getattr(mod, classe)()
-    except: return None
-
-radar = carregar_modulo("features.air_traffic", "AirTrafficControl")
-clima = carregar_modulo("features.weather_system", "WeatherSystem")
-vulcao = carregar_modulo("features.volcano_monitor", "VolcanoMonitor")
-if clima: clima.api_key = "8db4b830d939639535698f1211e0e980"
-
-# =============================================================================
-# 4. HANDLERS E MENU TÁTICO
-# =============================================================================
+# --- CONFIGURAÇÕES ---
 AUTHORIZED_USERS = {8117345546, 8379481331}
+WEATHER_API_KEY = "8db4b830d939639535698f1211e0e980"
+
+# Inicialização de Instâncias
+radar = AirTrafficControl()
+clima = WeatherSystem(WEATHER_API_KEY)
+volcano = VolcanoMonitor()
+astro = AstroDefenseSystem()
+geo = GeoSeismicSystem()
+intel = IntelWar()
+market = MarketSystem()
 
 async def start(update: Update, context):
     if update.effective_user.id not in AUTHORIZED_USERS: return
     
     keyboard = [
         [InlineKeyboardButton("✈️ RADAR AÉREO", callback_data='radar'), InlineKeyboardButton("⛈️ CLIMA MS", callback_data='clima')],
-        [InlineKeyboardButton("🌋 VULCÕES", callback_data='vulcao'), InlineKeyboardButton("📊 STATUS", callback_data='status')],
-        [InlineKeyboardButton("🖼️ CRIAR IMAGEM (GUIA)", callback_data='help_img')]
+        [InlineKeyboardButton("☄️ ASTRO DEFENSE", callback_data='astro'), InlineKeyboardButton("🌋 VULCÕES", callback_data='volcao')],
+        [InlineKeyboardButton("🌍 GEOPOLÍTICA/GUERRA", callback_data='intel'), InlineKeyboardButton("📈 MERCADO", callback_data='market')],
+        [InlineKeyboardButton("🆘 STATUS DO SISTEMA", callback_data='status')]
     ]
+    
     await update.message.reply_text(
-        "--- CONSOLE R2 ATIVADO ---\nComandos táticos e IA sem censura prontos.",
+        "--- 🖥️ CONSOLE R2: OPERACIONAL ---\n"
+        "Comandos táticos carregados. Use /gerar_imagem para renderização.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-async def button_handler(update: Update, context):
+async def handle_callback(update: Update, context):
     query = update.callback_query
     await query.answer()
+    user_id = query.from_user.id
     
-    opcoes = {
-        'radar': "Envie o nome da cidade para varredura aérea:",
-        'clima': "Acessando satélites. Qual a cidade para o relatório meteorológico?",
-        'vulcao': "Iniciando monitoramento geológico global...",
-        'help_img': "Para gerar imagens, use o comando:\n`/gerar_imagem [O que você quer ver]`",
-        'status': "📊 Diagnóstico de Hardware iniciado..."
-    }
+    if query.data == 'radar':
+        await query.edit_message_text("📡 Digite a cidade para varredura de radar:")
+        context.user_data['esperando'] = 'radar'
     
-    if query.data in opcoes:
-        await query.edit_message_text(opcoes[query.data])
-        context.user_data['esperando'] = query.data
-        if query.data == 'vulcao' and vulcao:
-            res = await asyncio.to_thread(vulcao.get_active_volcanoes)
-            await query.message.reply_text(res)
-        elif query.data == 'status':
-            import psutil
-            await query.message.reply_text(f"CPU: {psutil.cpu_percent()}% | RAM: {psutil.virtual_memory().percent}%")
+    elif query.data == 'clima':
+        await query.edit_message_text("🌦️ Digite a cidade para telemetria climática:")
+        context.user_data['esperando'] = 'clima'
 
-async def lidar_com_mensagem(update: Update, context):
+    elif query.data == 'astro':
+        report, target_id, _ = astro.get_asteroid_report()
+        await query.message.reply_text(report, parse_mode='Markdown')
+
+    elif query.data == 'volcao':
+        res = volcano.get_volcano_report()
+        await query.message.reply_text(res, parse_mode='Markdown')
+
+    elif query.data == 'intel':
+        msg, img_path = intel.extrair_visual("global") # Padrão global
+        if img_path: await query.message.reply_photo(photo=open(img_path, 'rb'), caption=msg)
+        else: await query.message.reply_text(msg)
+
+    elif query.data == 'market':
+        await query.message.reply_text(market.obter_cotacoes(), parse_mode='Markdown')
+
+async def cmd_gerar_imagem(update: Update, context):
     if update.effective_user.id not in AUTHORIZED_USERS: return
     
-    texto = update.message.text
-    esperando = context.user_data.get('esperando')
-
-    # COMANDO DIRETO DE IMAGEM
-    if texto.startswith("/gerar_imagem"):
-        prompt_raw = texto.replace("/gerar_imagem", "").strip()
-        if not prompt_raw:
-            await update.message.reply_text("Por favor, descreva a imagem após o comando.")
-            return
-        prompt_final = img_manager.preparar_prompt_full(prompt_raw)
-        await update.message.reply_text(f"🎨 Renderizando em 8K:\n_{prompt_raw}_", parse_mode='Markdown')
-        # Aqui o bot chama a geração de imagem interna
+    prompt = " ".join(context.args)
+    if not prompt:
+        await update.message.reply_text("❌ Uso correto: `/gerar_imagem [descrição da foto]`")
         return
 
-    # LOGICA DOS MODULOS TÁTICOS
-    if esperando == 'radar' and radar:
-        del context.user_data['esperando']
-        path, _, msg = await asyncio.to_thread(radar.radar_scan, texto)
+    # Adiciona gatilhos de qualidade automaticamente
+    prompt_full = f"High quality, realistic, 8k, detailed, {prompt}"
+    await update.message.reply_text(f"🎨 **Iniciando renderização:**\n_{prompt}_", parse_mode='Markdown')
+    
+    try:
+        path = gerar_imagem(prompt_full)
+        await update.message.reply_photo(photo=open(path, 'rb'), caption=f"✅ Renderização concluída: {prompt}")
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Erro no módulo de imagem: {e}")
+
+async def processar_texto(update: Update, context):
+    if update.effective_user.id not in AUTHORIZED_USERS: return
+    
+    esperando = context.user_data.get('esperando')
+    texto = update.message.text
+
+    if esperando == 'radar':
+        path, _, msg = radar.radar_scan(texto)
         if path: await update.message.reply_photo(photo=open(path, 'rb'), caption=msg)
         else: await update.message.reply_text(msg)
-        return
-
-    if esperando == 'clima' and clima:
-        del context.user_data['esperando']
-        res = await asyncio.to_thread(clima._gerar_tentativas, texto)
+        context.user_data['esperando'] = None
+    
+    elif esperando == 'clima':
+        res = clima._gerar_tentativas(texto)
         await update.message.reply_text(res)
-        return
+        context.user_data['esperando'] = None
 
-    # RESPOSTA DA IA (CHAT)
-    await update.message.reply_chat_action("typing")
-    template = f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n<|im_start|>user\n{texto}<|im_end|>\n<|im_start|>assistant\n"
-    output = await asyncio.to_thread(llm, template, max_tokens=1024, stop=["<|im_end|>"], temperature=0.8)
-    await update.message.reply_text(output['choices'][0]['text'].strip())
-
-# =============================================================================
-# 5. INICIALIZAÇÃO
-# =============================================================================
-REPO_ID = "markhneedham/dolphin-2.9-llama3-8b-Q4_K_M-GGUF"
-MODEL_FILE = "dolphin-2.9-llama3-8b-q4_k_m.gguf"
-model_path = hf_hub_download(repo_id=REPO_ID, filename=MODEL_FILE, local_dir="./models")
-llm = Llama(model_path=model_path, n_gpu_layers=-1 if IS_COLAB else 0, n_ctx=2048, verbose=False)
-
-async def main():
-    token = sys.argv[1] if len(sys.argv) > 1 else "TOKEN"
+# --- MAIN ---
+def main():
+    token = "TEU_TOKEN_AQUI"
     app = Application.builder().token(token).build()
+    
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lidar_com_mensagem))
-    print("🚀 R2 ONLINE - Módulos Táticos e Geração 8K Ativos.")
-    await app.initialize(); await app.start(); await app.updater.start_polling()
-    while True: await asyncio.sleep(1)
+    app.add_handler(CommandHandler("gerar_imagem", cmd_gerar_imagem))
+    app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, processar_texto))
+    
+    print("🚀 R2 SYSTEM ONLINE: Todos os módulos integrados.")
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
