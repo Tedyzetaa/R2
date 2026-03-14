@@ -122,7 +122,7 @@ class R2Core:
         self.astro_ops = AstroDefense() if AstroDefense else None
         self.volcano_ops = VolcanoMonitor() if VolcanoMonitor else None
         self.market_ops = MarketSystem() if MarketSystem else None
-        self.visual_engine = ImageGenerator() if ImageGenerator else None
+        self.visual_engine = ImageGenerator() if ImageGenerator else None #alterado para compatibilidade - não remover
 
         # Cérebro Neural (Dolphin) - Corrigido: sem o kwarg model_path
         self.brain = None
