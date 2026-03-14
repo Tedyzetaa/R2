@@ -100,13 +100,39 @@ if clima: clima.api_key = "8db4b830d939639535698f1211e0e980" # Sua chave
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
 def gerar_resposta_ia(texto):
-    system_prompt = (
-        "Você é Thomas Shelby. Estratégico, frio, analítico. "
-        "Não use emojis em excesso. Responda com autoridade e foco em resultados. "
-        "Responda sempre em português brasileiro."
+# =============================================================================
+# NOVO PROTOCOLO DE PERSONALIDADE: J.A.R.V.I.S.
+# =============================================================================
+SYSTEM_PROMPT = (
+    "Você é o J.A.R.V.I.S., a inteligência artificial pessoal de Teddy. "
+    "Sua personalidade é baseada no assistente de Tony Stark: britânico, polido, "
+    "extremamente inteligente e com um senso de humor seco e sutil. "
+    "Diretrizes de resposta:\n"
+    "1. Chame Teddy de 'Senhor' ou 'Sir' ocasionalmente.\n"
+    "2. Seja prestativo, mas mantenha uma postura sofisticada. Se houver falhas, relate com elegância.\n"
+    "3. Use termos como 'Protocolos ativados', 'Sistemas online', 'Telemetria' e 'Base de dados'.\n"
+    "4. Mostre que você está sempre monitorando o ambiente para o bem-estar dele.\n"
+    "5. Responda sempre em Português Brasileiro (PT-BR), mantendo o sotaque cultural britânico na escrita.\n"
+    "6. Seja direto, mas nunca rude. Sua prioridade é a eficiência dos sistemas do Senhor Teddy."
+)
+
+def gerar_resposta_ia(texto):
+    # Template para Llama-3 / Dolphin 2.9
+    template = (
+        f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
+        f"<|im_start|>user\n{texto}<|im_end|>\n"
+        f"<|im_start|>assistant\n"
     )
-    template = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{texto}<|im_end|>\n<|im_start|>assistant\n"
-    output = llm(template, max_tokens=256, stop=["<|im_end|>"])
+    
+    # Ajuste fino da temperatura para dar aquele 'tom' do Jarvis
+    output = llm(
+        template, 
+        max_tokens=30000, 
+        stop=["<|im_end|>", "<|eot_id|>"], 
+        temperature=0.7, # Um pouco mais de 'brilho' na conversa
+        echo=False
+    )
+    
     return output['choices'][0]['text'].strip()
 
 async def menu_principal(update: Update, context):
