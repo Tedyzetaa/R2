@@ -157,6 +157,11 @@ class R2Core:
 
         print("\n📊 [DIAGNÓSTICO DE SUBSISTEMAS]:")
         for mod, status in MODULOS_STATUS.items():
+            print(f"  > {mod.ljust(20)} : {status}")
+        print("-" * 70)
+        
+        print("-" * 70)
+
         print("-" * 70)
 
         try:
