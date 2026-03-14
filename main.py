@@ -96,6 +96,7 @@ radar = carregar_modulo("features.air_traffic", "AirTrafficControl")
 clima = carregar_modulo("features.weather_system", "WeatherSystem") 
 
 # =============================================================================
+from features.image_gen import ImageGenerator
 # 5. HANDLERS
 # =============================================================================
 from features.image_gen import gerar_imagem
@@ -104,6 +105,7 @@ from features.image_gen import gerar_imagem
 
 AUTHORIZED_USERS = {8117345546, 8379481331}
 
+img_system = ImageGenerator()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in AUTHORIZED_USERS: return
  keyboard = [
@@ -115,6 +117,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await app.start()
     await app.updater.start_polling()
     while True: await asyncio.sleep(1)
+async def lidar_com_mensagem(update: Update, context):
+        if update.effective_user.id not in AUTHORIZED_USERS: return
+
+        texto = update.message.text
+    
+        # COMANDO: SALVAR PERSONAGEM
+        # Exemplo: /salvar_char Alex: Homem forte, barba ruiva, olhos verdes, cicatriz na bochecha
+        if texto.startswith("/salvar_char"):
+            try:
+                partes = texto.replace("/salvar_char", "").split(":")
+                nome = partes[0].strip()
+                desc = partes[1].strip()
+                res = img_system.salvar_personagem(nome, desc)
+                await update.message.reply_text(res)
+            except:
+                await update.message.reply_text("Formato inválido. Use: /salvar_char Nome: Descrição")
+            return
+
+        # COMANDO: GERAR COM PERSONAGEM SALVO
+        # Exemplo: /gerar Alex comendo pizza
+        if texto.startswith("/gerar "):
+            cmd = texto.replace("/gerar ", "").split(" ", 1)
+            nome_char = cmd[0]
+            acao = cmd[1] if len(cmd) > 1 else "olhando para a câmera"
+        
+            prompt_final = img_system.preparar_prompt(nome_char, acao)
+        
+            if prompt_final:
+                await update.message.reply_text(f"🎨 Usando DNA de {nome_char}. Gerando imagem...")
+                # Aqui eu gero a imagem usando o prompt_final
+                # Posso gerar para você agora se desejar.
+            else:
+                await update.message.reply_text(f"❌ Personagem '{nome_char}' não encontrado na galeria.")
+            return
 
 if __name__ == "__main__":
     asyncio.run(main())
