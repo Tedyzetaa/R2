@@ -120,7 +120,6 @@ class TelegramBotUplink:
     async def lidar_com_botoes(self, update: Update, context):
         query = update.callback_query
         user_id = query.from_user.id
-        comando = query.data
 
         try:
             await query.answer()
@@ -128,15 +127,13 @@ class TelegramBotUplink:
             pass
 
         if user_id in AUTHORIZED_USERS:
+            comando = query.data
             print(f"🔘 Botão pressionado por {user_id}: {comando}")
 
-            # MODO CORRETO: Enviar dicionário para a fila do loop principal
-            # O método put_nowait não pausa e não espera. O Telegram não pode travar.
+            item = {'comando': comando, 'sender_id': user_id}
             self.core.main_loop.call_soon_threadsafe(
                 self.core.command_queue.put_nowait,
-
-                lambda: self.server_ref.processar_comando_remoto(comando, sender_id=user_id)
-            )
+                lambda item=item: self.server_ref.processar_comando_remoto(item['comando'], sender_id=item['sender_id']))
         else:
             try:
                 await query.edit_message_text("⛔ Não autorizado.")
@@ -150,10 +147,8 @@ class TelegramBotUplink:
             texto = update.message.text
             # Envia texto para o servidor (ex: nome de cidade)
             # MODO CORRETO: Enviar dicionário para a fila do loop principal
-            self.core.main_loop.call_soon_threadsafe(
-                self.core.command_queue.put_nowait,
-                lambda: self.server_ref.processar_comando_remoto(texto, sender_id=user_id)
-            )
+            item = {'comando': texto, 'sender_id': user_id}
+            self.core.main_loop.call_soon_threadsafe(self.core.command_queue.put_nowait, lambda item=item: self.server_ref.processar_comando_remoto(item['comando'], sender_id=item['sender_id']))
 
     # --- ENVIOS ATIVOS (Server -> Telegram) ---
     def enviar_mensagem_ativa(self, texto, target_chat_id):

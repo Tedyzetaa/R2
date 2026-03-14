@@ -110,8 +110,8 @@ class R2Core:
     def __init__(self, token):        
         self.token = token
         self.running = True
+        self.loop = None # Será capturado no boot_sequence
         self.start_time = datetime.now()
-        self.update_queue = None # Será preenchido pelo Uplink
         # 1. FILA DE COMANDOS PRÓPRIA (Independente do Telegram)
         self.command_queue = asyncio.Queue()
         self.main_loop = asyncio.get_event_loop()
@@ -139,6 +139,7 @@ class R2Core:
                 MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"        
 
         # Uplink Telegram
+        self.update_queue = asyncio.Queue() # Será preenchido pelo Uplink
         self.uplink = None
         if TelegramBotUplink:
             try:
@@ -148,6 +149,7 @@ class R2Core:
 
     async def boot_sequence(self):
         print("\n" + "═"*70)
+        self.loop = asyncio.get_running_loop() # CAPTURA O LOOP ATIVO
         print(f"🤖 R2 ASSISTANT CORE - PROTOCOLO INTEGRAL")
         print("═"*70)
 
@@ -174,6 +176,7 @@ class R2Core:
         while self.running:
             try:
                 item = await self.update_queue.get()
+                print(f"🛠️ [DEBUG]: Core recebeu: {item}") # <--- ADICIONE ISSO
                 # item é um dicionário vindo do Uplink
                 if item:
                     logging.info(f"Recebido comando do Uplink: {item}")
