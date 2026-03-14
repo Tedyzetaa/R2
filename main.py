@@ -43,8 +43,8 @@ def bootstrap_models():
     os.makedirs(models_dir, exist_ok=True)
 
     # URL exata que você solicitou
-    dolphin_path = os.path.join(models_dir, "dolphin-2.9-llama3-8b-Q4_K_M.gguf")
-    dolphin_url = "https://huggingface.co/markhneedham/dolphin-2.9-llama3-8b-Q4_K_M-GGUF/resolve/main/dolphin-2.9-llama3-8b-Q4_K_M.gguf"
+    dolphin_path = os.path.join(models_dir, "dolphin-2.9-llama3-8b-Q4_K_M.gguf") # Nome do arquivo para salvar (Mantenha o mesmo que o Cérebro procura)
+    dolphin_url = "https://huggingface.co/mradermacher/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf" # URL corrigida (Note o ponto antes do Q4_K_M)
 
     if not os.path.exists(dolphin_path):
         print("📥 [SISTEMA]: Baixando matriz neural Dolphin (Uncensored)...")
@@ -107,7 +107,7 @@ ImageGenerator = safe_import("Geração_Imagem", "features.image_gen", "ImageGen
 # 6. R2 CORE
 # =============================================================================
 class R2Core:
-    def __init__(self, token):
+    def __init__(self, token):        
         self.token = token
         self.running = True
         self.start_time = datetime.now()
@@ -115,7 +115,7 @@ class R2Core:
         
         # Módulos Base
         self.scanner = SystemScanner() if SystemScanner else None
-        self.monitor = SystemMonitor(self) if SystemMonitor else None
+        self.monitor = SystemMonitor(self) if SystemMonitor else None        
         self.weather_ops = WeatherSystem(api_key="SUA_CHAVE") if WeatherSystem else None
         self.radar_ops = AirTrafficControl() if AirTrafficControl else None
         self.intel_ops = FrontlineIntel() if FrontlineIntel else None
@@ -123,7 +123,7 @@ class R2Core:
         self.volcano_ops = VolcanoMonitor() if VolcanoMonitor else None
         self.market_ops = MarketSystem() if MarketSystem else None
         self.visual_engine = ImageGenerator() if ImageGenerator else None
-        
+
         # Cérebro Neural (Dolphin) - Corrigido: sem o kwarg model_path
         self.brain = None
         if LocalLlamaBrain:
@@ -133,7 +133,7 @@ class R2Core:
                 # Dica: Certifique-se que o seu local_brain.py procura pelo arquivo gguf correto na pasta models
             except Exception as e:
                 logging.error(f"Falha ao instanciar LLM local: {e}")
-                MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"
+                MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"        
 
         # Uplink Telegram
         self.uplink = None

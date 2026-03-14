@@ -22,7 +22,7 @@ AUTHORIZED_USERS = {8117345546, 8379481331}
 class TelegramBotUplink:
     def __init__(self, server_ref):
         self.server_ref = server_ref # Referência ao cérebro (r2_server.py)
-        self.app = None
+        self.core = server_ref # <--- ESTA LINHA É VITAL! Ela salva o core no objeto.
         self.loop = asyncio.new_event_loop()
         self.thread = None
         
@@ -44,7 +44,7 @@ class TelegramBotUplink:
             # --- 🛡️ CONFIGURAÇÃO DE ALTA DISPONIBILIDADE ---
             self.app = (
                 Application.builder()
-                .token(TOKEN)
+                .token(self.token)
                 .connect_timeout(30)
                 .read_timeout(30)
                 .write_timeout(30)
@@ -57,8 +57,9 @@ class TelegramBotUplink:
             self.app.add_handler(CallbackQueryHandler(self.lidar_com_botoes))
             self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.lidar_com_mensagem))
             
+            # Vincula a fila de updates ao core para evitar o erro de 'update_queue'
             # Isso espelha a fila de updates para o Core, resolvendo o erro de atributo
-            self.core.update_queue = self.app.update_queue
+            self.server_ref.update_queue = self.app.update_queue
 
             # Tratamento de erros de rede
             self.app.add_error_handler(self.error_handler)
