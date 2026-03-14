@@ -158,12 +158,29 @@ class R2Core:
                 print("\n📡 [UPLINK]: Estabelecendo ponte segura com o Telegram...")
                 if hasattr(self.uplink, 'iniciar_sistema'):
                     self.uplink.iniciar_sistema()
+                    asyncio.create_task(self._command_consumer()) # Inicia o consumidor da fila de comandos
                 
                 print("🟢 [STATUS]: R2 totalmente operacional. Aguardando input.")
                 while self.running:
                     await asyncio.sleep(3600)
         except Exception as e:
             logging.critical(f"Falha no Core Loop: {e}")
+
+    async def _command_consumer(self):
+        """Consome itens da fila e encaminha para o processador"""
+        while self.running:
+            try:
+                item = await self.update_queue.get()
+                # item é um dicionário vindo do Uplink
+                if item:
+                    logging.info(f"Recebido comando do Uplink: {item}")
+                    await self.processar_comando_remoto(**item)
+                self.update_queue.task_done()  # Sinaliza que a tarefa foi concluída
+            except Exception as e:
+                logging.error(f"Erro no consumidor de comandos: {e}")
+            await asyncio.sleep(0.1)  # Evita loop excessivo
+
+
 
 def main():
     if platform.system() == 'Windows':
