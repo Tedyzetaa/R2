@@ -1,18 +1,31 @@
 import os
+import sys
+
+# --- PROTOCOLO DE MAPEAMENTO TÁTICO ---
+# Adiciona explicitamente a pasta raiz do repositório ao PATH do sistema
+# Isso garante que 'from features.xxx import yyy' funcione sempre
+path_raiz = os.path.abspath("/content/R2")
+if path_raiz not in sys.path:
+    sys.path.append(path_raiz)
+
 import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
-# --- IMPORTAÇÃO DOS MÓDULOS TÁTICOS ---
-from features.air_traffic import AirTrafficControl
-from features.weather_system import WeatherSystem
-from features.volcano_monitor import VolcanoMonitor
-from features.astro_defense import AstroDefenseSystem
-from features.geo_seismic import GeoSeismicSystem
-from features.intel_war import IntelWar
-from features.market_system import MarketSystem
-from features.image_gen import gerar_imagem  # O comando simplificado
+# --- IMPORTAÇÃO DOS MÓDULOS (Pasta: features) ---
+try:
+    from features.air_traffic import AirTrafficControl
+    from features.weather_system import WeatherSystem
+    from features.volcano_monitor import VolcanoMonitor
+    from features.astro_defense import AstroDefenseSystem
+    from features.geo_seismic import GeoSeismicSystem
+    from features.intel_war import IntelWar
+    from features.market_system import MarketSystem
+    from features.image_gen import gerar_imagem
+    print("✅ [SISTEMA]: Todos os módulos da pasta 'features' foram carregados.")
+except ImportError as e:
+    print(f"❌ [ERRO DE LIGAÇÃO]: {e}")
 
 # Configuração de Logs
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
