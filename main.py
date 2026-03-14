@@ -39,6 +39,42 @@ else:
 
 os.environ["TELEGRAM_TOKEN"] = TOKEN_ARG
 
+# --- 5. VERIFICADOR DE MODELOS DE IA ---
+def verify_ai_models():
+    """Verifica e baixa os modelos de IA necessários (SD e LoRA)"""
+    models_dir = os.path.join(BASE_DIR, "models", "checkpoints")
+    loras_dir = os.path.join(BASE_DIR, "models", "loras")
+    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(loras_dir, exist_ok=True)
+
+    # Configuração dos alvos
+    targets = {
+        "SD_1.5_Base": {
+            "path": os.path.join(models_dir, "v1-5-pruned.safetensors"),
+            "url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors"
+        },
+        "Detailed_Perfection_LoRA": {
+            "path": os.path.join(loras_dir, "detailed_perfection.safetensors"),
+            "url": "https://civitai.com/api/download/models/461125" # Link direto da API do CivitAI
+        }
+    }
+
+    for name, info in targets.items():
+        if not os.path.exists(info["path"]):
+            print(f"📥 [SISTEMA]: Modelo {name} não encontrado. Iniciando download...")
+            try:
+                import requests
+                response = requests.get(info["url"], stream=True)
+                with open(info["path"], "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print(f"✅ [SISTEMA]: {name} baixado com sucesso.")
+            except Exception as e:
+                print(f"❌ [ERRO]: Falha ao baixar {name}: {e}")
+
+# Executa a verificação antes de carregar o restante do sistema
+verify_ai_models()
+
 # --- 4. CARREGADOR DINÂMICO DE MÓDULOS COM FAILSAFE ---
 MODULOS_STATUS = {}
 
