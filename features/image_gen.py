@@ -1,40 +1,38 @@
-import json
-import os
+import torch
+from diffusers import StableDiffusionPipeline
 
 class ImageGenerator:
-    def __init__(self, db_path="models/personagens.json"):
-        self.db_path = db_path
-        self._check_db()
+    def __init__(self):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model_path = "models/checkpoints/v1-5-pruned.safetensors"
+        self.lora_path = "models/loras/detailed_perfection.safetensors"
+        self.pipe = None
 
-    def _check_db(self):
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        if not os.path.exists(self.db_path):
-            with open(self.db_path, "w") as f:
-                json.dump({}, f)
-
-    def salvar_personagem(self, nome, descricao):
-        with open(self.db_path, "r") as f:
-            data = json.load(f)
+    def load_engine(self):
+        """Carrega o modelo base e injeta o LoRA de perfeição"""
+        print("🎨 [IMAGE]: Carregando motor de renderização...")
         
-        # DNA Visual: Forçamos termos de realismo extremo
-        dna_visual = f"High-end hyper-realistic photography, 8k UHD, highly detailed skin texture, raw photo, masterwork, {descricao}"
-        data[nome.lower()] = dna_visual
-        
-        with open(self.db_path, "w") as f:
-            json.dump(data, f)
-        return f"✅ Personagem '{nome}' salvo na Galeria Tática."
+        # Carrega o Pipeline
+        self.pipe = StableDiffusionPipeline.from_single_file(
+            self.model_path, 
+            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
+        ).to(self.device)
 
-    def listar_personagens(self):
-        with open(self.db_path, "r") as f:
-            data = json.load(f)
-        return list(data.keys())
+        # Injeta o LoRA (Detailed Perfection)
+        # Nota: Requer a biblioteca 'peft' instalada
+        try:
+            self.pipe.load_lora_weights(self.lora_path, adapter_name="perfection")
+            print("✨ [IMAGE]: LoRA 'Detailed Perfection' acoplado com sucesso.")
+        except Exception as e:
+            print(f"⚠️ [IMAGE]: Erro ao carregar LoRA: {e}")
 
-    def preparar_prompt(self, nome, acao):
-        with open(self.db_path, "r") as f:
-            data = json.load(f)
+    def generate(self, prompt):
+        if not self.pipe: self.load_engine()
         
-        nome_chave = nome.lower()
-        if nome_chave in data:
-            # Combina os traços fixos com a nova ação/cenário
-            return f"{data[nome_chave]}, {acao}, cinematic lighting, depth of field."
-        return None
+        # O modelo que você escolheu funciona melhor com certos gatilhos no prompt
+        enhanced_prompt = f"{prompt}, highly detailed, masterpiece, perfection style"
+        
+        image = self.pipe(enhanced_prompt, num_inference_steps=30).images[0]
+        path = "output_gen.png"
+        image.save(path)
+        return path
