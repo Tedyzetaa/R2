@@ -36,16 +36,20 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] R2_C
 
 # =============================================================================
 # 3. VERIFICAÇÃO E DOWNLOAD DO DOLPHIN
+# Garante que o arquivo baixado tenha o mesmo nome que o modelo usado localmente
 # =============================================================================
 def bootstrap_models():
     models_dir = os.path.join(BASE_DIR, "models")
     os.makedirs(models_dir, exist_ok=True)
 
-    dolphin_path = os.path.join(models_dir, "dolphin-2.9-llama3-8b-q4_k_m.gguf")
-    dolphin_url = "https://huggingface.co/bartowski/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b-Q4_K_M.gguf"
+    # URL exata que você solicitou
+    dolphin_path = os.path.join(models_dir, "dolphin-2.9-llama3-8b-Q4_K_M.gguf")
+    dolphin_url = "https://huggingface.co/markhneedham/dolphin-2.9-llama3-8b-Q4_K_M-GGUF/resolve/main/dolphin-2.9-llama3-8b-Q4_K_M.gguf"
 
     if not os.path.exists(dolphin_path):
         print("📥 [SISTEMA]: Baixando matriz neural Dolphin (Uncensored)...")
+
+
         try:
             with requests.get(dolphin_url, stream=True) as r:
                 r.raise_for_status()
@@ -107,6 +111,7 @@ class R2Core:
         self.token = token
         self.running = True
         self.start_time = datetime.now()
+        self.update_queue = None # Será preenchido pelo Uplink
         
         # Módulos Base
         self.scanner = SystemScanner() if SystemScanner else None

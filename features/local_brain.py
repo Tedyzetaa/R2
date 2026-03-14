@@ -31,7 +31,8 @@ class LocalLlamaBrain:
         root_dir = os.path.dirname(current_dir)
         
         # O caminho que você me passou
-        self.model_path = os.path.join(root_dir, "models", "Meta-Llama-3-8B-Instruct.Q4_K_M.gguf")
+        # Ajuste o nome do arquivo para o que foi baixado no main.py
+        self.model_path = os.path.join(root_dir, "models", "dolphin-2.9-llama3-8b-Q4_K_M.gguf")
         
         self.n_ctx = 4096       # Memória de contexto (Llama 3 aguenta até 8k)
         self.n_gpu_layers = 35  # Offload de 35 camadas para GPU. Use -1 para tudo, 0 para CPU.

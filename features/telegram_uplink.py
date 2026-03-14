@@ -29,7 +29,10 @@ class TelegramBotUplink:
         # Verificação de segurança na inicialização
         if not TOKEN:
             print(f"❌ [ERRO CRÍTICO]: Token não encontrado em {env_path}")
+            print("💡 Certifique-se de ter um arquivo .env na pasta raiz (C:\\R2) com a chave TELEGRAM_TOKEN.")
             raise ValueError("Token ausente. Configure o arquivo .env")
+
+        self.update_queue = None
 
     def iniciar_sistema(self):
         if self.thread and self.thread.is_alive():
@@ -54,6 +57,9 @@ class TelegramBotUplink:
             self.app.add_handler(CallbackQueryHandler(self.lidar_com_botoes))
             self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.lidar_com_mensagem))
             
+            # Isso espelha a fila de updates para o Core, resolvendo o erro de atributo
+            self.core.update_queue = self.app.update_queue
+
             # Tratamento de erros de rede
             self.app.add_error_handler(self.error_handler)
 
