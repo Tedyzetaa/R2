@@ -112,6 +112,9 @@ class R2Core:
         self.running = True
         self.start_time = datetime.now()
         self.update_queue = None # Será preenchido pelo Uplink
+        # 1. FILA DE COMANDOS PRÓPRIA (Independente do Telegram)
+        self.command_queue = asyncio.Queue()
+        self.main_loop = asyncio.get_event_loop()
         
         # Módulos Base
         self.scanner = SystemScanner() if SystemScanner else None

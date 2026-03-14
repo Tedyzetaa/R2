@@ -130,9 +130,11 @@ class TelegramBotUplink:
         if user_id in AUTHORIZED_USERS:
             print(f"🔘 Botão pressionado por {user_id}: {comando}")
 
-            # Envia para o SERVIDOR processar (r2_server.py)
-            # Nota: Certifique-se de que server_ref.update_queue é uma fila válida (ex: asyncio.Queue)
-            self.server_ref.update_queue.put(
+            # MODO CORRETO: Enviar dicionário para a fila do loop principal
+            # O método put_nowait não pausa e não espera. O Telegram não pode travar.
+            self.core.main_loop.call_soon_threadsafe(
+                self.core.command_queue.put_nowait,
+
                 lambda: self.server_ref.processar_comando_remoto(comando, sender_id=user_id)
             )
         else:
@@ -147,7 +149,9 @@ class TelegramBotUplink:
         if user_id in AUTHORIZED_USERS:
             texto = update.message.text
             # Envia texto para o servidor (ex: nome de cidade)
-            self.server_ref.update_queue.put(
+            # MODO CORRETO: Enviar dicionário para a fila do loop principal
+            self.core.main_loop.call_soon_threadsafe(
+                self.core.command_queue.put_nowait,
                 lambda: self.server_ref.processar_comando_remoto(texto, sender_id=user_id)
             )
 
