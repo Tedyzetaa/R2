@@ -81,10 +81,10 @@ os.environ["TELEGRAM_TOKEN"] = TOKEN_ARG
 # 5. CARREGADOR DINÂMICO
 # =============================================================================
 MODULOS_STATUS = {}
-
+# Funções de importação segura (Não mexer)
 def safe_import(friendly_name, path, class_name=None):
     try:
-        module = __import__(path, fromlist=[class_name] if class_name else [])
+        module = __import__(path, fromlist=[class_name] if class_name else []) 
         MODULOS_STATUS[friendly_name] = "✅ ONLINE"
         return getattr(module, class_name) if class_name else module
     except Exception as e:

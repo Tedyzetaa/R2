@@ -115,6 +115,22 @@ class TelegramBotUplink:
         else:
             await update.message.reply_text("⛔ ACESSO NEGADO.")
 
+    async def lidar_com_botoes(self, update: Update, context):
+        query = update.callback_query
+        user_id = query.from_user.id
+        comando = query.data
+        await query.answer()
+
+        if user_id in AUTHORIZED_USERS:
+            print(f"🔘 Botão pressionado: {comando}")
+            
+            # PONTE: Usa o loop do CORE para colocar a mensagem na fila
+            self.core.main_loop.call_soon_threadsafe(
+                self.core.update_queue.put_nowait, 
+                {'comando': comando, 'sender_id': user_id}
+            )
+
+
     # --- PROCESSADOR DE BOTÕES ---
     async def lidar_com_botoes(self, update: Update, context):
         query = update.callback_query
@@ -165,7 +181,6 @@ class TelegramBotUplink:
                 print(f"❌ Erro envio msg: {e}")
 
         asyncio.run_coroutine_threadsafe(send(), self.loop)
-
 
     def enviar_foto_ativa(self, file_path, legenda="", target_chat_id=None):
         if not self.app:
