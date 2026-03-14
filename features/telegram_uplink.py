@@ -59,10 +59,8 @@ class TelegramBotUplink:
             self.app.add_handler(CallbackQueryHandler(self.lidar_com_botoes))
             self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.lidar_com_mensagem))
 
-            # Vincula a fila de updates ao core para evitar o erro de 'update_queue'
-            # Isso espelha a fila de updates para o Core, resolvendo o erro de atributo
-            self.server_ref.update_queue = self.app.update_queue
-
+            #self.server_ref.update_queue = self.app.update_queue
+            
             # Tratamento de erros de rede
             self.app.add_error_handler(self.error_handler)
 
@@ -81,6 +79,7 @@ class TelegramBotUplink:
         self.thread.start()
 
     # --- GERENCIADOR DE ERROS DE REDE ---
+
     async def error_handler(self, update, context):
         """Evita que o bot crash por oscilação de internet"""
         print(f"⚠️ [TELEGRAM ERROR]: {context.error}")
@@ -166,6 +165,7 @@ class TelegramBotUplink:
                 print(f"❌ Erro envio msg: {e}")
 
         asyncio.run_coroutine_threadsafe(send(), self.loop)
+
 
     def enviar_foto_ativa(self, file_path, legenda="", target_chat_id=None):
         if not self.app:

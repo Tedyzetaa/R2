@@ -107,27 +107,28 @@ ImageGenerator = safe_import("Geração_Imagem", "features.image_gen", "ImageGen
 # 6. R2 CORE
 # =============================================================================
 class R2Core:
-    def __init__(self, token):        
+    def __init__(self, token):
         self.token = token
         self.running = True
-        self.loop = None # Será capturado no boot_sequence
+        self.loop = None  # Será capturado no boot_sequence
         self.start_time = datetime.now()
         # 1. FILA DE COMANDOS PRÓPRIA (Independente do Telegram)
         self.command_queue = asyncio.Queue()
         self.main_loop = asyncio.get_event_loop()
-        
+
         # Módulos Base
         self.scanner = SystemScanner() if SystemScanner else None
-        self.monitor = SystemMonitor(self) if SystemMonitor else None        
+        self.monitor = SystemMonitor(self) if SystemMonitor else None
         self.weather_ops = WeatherSystem(api_key="SUA_CHAVE") if WeatherSystem else None
         self.radar_ops = AirTrafficControl() if AirTrafficControl else None
         self.intel_ops = FrontlineIntel() if FrontlineIntel else None
         self.astro_ops = AstroDefense() if AstroDefense else None
         self.volcano_ops = VolcanoMonitor() if VolcanoMonitor else None
         self.market_ops = MarketSystem() if MarketSystem else None
-        self.visual_engine = ImageGenerator() if ImageGenerator else None #alterado para compatibilidade - não remover
+        self.visual_engine = ImageGenerator() if ImageGenerator else None  # alterado para compatibilidade - não remover
 
         # Cérebro Neural (Dolphin) - Corrigido: sem o kwarg model_path
+
         self.brain = None
         if LocalLlamaBrain:
             print("🧠 [BRAIN]: Conectando sinapses do motor Dolphin (Unfiltered)...")
@@ -136,10 +137,10 @@ class R2Core:
                 # Dica: Certifique-se que o seu local_brain.py procura pelo arquivo gguf correto na pasta models
             except Exception as e:
                 logging.error(f"Falha ao instanciar LLM local: {e}")
-                MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"        
+                MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"
 
         # Uplink Telegram
-        self.update_queue = asyncio.Queue() # Será preenchido pelo Uplink
+        self.update_queue = asyncio.Queue()  # Será preenchido pelo Uplink
         self.uplink = None
         if TelegramBotUplink:
             try:
@@ -147,15 +148,15 @@ class R2Core:
             except Exception as e:
                 logging.critical(f"Falha ao instanciar Uplink: {e}")
 
+
     async def boot_sequence(self):
+        self.loop = asyncio.get_running_loop()  # CAPTURA O LOOP ATIVO
         print("\n" + "═"*70)
-        self.loop = asyncio.get_running_loop() # CAPTURA O LOOP ATIVO
         print(f"🤖 R2 ASSISTANT CORE - PROTOCOLO INTEGRAL")
         print("═"*70)
 
         print("\n📊 [DIAGNÓSTICO DE SUBSISTEMAS]:")
         for mod, status in MODULOS_STATUS.items():
-            print(f"  > {mod.ljust(20)} : {status}")
         print("-" * 70)
 
         try:
@@ -163,9 +164,8 @@ class R2Core:
                 print("\n📡 [UPLINK]: Estabelecendo ponte segura com o Telegram...")
                 if hasattr(self.uplink, 'iniciar_sistema'):
                     self.uplink.iniciar_sistema()
-                    asyncio.create_task(self._command_consumer()) # Inicia o consumidor da fila de comandos
-                
                 print("🟢 [STATUS]: R2 totalmente operacional. Aguardando input.")
+                asyncio.create_task(self._command_consumer())  # Inicia o consumidor da fila de comandos
                 while self.running:
                     await asyncio.sleep(3600)
         except Exception as e:
@@ -175,7 +175,7 @@ class R2Core:
         """Consome itens da fila e encaminha para o processador"""
         while self.running:
             try:
-                item = await self.update_queue.get()
+                item = await self.update_queue.get()                
                 print(f"🛠️ [DEBUG]: Core recebeu: {item}") # <--- ADICIONE ISSO
                 # item é um dicionário vindo do Uplink
                 if item:
