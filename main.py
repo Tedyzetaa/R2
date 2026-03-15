@@ -162,56 +162,104 @@ class R2Core:
                 logging.error(f"Erro na execução tática: {e}")
             self.update_queue.task_done()
 
-    async def processar_comando_remoto(self, comando, sender_id):
-        comando_limpo = comando.lower().strip()
+    async def processar_comando_remoto(self, comando: str, sender_id: int):
+        """
+        Processa comandos recebidos remotamente (via Telegram), alinhado com os módulos reais.
+        """
+        # Dica do usuário: Enviar feedback imediato
+        self.uplink.enviar_mensagem_ativa("⏳ Processando sua ordem...", sender_id)
 
-        # 1. TRATAMENTO DE ESTADOS DE ESPERA (Cidades para Radar/Clima)
+        # Separa o comando dos argumentos
+        partes = comando.strip().split(' ', 1)
+        cmd_principal = partes[0].lower()
+        argumentos = partes[1] if len(partes) > 1 else ""
+
+        # 1. TRATAMENTO DE ESTADOS DE ESPERA (Diálogos)
         if sender_id in self.estados_espera:
-            acao = self.estados_espera[sender_id]
-            del self.estados_espera[sender_id]
-            
+            acao = self.estados_espera.pop(sender_id)  # Remove o estado para não repetir
+
             if acao == 'aguardando_radar' and self.radar_ops:
-                self.uplink.enviar_mensagem_ativa(f"✈️ Iniciando radar para {comando}...", sender_id)
-                msg, img = await asyncio.to_thread(self.radar_ops.gerar_radar, comando)
-                if img: self.uplink.enviar_foto_ativa(img, msg, sender_id)
-                else: self.uplink.enviar_mensagem_ativa(msg, sender_id)
+                try:
+                    cidade = comando.strip() if comando.strip() else "Ivinhema"
+                    self.uplink.enviar_mensagem_ativa(f"✈️ Iniciando varredura de radar para '{cidade}'...", sender_id)
+                    # A função real é radar_scan e retorna (caminho, qtd, msg)
+                    caminho_img, qtd, msg_status = await asyncio.to_thread(self.radar_ops.radar_scan, cidade)
+                    if caminho_img:
+                        self.uplink.enviar_foto_ativa(caminho_img, msg_status, sender_id)
+                    else:
+                        self.uplink.enviar_mensagem_ativa(msg_status, sender_id)
+                except Exception as e:
+                    self.uplink.enviar_mensagem_ativa(f"❌ Erro no módulo de radar: {e}", sender_id)
                 return
+
             elif acao == 'aguardando_clima' and self.weather_ops:
-                self.uplink.enviar_mensagem_ativa(f"⛈️ Buscando clima para {comando}...", sender_id)
-                res = await asyncio.to_thread(self.weather_ops.obter_clima, comando)
-                self.uplink.enviar_mensagem_ativa(res, sender_id)
+                try:
+                    cidade = comando.strip()
+                    self.uplink.enviar_mensagem_ativa(f"⛈️ Buscando clima para '{cidade}'...", sender_id)
+                    # A função real é obter_clima
+                    resultado = await asyncio.to_thread(self.weather_ops.obter_clima, cidade)
+                    self.uplink.enviar_mensagem_ativa(resultado, sender_id)
+                except Exception as e:
+                    self.uplink.enviar_mensagem_ativa(f"❌ Erro no módulo de clima: {e}", sender_id)
                 return
 
-        # 2. ROTEAMENTO DE BOTÕES (Menu Tático)
-        if comando_limpo == 'status':
-            import psutil
-            res = f"📊 *STATUS*\nCPU: {psutil.cpu_percent()}%\nRAM: {psutil.virtual_memory().percent}%"
-            self.uplink.enviar_mensagem_ativa(res, sender_id)
-            
-        elif comando_limpo == 'pedir_voos' or comando_limpo == 'radar':
-            self.estados_espera[sender_id] = 'aguardando_radar'
-            self.uplink.enviar_mensagem_ativa("✈️ Envie o nome da cidade para o radar:", sender_id)
-            
-        elif comando_limpo == 'pedir_cidade' or comando_limpo == 'clima':
-            self.estados_espera[sender_id] = 'aguardando_clima'
-            self.uplink.enviar_mensagem_ativa("⛈️ Envie o nome da cidade para o clima:", sender_id)
-            
-        elif comando_limpo == 'terremotos' or comando_limpo == 'sismos':
-            if getattr(self, 'seismico', None) or 'GeoSeismicSystem' in MODULOS_STATUS:
-                # Adapte para a sua classe sismica real
-                self.uplink.enviar_mensagem_ativa("🌍 Consultando sensores sísmicos...", sender_id)
-            
-        elif comando_limpo == 'intel ucrania' and self.intel_ops:
-            self.uplink.enviar_mensagem_ativa("🇺🇦 Extraindo intel militar da Ucrânia...", sender_id)
-            msg, img = await asyncio.to_thread(self.intel_ops.get_war_report_with_screenshot, "ucrania")
-            if img: self.uplink.enviar_foto_ativa(img, msg, sender_id)
-            else: self.uplink.enviar_mensagem_ativa(msg, sender_id)
+        # 2. ROTEAMENTO DE COMANDOS DIRETOS
+        if cmd_principal == 'radar':
+            local = argumentos if argumentos else "Ivinhema"
+            if self.radar_ops:
+                try:
+                    self.uplink.enviar_mensagem_ativa(f"✈️ Iniciando varredura de radar para '{local}'...", sender_id)
+                    caminho_img, _, msg_status = await asyncio.to_thread(self.radar_ops.radar_scan, local)
+                    if caminho_img:
+                        self.uplink.enviar_foto_ativa(caminho_img, msg_status, sender_id)
+                    else:
+                        self.uplink.enviar_mensagem_ativa(msg_status, sender_id)
+                except Exception as e:
+                    self.uplink.enviar_mensagem_ativa(f"❌ Erro no módulo de radar: {e}", sender_id)
 
-        # 3. ROTA DE INTELIGÊNCIA ARTIFICIAL (Conversa livre)
+        elif cmd_principal == 'clima':
+            if self.weather_ops:
+                if not argumentos:
+                    self.estados_espera[sender_id] = 'aguardando_clima'
+                    self.uplink.enviar_mensagem_ativa("⛈️ Envie o nome da cidade para o clima:", sender_id)
+                else:
+                    try:
+                        resultado = await asyncio.to_thread(self.weather_ops.obter_clima, argumentos)
+                        self.uplink.enviar_mensagem_ativa(resultado, sender_id)
+                    except Exception as e:
+                        self.uplink.enviar_mensagem_ativa(f"❌ Erro no módulo de clima: {e}", sender_id)
+
+        elif cmd_principal == 'asteroides' and self.astro_ops:
+            try:
+                relatorio, _, _ = await asyncio.to_thread(self.astro_ops.get_asteroid_report)
+                self.uplink.enviar_mensagem_ativa(relatorio, sender_id)
+            except Exception as e:
+                self.uplink.enviar_mensagem_ativa(f"❌ Erro no módulo Astro-Defesa: {e}", sender_id)
+
+        elif cmd_principal == 'vulcoes' and self.volcano_ops:
+            try:
+                relatorio = await asyncio.to_thread(self.volcano_ops.get_volcano_report)
+                self.uplink.enviar_mensagem_ativa(relatorio, sender_id)
+            except Exception as e:
+                self.uplink.enviar_mensagem_ativa(f"❌ Erro no módulo de Vulcões: {e}", sender_id)
+
+        elif cmd_principal == 'scan' and self.scanner:
+            try:
+                relatorio = await asyncio.to_thread(self.scanner.scan)
+                self.uplink.enviar_mensagem_ativa(relatorio, sender_id)
+            except Exception as e:
+                self.uplink.enviar_mensagem_ativa(f"❌ Erro no Scanner de Rede: {e}", sender_id)
+
+        # --- Rota de Fallback para IA ---
         elif self.brain:
-            self.uplink.enviar_mensagem_ativa("🧠 Processando...", sender_id)
-            resposta = await asyncio.to_thread(self.brain.think, comando)
-            self.uplink.enviar_mensagem_ativa(resposta, sender_id)
+            try:
+                self.uplink.enviar_mensagem_ativa("🧠 Cérebro processando...", sender_id)
+                resposta = await asyncio.to_thread(self.brain.think, comando)
+                self.uplink.enviar_mensagem_ativa(resposta, sender_id)
+            except Exception as e:
+                self.uplink.enviar_mensagem_ativa(f"❌ Erro cognitivo na matriz: {e}", sender_id)
+        else:
+            self.uplink.enviar_mensagem_ativa("⚠️ Comando não reconhecido e cérebro IA offline.", sender_id)
 
 
 def main():
