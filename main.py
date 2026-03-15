@@ -7,7 +7,6 @@ import platform
 import logging
 import requests
 from datetime import datetime
-
 # =============================================================================
 # 1. PROTOCOLO DE AUTO-INSTALAÇÃO
 # =============================================================================
@@ -15,8 +14,8 @@ def check_dependencies():
     deps = [
         "psutil", "python-dotenv", "requests", "diffusers", 
         "transformers", "accelerate", "peft", "torch", "torchvision",
-        "llama-cpp-python", "geopy", "matplotlib", "cryptography",
-        "python-telegram-bot", "feedparser", "beautifulsoup4"
+        "llama-cpp-python", "geopy", "matplotlib", "cryptography", "cloudscraper",
+        "python-telegram-bot", "playwright"
     ]
     for dep in deps:
         try:
@@ -25,7 +24,6 @@ def check_dependencies():
             subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--user", "--quiet"])
 
 check_dependencies()
-
 import site
 import importlib
 # Força o Python a recarregar os caminhos de bibliotecas instaladas agora
@@ -38,11 +36,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] R2_CORE: %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] CORE: %(message)s')
 
 # =============================================================================
 # 3. VERIFICAÇÃO E DOWNLOAD DO DOLPHIN
-# Garante que o arquivo baixado tenha o mesmo nome que o modelo usado localmente
 # =============================================================================
 def bootstrap_models():
     models_dir = os.path.join(BASE_DIR, "models")
@@ -50,21 +47,19 @@ def bootstrap_models():
 
     # URL exata que você solicitou
     dolphin_path = os.path.join(models_dir, "dolphin-2.9-llama3-8b-Q4_K_M.gguf") # Nome do arquivo para salvar (Mantenha o mesmo que o Cérebro procura)
-    dolphin_url = "https://huggingface.co/mradermacher/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf" # URL corrigida (Note o ponto antes do Q4_K_M)
+    dolphin_url = "https://huggingface.co/mradermacher/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf"
 
     if not os.path.exists(dolphin_path):
-        print("📥 [SISTEMA]: Baixando matriz neural Dolphin (Uncensored)...")
-
-
+        print("📥 Baixando matriz Dolphin (Uncensored)...")
         try:
             with requests.get(dolphin_url, stream=True) as r:
                 r.raise_for_status()
                 with open(dolphin_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
-            print("✅ [SISTEMA]: Dolphin acoplado com sucesso.")
+            print("✅ Dolphin acoplado.")
         except Exception as e:
-            print(f"❌ [ERRO]: Falha no download do Dolphin: {e}")
+            print(f"❌ Erro no download: {e}")
 
 bootstrap_models()
 
@@ -76,7 +71,6 @@ if len(sys.argv) < 2:
     load_dotenv()
     TOKEN_ARG = os.getenv("TELEGRAM_TOKEN")
     if not TOKEN_ARG:
-        print("❌ [ERRO CRÍTICO]: TOKEN DE ACESSO NÃO DETECTADO.")
         sys.exit(1)
 else:
     TOKEN_ARG = sys.argv[1]
@@ -94,7 +88,7 @@ def safe_import(friendly_name, path, class_name=None):
         MODULOS_STATUS[friendly_name] = "✅ ONLINE"
         return getattr(module, class_name) if class_name else module
     except Exception as e:
-        MODULOS_STATUS[friendly_name] = f"❌ OFFLINE ({type(e).__name__}: {e})"
+        MODULOS_STATUS[friendly_name] = f"❌ OFFLINE ({e})"
         return None
 
 SystemMonitor = safe_import("Monitor", "features.system_monitor", "SystemMonitor")
@@ -102,12 +96,10 @@ SystemScanner = safe_import("Scanner", "features.system_scanner", "SystemScanner
 TelegramBotUplink = safe_import("Uplink", "features.telegram_uplink", "TelegramBotUplink")
 WeatherSystem = safe_import("Clima", "features.weather_system", "WeatherSystem")
 AirTrafficControl = safe_import("Radar", "features.air_traffic", "AirTrafficControl")
-FrontlineIntel = safe_import("Intel_War", "features.liveuamap_intel", "FrontlineIntel")
+FrontlineIntel = safe_import("Intel_War", "features.intel_war", "IntelWar") # Atualizado para o nome do arquivo que você mandou
 AstroDefense = safe_import("Astro", "features.astro_defense", "AstroDefenseSystem")
 VolcanoMonitor = safe_import("Magma", "features.volcano_monitor", "VolcanoMonitor")
-MarketSystem = safe_import("Mercado", "features.market_system", "MarketSystem")
 LocalLlamaBrain = safe_import("Cérebro_Dolphin", "features.local_brain", "LocalLlamaBrain")
-ImageGenerator = safe_import("Geração_Imagem", "features.image_gen", "ImageGenerator")
 
 # =============================================================================
 # 6. R2 CORE
@@ -116,12 +108,13 @@ class R2Core:
     def __init__(self, token):
         self.token = token
         self.running = True
-        self.loop = None  # Será capturado no boot_sequence
         self.start_time = datetime.now()
-        self.command_queue = None
+        
         self.main_loop = None
+        self.update_queue = None
+        self.estados_espera = {} # Substitui o context.user_data do bot antigo
 
-        # Módulos Base
+        # Instancia Módulos
         self.scanner = SystemScanner() if SystemScanner else None
         self.monitor = SystemMonitor(self) if SystemMonitor else None
         self.weather_ops = WeatherSystem(api_key="SUA_CHAVE") if WeatherSystem else None
@@ -129,77 +122,96 @@ class R2Core:
         self.intel_ops = FrontlineIntel() if FrontlineIntel else None
         self.astro_ops = AstroDefense() if AstroDefense else None
         self.volcano_ops = VolcanoMonitor() if VolcanoMonitor else None
-        self.market_ops = MarketSystem() if MarketSystem else None
-        self.visual_engine = ImageGenerator() if ImageGenerator else None  # alterado para compatibilidade - não remover
-
-        # Cérebro Neural (Dolphin) - Corrigido: sem o kwarg model_path
 
         self.brain = None
         if LocalLlamaBrain:
-            print("🧠 [BRAIN]: Conectando sinapses do motor Dolphin (Unfiltered)...")
             try:
                 self.brain = LocalLlamaBrain()
-                # Dica: Certifique-se que o seu local_brain.py procura pelo arquivo gguf correto na pasta models
             except Exception as e:
-                logging.error(f"Falha ao instanciar LLM local: {e}")
-                MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"
+                logging.error(f"Erro IA: {e}")
 
-        # Uplink Telegram
-        self.update_queue = None  # Será preenchido pelo Uplink
         self.uplink = None
         if TelegramBotUplink:
             try:
                 self.uplink = TelegramBotUplink(self)
             except Exception as e:
-                logging.critical(f"Falha ao instanciar Uplink: {e}")
-
+                logging.error(f"Erro Uplink: {e}")
 
     async def boot_sequence(self):
-        # Crie a Queue e pegue o loop DENTRO do contexto async
-        self.update_queue = asyncio.Queue()
-        self.command_queue = asyncio.Queue()
         self.main_loop = asyncio.get_running_loop()
-        self.loop = self.main_loop  # CAPTURA O LOOP ATIVO
+        self.update_queue = asyncio.Queue()
+
         print("\n" + "═"*70)
         print(f"🤖 R2 ASSISTANT CORE - PROTOCOLO INTEGRAL")
         print("═"*70)
+        for mod, st in MODULOS_STATUS.items(): print(f" > {mod.ljust(15)}: {st}")
 
-        print("\n📊 [DIAGNÓSTICO DE SUBSISTEMAS]:")
-        for mod, status in MODULOS_STATUS.items():
-            print(f"  > {mod.ljust(20)} : {status}")
-        print("-" * 70)
-        
-        print("-" * 70)
-
-        print("-" * 70)
-
-        try:
-            if self.uplink:
-                print("\n📡 [UPLINK]: Estabelecendo ponte segura com o Telegram...")
-                if hasattr(self.uplink, 'iniciar_sistema'):
-                    self.uplink.iniciar_sistema()
-                print("🟢 [STATUS]: R2 totalmente operacional. Aguardando input.")
-                asyncio.create_task(self._command_consumer())  # Inicia o consumidor da fila de comandos
-                while self.running:
-                    await asyncio.sleep(3600)
-        except Exception as e:
-            logging.critical(f"Falha no Core Loop: {e}")
+        if self.uplink:
+            asyncio.create_task(self._command_consumer())
+            if hasattr(self.uplink, 'iniciar_sistema'):
+                self.uplink.iniciar_sistema()
+            print("\n🟢 [STATUS]: R2 totalmente operacional.")
+            while self.running: await asyncio.sleep(1)
 
     async def _command_consumer(self):
-        """Consome itens da fila e encaminha para o processador"""
         while self.running:
+            item = await self.update_queue.get()
             try:
-                item = await self.update_queue.get()                
-                print(f"🛠️ [DEBUG]: Core recebeu: {item}") # <--- ADICIONE ISSO
-                # item é um dicionário vindo do Uplink
-                if item:
-                    logging.info(f"Recebido comando do Uplink: {item}")
-                    await self.processar_comando_remoto(**item)
-                self.update_queue.task_done()  # Sinaliza que a tarefa foi concluída
+                await self.processar_comando_remoto(item['comando'], item['sender_id'])
             except Exception as e:
-                logging.error(f"Erro no consumidor de comandos: {e}")
-            await asyncio.sleep(0.1)  # Evita loop excessivo
+                logging.error(f"Erro na execução tática: {e}")
+            self.update_queue.task_done()
 
+    async def processar_comando_remoto(self, comando, sender_id):
+        comando_limpo = comando.lower().strip()
+
+        # 1. TRATAMENTO DE ESTADOS DE ESPERA (Cidades para Radar/Clima)
+        if sender_id in self.estados_espera:
+            acao = self.estados_espera[sender_id]
+            del self.estados_espera[sender_id]
+            
+            if acao == 'aguardando_radar' and self.radar_ops:
+                self.uplink.enviar_mensagem_ativa(f"✈️ Iniciando radar para {comando}...", sender_id)
+                msg, img = await asyncio.to_thread(self.radar_ops.gerar_radar, comando)
+                if img: self.uplink.enviar_foto_ativa(img, msg, sender_id)
+                else: self.uplink.enviar_mensagem_ativa(msg, sender_id)
+                return
+            elif acao == 'aguardando_clima' and self.weather_ops:
+                self.uplink.enviar_mensagem_ativa(f"⛈️ Buscando clima para {comando}...", sender_id)
+                res = await asyncio.to_thread(self.weather_ops.obter_clima, comando)
+                self.uplink.enviar_mensagem_ativa(res, sender_id)
+                return
+
+        # 2. ROTEAMENTO DE BOTÕES (Menu Tático)
+        if comando_limpo == 'status':
+            import psutil
+            res = f"📊 *STATUS*\nCPU: {psutil.cpu_percent()}%\nRAM: {psutil.virtual_memory().percent}%"
+            self.uplink.enviar_mensagem_ativa(res, sender_id)
+            
+        elif comando_limpo == 'pedir_voos' or comando_limpo == 'radar':
+            self.estados_espera[sender_id] = 'aguardando_radar'
+            self.uplink.enviar_mensagem_ativa("✈️ Envie o nome da cidade para o radar:", sender_id)
+            
+        elif comando_limpo == 'pedir_cidade' or comando_limpo == 'clima':
+            self.estados_espera[sender_id] = 'aguardando_clima'
+            self.uplink.enviar_mensagem_ativa("⛈️ Envie o nome da cidade para o clima:", sender_id)
+            
+        elif comando_limpo == 'terremotos' or comando_limpo == 'sismos':
+            if getattr(self, 'seismico', None) or 'GeoSeismicSystem' in MODULOS_STATUS:
+                # Adapte para a sua classe sismica real
+                self.uplink.enviar_mensagem_ativa("🌍 Consultando sensores sísmicos...", sender_id)
+            
+        elif comando_limpo == 'intel ucrania' and self.intel_ops:
+            self.uplink.enviar_mensagem_ativa("🇺🇦 Extraindo intel militar da Ucrânia...", sender_id)
+            msg, img = await asyncio.to_thread(self.intel_ops.get_war_report_with_screenshot, "ucrania")
+            if img: self.uplink.enviar_foto_ativa(img, msg, sender_id)
+            else: self.uplink.enviar_mensagem_ativa(msg, sender_id)
+
+        # 3. ROTA DE INTELIGÊNCIA ARTIFICIAL (Conversa livre)
+        elif self.brain:
+            self.uplink.enviar_mensagem_ativa("🧠 Processando...", sender_id)
+            resposta = await asyncio.to_thread(self.brain.think, comando)
+            self.uplink.enviar_mensagem_ativa(resposta, sender_id)
 
 
 def main():
@@ -209,7 +221,7 @@ def main():
     try:
         asyncio.run(r2.boot_sequence())
     except KeyboardInterrupt:
-        print("\n🛑 [SHUTDOWN]: Desligando...")
+        print("\n🛑 Desligando...")
 
 if __name__ == "__main__":
     main()
