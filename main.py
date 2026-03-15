@@ -15,7 +15,8 @@ def check_dependencies():
     deps = [
         "psutil", "python-dotenv", "requests", "diffusers", 
         "transformers", "accelerate", "peft", "torch", "torchvision",
-        "llama-cpp-python", "geopy", "matplotlib", "cryptography"
+        "llama-cpp-python", "geopy", "matplotlib", "cryptography",
+        "python-telegram-bot", "feedparser", "beautifulsoup4"
     ]
     for dep in deps:
         try:
@@ -24,6 +25,11 @@ def check_dependencies():
             subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--user", "--quiet"])
 
 check_dependencies()
+
+import site
+import importlib
+# Força o Python a recarregar os caminhos de bibliotecas instaladas agora
+importlib.reload(site)
 
 # =============================================================================
 # 2. CONFIGURAÇÃO DE AMBIENTE E PATHS
@@ -112,9 +118,8 @@ class R2Core:
         self.running = True
         self.loop = None  # Será capturado no boot_sequence
         self.start_time = datetime.now()
-        # 1. FILA DE COMANDOS PRÓPRIA (Independente do Telegram)
-        self.command_queue = asyncio.Queue()
-        self.main_loop = asyncio.get_event_loop()
+        self.command_queue = None
+        self.main_loop = None
 
         # Módulos Base
         self.scanner = SystemScanner() if SystemScanner else None
@@ -140,7 +145,7 @@ class R2Core:
                 MODULOS_STATUS["Cérebro_Dolphin"] = "⚠️ ERRO DE CARGA"
 
         # Uplink Telegram
-        self.update_queue = asyncio.Queue()  # Será preenchido pelo Uplink
+        self.update_queue = None  # Será preenchido pelo Uplink
         self.uplink = None
         if TelegramBotUplink:
             try:
@@ -150,7 +155,11 @@ class R2Core:
 
 
     async def boot_sequence(self):
-        self.loop = asyncio.get_running_loop()  # CAPTURA O LOOP ATIVO
+        # Crie a Queue e pegue o loop DENTRO do contexto async
+        self.update_queue = asyncio.Queue()
+        self.command_queue = asyncio.Queue()
+        self.main_loop = asyncio.get_running_loop()
+        self.loop = self.main_loop  # CAPTURA O LOOP ATIVO
         print("\n" + "═"*70)
         print(f"🤖 R2 ASSISTANT CORE - PROTOCOLO INTEGRAL")
         print("═"*70)
