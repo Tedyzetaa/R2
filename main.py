@@ -11,11 +11,13 @@ from datetime import datetime
 # 1. PROTOCOLO DE AUTO-INSTALAÇÃO
 # =============================================================================
 def check_dependencies():
+    import subprocess
+    import sys
     deps = [
         "psutil", "python-dotenv", "requests", "diffusers", 
         "transformers", "accelerate", "peft", "torch", "torchvision",
-        "llama-cpp-python", "geopy", "matplotlib", "cryptography", "cloudscraper",
-        "python-telegram-bot", "playwright"
+        "llama-cpp-python", "geopy", "matplotlib", "cryptography",
+        "fastapi", "uvicorn", "websockets", "python-multipart" # <-- Adicionado Motor Web
     ]
     for dep in deps:
         try:
@@ -24,10 +26,6 @@ def check_dependencies():
             subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--user", "--quiet"])
 
 check_dependencies()
-import site
-import importlib
-# Força o Python a recarregar os caminhos de bibliotecas instaladas agora
-importlib.reload(site)
 
 # =============================================================================
 # 2. CONFIGURAÇÃO DE AMBIENTE E PATHS
