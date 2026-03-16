@@ -2,6 +2,11 @@ import subprocess
 import sys
 import os
 import requests
+import time
+import asyncio
+import threading
+import urllib.request
+
 try:
     from google.colab import userdata # Apenas para o ambiente Colab
 except ImportError:
@@ -68,7 +73,7 @@ def download_file(url, destination):
         headers["Authorization"] = f"Bearer {HF_TOKEN}"
         print(f"🔑 [SISTEMA]: Usando Token HF para {os.path.basename(destination)}")
 
-    print(f" Baixando: {os.path.basename(destination)}...")
+    print(f"📥 Baixando: {os.path.basename(destination)}...")
     
     try:
         with requests.get(url, headers=headers, stream=True) as r:
@@ -121,8 +126,6 @@ FEATURES_PATH = os.path.join(BASE_DIR, "features")
 if FEATURES_PATH not in sys.path:
     sys.path.insert(0, FEATURES_PATH)
 
-import asyncio
-import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -248,7 +251,27 @@ async def generate_image(req: ImageRequest):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
-if __name__ == "__main__":
-    print("🌐 [UPLINK]: Servidor Web Iniciado na porta 8000")
-    print("➡️  Acesse: http://localhost:8000")
+# ==========================================
+# 🚀 EXECUÇÃO UNIFICADA (COLAB / LOCALTUNNEL)
+# ==========================================
+def run_server():
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+if __name__ == "__main__":
+    # 1. Iniciar o Servidor em uma Thread separada
+    print("\n📡 [SISTEMA]: Iniciando motor do servidor no background...")
+    threading.Thread(target=run_server, daemon=True).start()
+
+    # 2. Configurar e Iniciar o Túnel Externo
+    print("\n🔑 [SISTEMA]: Configurando túnel de acesso público...")
+    try:
+        # Pega o IP para a senha do tunnel
+        endpoint_ip = urllib.request.urlopen('https://ipv4.icanhazip.com').read().decode('utf8').strip()
+        print(f"👉 SENHA DO TÚNEL (Endpoint IP): {endpoint_ip}")
+        
+        # Instala e roda o localtunnel
+        os.system("npm install -g localtunnel")
+        print("\n🌍 CLIQUE NO LINK ABAIXO PARA ACESSAR A INTERFACE WEB:")
+        os.system("lt --port 8000")
+    except Exception as e:
+        print(f"❌ Erro ao abrir túnel: {e}")
