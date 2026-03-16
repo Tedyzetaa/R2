@@ -2,6 +2,10 @@ import subprocess
 import sys
 import os
 import requests
+try:
+    from google.colab import userdata # Apenas para o ambiente Colab
+except ImportError:
+    userdata = None
 
 # ==========================================
 # 📦 CONFIGURAÇÃO DE DIRETÓRIOS E LINKS
@@ -11,54 +15,81 @@ MODELS_DIR = os.path.join(BASE_DIR, "models")
 LORA_DIR = os.path.join(MODELS_DIR, "loras")
 CHECKPOINT_DIR = os.path.join(MODELS_DIR, "checkpoints")
 
+# Tenta pegar o token do Colab, se não existir, busca nas variáveis de ambiente
+HF_TOKEN = None
+if userdata:
+    try:
+        HF_TOKEN = userdata.get('HF_TOKEN')
+    except Exception:
+        HF_TOKEN = None
+if not HF_TOKEN:
+    HF_TOKEN = os.getenv('HF_TOKEN')
+
 # Mapeamento de Modelos (Nome: (URL, Caminho Local))
 MODEL_MAP = {
     "Dolphin LLM": (
         "https://huggingface.co/MaziyarPanahi/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf",
         os.path.join(MODELS_DIR, "dolphin-2.9-llama3-8b.Q4_K_M.gguf")
     ),
-    "Realistic Vision Checkpoint": (
+    "Realistic Vision": (
         "https://civitai.com/api/download/models/501286",
         os.path.join(CHECKPOINT_DIR, "v1-5-pruned.safetensors")
     ),
-    "Detailed Perfection LoRA": (
+    "Detailed Perfection": (
         "https://civitai.com/api/download/models/459068",
         os.path.join(LORA_DIR, "detailed_perfection.safetensors")
     ),
-    "Realistic Skin LoRA": (
+    "Realistic Skin": (
         "https://civitai.com/api/download/models/648753",
         os.path.join(LORA_DIR, "realistic_skin.safetensors")
     ),
-    "Amateur Photography LoRA": (
+    "Amateur Photography": (
         "https://civitai.com/api/download/models/730302",
         os.path.join(LORA_DIR, "amateur_photography.safetensors")
     )
 }
 
 # ==========================================
-# 📥 FUNÇÃO DE DOWNLOAD E DEPENDÊNCIAS
+# 📥 FUNÇÃO DE DOWNLOAD BLINDADA
 # ==========================================
 def download_file(url, destination):
     if os.path.exists(destination):
         return
     
     os.makedirs(os.path.dirname(destination), exist_ok=True)
-    print(f"📥 Baixando: {os.path.basename(destination)}...")
     
-    # Usando streaming para não estourar a RAM no download
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
-        total_size = int(r.headers.get('content-length', 0))
-        downloaded = 0
-        with open(destination, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
-                downloaded += len(chunk)
-                if total_size > 0:
-                    done = int(50 * downloaded / total_size)
-                    sys.stdout.write(f"\r[{'=' * done}{' ' * (50-done)}] {downloaded/(1024*1024):.1f}MB")
-                    sys.stdout.flush()
-    print(f"\n✅ Concluído.")
+    # Cabeçalhos para evitar o erro 401 e bloqueios de bot
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    # Adiciona o Token do Hugging Face se o link for de lá
+    if HF_TOKEN and "huggingface.co" in url:
+        headers["Authorization"] = f"Bearer {HF_TOKEN}"
+        print(f"🔑 [SISTEMA]: Usando Token HF para {os.path.basename(destination)}")
+
+    print(f" Baixando: {os.path.basename(destination)}...")
+    
+    try:
+        with requests.get(url, headers=headers, stream=True) as r:
+            if r.status_code == 401:
+                print(f"❌ Erro 401: Você precisa configurar o 'HF_TOKEN' nos Secrets do Colab ou como variável de ambiente.")
+                return
+            r.raise_for_status()
+            total_size = int(r.headers.get('content-length', 0))
+            downloaded = 0
+            with open(destination, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024): # Chunk de 1MB para velocidade
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            done = int(50 * downloaded / total_size)
+                            sys.stdout.write(f"\r[{'=' * done}{' ' * (50-done)}] {downloaded/(1024*1024):.1f}MB / {total_size/(1024*1024):.1f}MB")
+                            sys.stdout.flush()
+        print(f"\n✅ Concluído: {os.path.basename(destination)}")
+    except Exception as e:
+        print(f"\n❌ Erro crítico no download: {e}")
 
 def boot_system():
     print("🛰️ [SISTEMA]: Verificando integridade...")
