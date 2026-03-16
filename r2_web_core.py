@@ -28,23 +28,23 @@ if not HF_TOKEN:
 # Mapeamento de Modelos (Nome: (URL, Caminho Local))
 MODEL_MAP = {
     "Dolphin LLM": (
-        "https://huggingface.co/MaziyarPanahi/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf",
+        "https://huggingface.co/mradermacher/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf",
         os.path.join(MODELS_DIR, "dolphin-2.9-llama3-8b.Q4_K_M.gguf")
     ),
     "Realistic Vision": (
-        "https://civitai.com/api/download/models/501286",
+        "https://civitai.com/api/download/models/501286", 
         os.path.join(CHECKPOINT_DIR, "v1-5-pruned.safetensors")
     ),
     "Detailed Perfection": (
-        "https://civitai.com/api/download/models/459068",
+        "https://civitai.com/api/download/models/411088", 
         os.path.join(LORA_DIR, "detailed_perfection.safetensors")
     ),
     "Realistic Skin": (
-        "https://civitai.com/api/download/models/648753",
+        "https://civitai.com/api/download/models/648753", 
         os.path.join(LORA_DIR, "realistic_skin.safetensors")
     ),
     "Amateur Photography": (
-        "https://civitai.com/api/download/models/730302",
+        "https://civitai.com/api/download/models/730302", 
         os.path.join(LORA_DIR, "amateur_photography.safetensors")
     )
 }
@@ -135,21 +135,26 @@ from image_gen import ImageGenerator
 # ==========================================
 # 🧠 INICIALIZAÇÃO DE MOTORES
 # ==========================================
-print("🧠 Inicializando Cérebro Dolphin...")
+CEREBRO = None  # Inicializa como None para segurança
 model_path = MODEL_MAP["Dolphin LLM"][1]
 
 if not os.path.exists(model_path):
-    print(f"❌ ERRO CRÍTICO: O arquivo {model_path} não foi encontrado.")
-    print("Isso aconteceu porque o download falhou (provavelmente o erro 401).")
-    print("Acesse o link do Hugging Face e aceite os termos da Meta.")
-    sys.exit(1) # Para o script antes do Traceback feio
-
-CEREBRO = Llama(
-    model_path=model_path,
-    n_ctx=4096,
-    n_gpu_layers=-1, 
-    verbose=False
-)
+    print(f"\n❌ [ERRO]: O cérebro Dolphin não foi baixado.")
+    print(f"Verifique se você aceitou os termos em: https://huggingface.co/meta-llama/Meta-Llama-3-8B")
+    print("O sistema continuará, mas o chat de texto estará desativado.")
+else:
+    print("🧠 Inicializando Cérebro Dolphin...")
+    try:
+        CEREBRO = Llama(
+            model_path=model_path,
+            n_ctx=4096,
+            n_gpu_layers=-1, 
+            verbose=False
+        )
+    except Exception as e:
+        print(f"❌ ERRO CRÍTICO ao carregar o modelo Llama: {e}")
+        print("O sistema continuará, mas o chat de texto estará desativado.")
+        CEREBRO = None
 
 print("🎨 Inicializando Motor Visual...")
 MOTOR_VISUAL = ImageGenerator()
@@ -177,6 +182,13 @@ async def get_ui():
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+
+    if not CEREBRO:
+        await websocket.send_text("⚠️ Cérebro IA está offline. O download ou carregamento do modelo falhou.")
+        await websocket.send_text("[DONE]")
+        await websocket.close()
+        return
+        
     historico = [] # Memória temporária da sessão
     try:
         while True:
