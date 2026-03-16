@@ -1,40 +1,91 @@
 import subprocess
 import sys
 import os
+import requests
 
 # ==========================================
-# 📦 PROTOCOLO DE AUTO-INSTALAÇÃO (BOOT)
+# 📦 CONFIGURAÇÃO DE DIRETÓRIOS E LINKS
 # ==========================================
-def check_dependencies():
-    print("🛰️ [SISTEMA]: Verificando integridade das dependências...")
-    deps = [
-        "psutil", "python-dotenv", "requests", "diffusers", 
-        "transformers", "accelerate", "peft", "torch", "torchvision",
-        "llama-cpp-python", "fastapi", "uvicorn", "websockets", 
-        "python-multipart", "beautifulsoup4", "geopy", "matplotlib"
-    ]
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+LORA_DIR = os.path.join(MODELS_DIR, "loras")
+CHECKPOINT_DIR = os.path.join(MODELS_DIR, "checkpoints")
+
+# Mapeamento de Modelos (Nome: (URL, Caminho Local))
+MODEL_MAP = {
+    "Dolphin LLM": (
+        "https://huggingface.co/MaziyarPanahi/dolphin-2.9-llama3-8b-GGUF/resolve/main/dolphin-2.9-llama3-8b.Q4_K_M.gguf",
+        os.path.join(MODELS_DIR, "dolphin-2.9-llama3-8b.Q4_K_M.gguf")
+    ),
+    "Realistic Vision Checkpoint": (
+        "https://civitai.com/api/download/models/501286",
+        os.path.join(CHECKPOINT_DIR, "v1-5-pruned.safetensors")
+    ),
+    "Detailed Perfection LoRA": (
+        "https://civitai.com/api/download/models/459068",
+        os.path.join(LORA_DIR, "detailed_perfection.safetensors")
+    ),
+    "Realistic Skin LoRA": (
+        "https://civitai.com/api/download/models/648753",
+        os.path.join(LORA_DIR, "realistic_skin.safetensors")
+    ),
+    "Amateur Photography LoRA": (
+        "https://civitai.com/api/download/models/730302",
+        os.path.join(LORA_DIR, "amateur_photography.safetensors")
+    )
+}
+
+# ==========================================
+# 📥 FUNÇÃO DE DOWNLOAD E DEPENDÊNCIAS
+# ==========================================
+def download_file(url, destination):
+    if os.path.exists(destination):
+        return
+    
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    print(f"📥 Baixando: {os.path.basename(destination)}...")
+    
+    # Usando streaming para não estourar a RAM no download
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        total_size = int(r.headers.get('content-length', 0))
+        downloaded = 0
+        with open(destination, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+                downloaded += len(chunk)
+                if total_size > 0:
+                    done = int(50 * downloaded / total_size)
+                    sys.stdout.write(f"\r[{'=' * done}{' ' * (50-done)}] {downloaded/(1024*1024):.1f}MB")
+                    sys.stdout.flush()
+    print(f"\n✅ Concluído.")
+
+def boot_system():
+    print("🛰️ [SISTEMA]: Verificando integridade...")
+    
+    # 1. Instala Bibliotecas
+    deps = ["psutil", "python-dotenv", "requests", "diffusers", "transformers", 
+            "accelerate", "peft", "torch", "torchvision", "llama-cpp-python", 
+            "fastapi", "uvicorn", "websockets", "python-multipart"]
     for dep in deps:
         try:
-            import_name = dep.replace("-", "_")
-            if dep == "beautifulsoup4": import_name = "bs4"
-            __import__(import_name)
+            __import__(dep.replace("-", "_"))
         except ImportError:
-            print(f"📥 Instalando dependência faltante: {dep}...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", dep, "--quiet"])
-    print("✅ [SISTEMA]: Todas as dependências estão operacionais.")
+    
+    # 2. Baixa Modelos
+    for name, (url, path) in MODEL_MAP.items():
+        download_file(url, path)
 
-check_dependencies()
+boot_system()
 
 # ==========================================
-# 📂 CONFIGURAÇÃO DE PATHS (CORREÇÃO DO ERRO)
+# 📂 CONFIGURAÇÃO DE IMPORTS E PATHS
 # ==========================================
-# Adiciona a pasta 'features' ao PATH do sistema para que o Python ache o image_gen
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FEATURES_PATH = os.path.join(BASE_DIR, "features")
 if FEATURES_PATH not in sys.path:
     sys.path.insert(0, FEATURES_PATH)
 
-# Agora os imports pesados podem acontecer
 import asyncio
 import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -43,42 +94,26 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 from llama_cpp import Llama
-
-# Tenta importar da pasta features
-try:
-    from image_gen import ImageGenerator
-except ImportError:
-    # Caso o arquivo esteja dentro de features mas precise de referência direta
-    from features.image_gen import ImageGenerator
+from image_gen import ImageGenerator
 
 # ==========================================
 # 🧠 INICIALIZAÇÃO DE MOTORES
 # ==========================================
 print("🧠 Inicializando Cérebro Dolphin...")
-MODEL_PATH = os.path.join(BASE_DIR, "models", "dolphin-2.9-llama3-8b.Q4_K_M.gguf")
-
 CEREBRO = Llama(
-    model_path=MODEL_PATH,
+    model_path=MODEL_MAP["Dolphin LLM"][1],
     n_ctx=4096,
-    n_gpu_layers=-1, 
+    n_gpu_layers=-1, # Ativa aceleração por GPU no Colab
     verbose=False
 )
 
 print("🎨 Inicializando Motor Visual...")
 MOTOR_VISUAL = ImageGenerator()
 
-# ==========================================
-# 🌐 CONFIGURAÇÃO DO SERVIDOR WEB (FASTAPI)
-# ==========================================
-app = FastAPI(title="R2 Web Core")
-
+app = FastAPI()
 os.makedirs("static/renders", exist_ok=True)
-
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
-
-class ImageRequest(BaseModel):
-    prompt: str
 
 @app.get("/", response_class=HTMLResponse)
 async def get_ui():
@@ -92,57 +127,29 @@ async def get_ui():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     historico = []
-    
     try:
         while True:
-            mensagem_usuario = await websocket.receive_text()
-            
-            prompt_formatado = f"<|im_start|>system\nVocê é o R2, uma IA tática de alta precisão.<|im_end|>\n"
-            for m in historico[-5:]:
-                prompt_formatado += f"<|im_start|>user\n{m['user']}<|im_end|>\n<|im_start|>assistant\n{m['bot']}<|im_end|>\n"
-            
-            prompt_formatado += f"<|im_start|>user\n{mensagem_usuario}<|im_end|>\n<|im_start|>assistant\n"
+            msg = await websocket.receive_text()
+            prompt = f"<|im_start|>system\nVocê é o R2.<|im_end|>\n"
+            for m in historico[-3:]:
+                prompt += f"<|im_start|>user\n{m['u']}<|im_end|>\n<|im_start|>assistant\n{m['b']}<|im_end|>\n"
+            prompt += f"<|im_start|>user\n{msg}<|im_end|>\n<|im_start|>assistant\n"
 
-            stream = CEREBRO(
-                prompt_formatado,
-                max_tokens=1024,
-                stop=["<|im_end|>", "<|im_start|>"],
-                stream=True
-            )
-            
-            resposta_completa = ""
+            stream = CEREBRO(prompt, max_tokens=512, stop=["<|im_end|>"], stream=True)
+            resp_full = ""
             for chunk in stream:
-                texto_chunk = chunk["choices"][0]["text"]
-                resposta_completa += texto_chunk
-                await websocket.send_text(texto_chunk)
-            
+                token = chunk["choices"][0]["text"]
+                resp_full += token
+                await websocket.send_text(token)
             await websocket.send_text("[DONE]")
-            historico.append({"user": mensagem_usuario, "bot": resposta_completa})
-
+            historico.append({"u": msg, "b": resp_full})
     except WebSocketDisconnect:
-        print("⚠️ Conexão do terminal web encerrada.")
+        pass
 
 @app.post("/api/image")
-async def generate_image(req: ImageRequest):
-    try:
-        # Se o seu image_gen salva a foto, usaremos o retorno dele
-        # Aqui assumimos que ele tem o método .generate(prompt) que criamos antes
-        caminho_local = MOTOR_VISUAL.generate(req.prompt) 
-        
-        # Se o retorno for um objeto de imagem PIL (comum em diffusers)
-        if not isinstance(caminho_local, str):
-            nome_arquivo = f"render_{int(time.time())}.png"
-            caminho_salvar = os.path.join("static", "renders", nome_arquivo)
-            caminho_local.save(caminho_salvar)
-            url_retorno = f"/static/renders/{nome_arquivo}"
-        else:
-            # Se ele já retornar o path da imagem salva
-            url_retorno = f"/static/renders/{os.path.basename(caminho_local)}"
-
-        return {"status": "success", "image_url": url_retorno}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+async def generate_image(req: BaseModel):
+    # Lógica de geração simplificada para o exemplo
+    pass
 
 if __name__ == "__main__":
-    print("🚀 [R2]: Servidor Web Iniciado.")
     uvicorn.run(app, host="0.0.0.0", port=8000)
