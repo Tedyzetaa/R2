@@ -5,29 +5,45 @@ from diffusers import StableDiffusionPipeline
 class ImageGenerator:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # Caminhos sincronizados com o r2_web_core.py
-        self.model_path = "models/checkpoints/v1-5-pruned.safetensors"
-        self.lora_dir = "models/loras"
+        self.model_id = "SG161222/Realistic_Vision_V5.1_noVAE"
         self.pipe = None
 
     def load_engine(self):
-        print("🎨 [IMAGE]: Carregando motor SD 1.5...")
-        self.pipe = StableDiffusionPipeline.from_single_file(
-            self.model_path, 
+        print("🎨 [IMAGE]: Carregando motor SD 1.5 (Realistic Vision V5.1 Oficial)...")
+        self.pipe = StableDiffusionPipeline.from_pretrained(
+            self.model_id, 
             torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
-        ).to(self.device)
+        )
+        self.pipe.safety_checker = None
+        
+        if self.device == "cuda":
+            self.pipe.enable_model_cpu_offload()
 
-        # Injeta as 3 LoRAs baixadas
-        loras = ["detailed_perfection.safetensors", "realistic_skin.safetensors", "amateur_photography.safetensors"]
-        for lora in loras:
-            path = os.path.join(self.lora_dir, lora)
-            if os.path.exists(path):
-                self.pipe.load_lora_weights(path, adapter_name=lora.split('.')[0])
-                print(f"✨ [IMAGE]: LoRA {lora} acoplada.")
+        print("✨ [IMAGE]: Motor carregado com sucesso.")
 
     def generate(self, prompt):
-        if not self.pipe: self.load_engine()
-        # Adiciona gatilhos automáticos para as LoRAs no prompt
-        full_prompt = f"{prompt}, highly detailed, realistic skin, amateur photography style, masterpiece"
-        image = self.pipe(full_prompt, num_inference_steps=30).images[0]
+        if not self.pipe: 
+            self.load_engine()
+            
+        # 1. ORDEM CORRIGIDA: Tags de hiper-realismo vêm PRIMEIRO para nunca serem cortadas
+        full_prompt = f"RAW photo, 8k uhd, dslr, soft lighting, high quality, film grain, Fujifilm XT4, {prompt}"
+        
+        # 2. O SEGREDO DO REALISMO: Prompt Negativo
+        neg_prompt = (
+            "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), "
+            "text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, "
+            "morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, "
+            "blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions"
+        )
+        
+        print(f"🎨 [IMAGE]: Renderizando em Alta Definição (30 passos)... Aguarde.")
+        
+        # Aumentamos para 30 passos para dar tempo da IA refinar a pele e texturas
+        image = self.pipe(
+            prompt=full_prompt, 
+            negative_prompt=neg_prompt,
+            num_inference_steps=30,
+            guidance_scale=7.5
+        ).images[0]
+        
         return image

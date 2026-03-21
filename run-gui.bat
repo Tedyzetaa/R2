@@ -8,8 +8,8 @@ cd /d "C:\R2"
 
 REM Comando de ativação conforme seu endereço específico
 call C:\Users\Teddy\miniconda3\Scripts\activate.bat C:\Users\Teddy\miniconda3 && call conda activate r2 && (
-    echo 🖥️ Iniciando Interface Sci-Fi...
-    python force_sci_fi_gui.py
+    echo 🖥️ Iniciando Interface...
+    python main.py
 )
 
 if errorlevel 1 (
