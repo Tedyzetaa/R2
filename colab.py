@@ -13,7 +13,7 @@ from PIL import Image
 # ==========================================
 # 🔑 CHAVE DO NGROK (PREENCHA AQUI)
 # ==========================================
-NGROK_TOKEN = "COLE_SEU_TOKEN_DO_NGROK_AQUI"
+NGROK_TOKEN = "2wFXKw03BkScewrpiPWLFLtIeOY_38Y3NZA4cpUBQdihaviXA"
 
 # Desativa avisos do HuggingFace
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
