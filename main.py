@@ -9,6 +9,7 @@ import re
 import base64
 from io import BytesIO
 from PIL import Image
+import numpy as np
 
 # Desativa a exigência de privilégios de Administrador para downloads no Windows
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -27,14 +28,18 @@ def garantir_ambiente():
         "huggingface_hub", "requests", "psutil", "python-dotenv", 
         "llama-cpp-python", "greenlet", "playwright", "speedtest-cli",
         "feedparser", "geopy", "matplotlib", "beautifulsoup4",
-        "diffusers", "transformers", "accelerate", "torch", "peft", "adetailer"
+        "diffusers", "transformers", "accelerate", "torch", "peft", "adetailer",
+        "PyPDF2", "sentence-transformers", "faiss-cpu", "numpy"
     ]
     
     for package in deps:
         import_name = package.replace("-", "_")
         if package == "python-dotenv": import_name = "dotenv"
-        if package == "speedtest-cli": import_name = "speedtest"
-        if package == "beautifulsoup4": import_name = "bs4"
+        elif package == "speedtest-cli": import_name = "speedtest"
+        elif package == "beautifulsoup4": import_name = "bs4"
+        elif package == "sentence-transformers": import_name = "sentence_transformers"
+        elif package == "faiss-cpu": import_name = "faiss"
+        elif package == "PyPDF2": import_name = "PyPDF2"
         
         try:
             __import__(import_name)
@@ -53,11 +58,85 @@ garantir_ambiente()
 STOP_GEN = False
 
 # ==========================================
-# 🎨 2. MOTOR VISUAL SDXL (COM CLONAGEM IP-ADAPTER)
+# 📚 2. BANCO DE DADOS VETORIAL (RAG / PDFs)
+# ==========================================
+class KnowledgeBase:
+    def __init__(self, docs_dir="static/docs"):
+        self.docs_dir = docs_dir
+        self.embedder = None
+        self.index = None
+        self.chunks = []
+        os.makedirs(self.docs_dir, exist_ok=True)
+
+    def _load_embedder(self):
+        if not self.embedder:
+            print("\n🧠 [RAG]: Baixando/Carregando motor de vetorização (MiniLM)...")
+            from sentence_transformers import SentenceTransformer
+            self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+
+    def sync(self):
+        import faiss
+        import PyPDF2
+        
+        self._load_embedder()
+        self.chunks = []
+        
+        pdf_files = [f for f in os.listdir(self.docs_dir) if f.lower().endswith('.pdf')]
+        if not pdf_files:
+            return "⚠️ Nenhum arquivo .pdf encontrado na pasta 'static/docs'."
+            
+        for pdf_file in pdf_files:
+            path = os.path.join(self.docs_dir, pdf_file)
+            try:
+                with open(path, 'rb') as f:
+                    reader = PyPDF2.PdfReader(f)
+                    text = ""
+                    for page in reader.pages:
+                        page_text = page.extract_text()
+                        if page_text: text += page_text + "\n"
+                    
+                    chunk_size = 1000
+                    overlap = 200
+                    for i in range(0, len(text), chunk_size - overlap):
+                        chunk = text[i:i+chunk_size].strip()
+                        if len(chunk) > 50:
+                            self.chunks.append(f"[Fonte: {pdf_file}]\n{chunk}")
+            except Exception as e:
+                print(f"❌ Erro ao ler o PDF {pdf_file}: {e}")
+
+        if not self.chunks:
+            return "⚠️ Os PDFs foram lidos, mas nenhum texto pôde ser extraído."
+
+        print(f"🧠 [RAG]: Compilando matriz vetorial de {len(self.chunks)} fragmentos de texto...")
+        embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True)
+        
+        dimension = embeddings.shape[1]
+        self.index = faiss.IndexFlatL2(dimension)
+        self.index.add(embeddings)
+        
+        return f"✅ Base de Dados atualizada! {len(pdf_files)} PDFs convertidos em {len(self.chunks)} blocos neurais."
+
+    def search(self, query, top_k=3):
+        if not self.index or len(self.chunks) == 0:
+            return None
+            
+        self._load_embedder()
+        q_emb = self.embedder.encode([query], convert_to_numpy=True)
+        distances, indices = self.index.search(q_emb, top_k)
+        
+        results = []
+        for idx in indices[0]:
+            if idx < len(self.chunks):
+                results.append(self.chunks[idx])
+        
+        return "\n\n---\n\n".join(results)
+
+# ==========================================
+# 🎨 3. MOTOR VISUAL SDXL (COM CLONAGEM IP-ADAPTER)
 # ==========================================
 import torch
 from diffusers import StableDiffusionXLPipeline, EulerAncestralDiscreteScheduler
-from transformers import CLIPVisionModelWithProjection # IMPORTANTE PARA CORRIGIR O ERRO 1664 vs 1280
+from transformers import CLIPVisionModelWithProjection
 
 try:
     from adetailer.adetailer import ad_main
@@ -69,14 +148,12 @@ class UltraVisualCore:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.pipe = None
-        self.ip_adapter_loaded = False # Variável para controlar o estado do clonador
+        self.ip_adapter_loaded = False 
         
     def load_engine(self):
         if self.pipe: return
         print(f"\n🎨 [VISUAL]: Inicializando SDXL Juggernaut na {self.device.upper()}...")
         
-        # --- CARREGAMENTO DO MOTOR BASE (Rápido e Limpo) ---
-        print("⚠️ [AVISO]: Carregando o motor principal (Juggernaut XL)...")
         self.pipe = StableDiffusionXLPipeline.from_pretrained(
             "RunDiffusion/Juggernaut-XL-v9", 
             torch_dtype=torch.float16,
@@ -86,7 +163,6 @@ class UltraVisualCore:
         
         self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
 
-        # Otimizações de VRAM 
         if self.device == "cuda":
             self.pipe.vae.to(torch.float32)
             self.pipe.enable_model_cpu_offload()
@@ -96,21 +172,17 @@ class UltraVisualCore:
         print("✅ Motor visual base blindado e pronto.")
 
     def load_ip_adapter_if_needed(self):
-        # Só carrega o IP-Adapter (Clonador) se ele for realmente necessário
         if not self.ip_adapter_loaded and self.pipe:
             print("\n👁️ [VISUAL]: Preparando módulo de clonagem (IP-Adapter)...")
             try:
-                # Carrega o codificador de imagem necessário para o IP-Adapter
                 image_encoder = CLIPVisionModelWithProjection.from_pretrained(
                     "h94/IP-Adapter",
                     subfolder="models/image_encoder",
                     torch_dtype=torch.float16
                 ).to(self.device)
 
-                # Troca o codificador padrão do pipeline pelo novo
                 self.pipe.image_encoder = image_encoder
 
-                # Acopla o IP-Adapter ao pipeline
                 self.pipe.load_ip_adapter(
                     "h94/IP-Adapter", 
                     subfolder="sdxl_models", 
@@ -132,18 +204,18 @@ class UltraVisualCore:
         positive = f"photograph of {prompt_text}, highly detailed, true to life, ultra realistic, raw photo, natural lighting, 8k uhd, dslr"
         
         kwargs = {}
+        is_cloning = False # Flag de segurança
         
-        # --- LÓGICA DE ROTAS SEPARADAS ---
         if ip_image:
-            # Rota 2: Clonagem
-            self.load_ip_adapter_if_needed() # Garante que o clonador está pronto
+            self.load_ip_adapter_if_needed() 
             print("🧬 [VISUAL]: Injetando características faciais da imagem de referência...")
-            self.pipe.set_ip_adapter_scale(0.70) 
+            
+            # Reduzimos um pouco a força (0.60) para não causar mutações no corpo
+            self.pipe.set_ip_adapter_scale(0.60) 
             kwargs["ip_adapter_image"] = ip_image
+            is_cloning = True
         else:
-            # Rota 1: Geração Normal
             if self.ip_adapter_loaded:
-                # Se o clonador estava ativo de uma geração anterior, desliga-o completamente
                 self.pipe.set_ip_adapter_scale(0.0)
 
         print(f"🎬 [VISUAL]: Renderizando imagem...")
@@ -154,11 +226,14 @@ class UltraVisualCore:
                 num_inference_steps=35, 
                 height=1216, 
                 width=832,
-                guidance_scale=6.5,
+                # Se estiver clonando, o texto obedece mais à imagem (Guidance 5.0). Se não, usa o padrão (6.5)
+                guidance_scale=5.0 if is_cloning else 6.5, 
                 **kwargs 
             ).images[0]
         
-        if HAS_ADETAILER:
+        # O SEGREDO: O ADetailer SÓ RODA se não houver foto de referência!
+        # Se rodar com o clone, ele pinta um rosto genérico por cima do seu clone.
+        if HAS_ADETAILER and not is_cloning:
             try:
                 print("✨ [VISUAL]: Refinando detalhes anatômicos...")
                 common_args = {"prompt": positive, "negative_prompt": negative, "steps": 20, "strength": 0.35}
@@ -169,8 +244,9 @@ class UltraVisualCore:
             
         return image
 
+
 # ==========================================
-# 📥 3. GESTÃO DE MATRIZES NEURAIS (TEXTO E VISÃO)
+# 📥 4. GESTÃO DE MATRIZES NEURAIS (TEXTO E VISÃO)
 # ==========================================
 def baixar_modelos():
     from huggingface_hub import hf_hub_download
@@ -207,7 +283,7 @@ def baixar_modelos():
 CAMINHO_TEXTO, CAMINHO_LLAVA, CAMINHO_MMPROJ = baixar_modelos()
 
 # ==========================================
-# 📂 4. CARREGAMENTO DOS MÓDULOS TÁTICOS
+# 📂 5. CARREGAMENTO DOS MÓDULOS TÁTICOS
 # ==========================================
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -218,6 +294,7 @@ import uvicorn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path: sys.path.insert(0, BASE_DIR)
 os.makedirs("static/media", exist_ok=True)
+os.makedirs("static/docs", exist_ok=True)
 
 print("\n🔄 [SISTEMA] Carregando módulos táticos...")
 
@@ -250,12 +327,14 @@ news_ops = GeopoliticsManager() if GeopoliticsManager else None
 speed_ops = SpeedTestModule() if SpeedTestModule else None
 sys_scan_ops = SystemScanner() if SystemScanner else None
 
+rag_ops = KnowledgeBase()
 img_ops = UltraVisualCore()
 
 try:
     from llama_cpp import Llama
     print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural...")
-    ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=4096, n_gpu_layers=-1, verbose=False)
+    # ATENÇÃO: Janela de Contexto alterada para 16384 a seu pedido!
+    ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=16384, n_gpu_layers=-1, verbose=False)
 except Exception as e:
     print(f"❌ Erro ao iniciar IA de Texto: {e}")
     ai_brain = None
@@ -264,7 +343,7 @@ vision_brain = None
 chat_handler = None
 
 # ==========================================
-# 🌐 5. SERVIDOR WEB E HTML UNIFICADO
+# 🌐 6. SERVIDOR WEB E HTML UNIFICADO
 # ==========================================
 app = FastAPI(title="R2 Assistant - Web OS")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -321,8 +400,17 @@ HTML_TEMPLATE = """
         .r2-msg { align-self: flex-start; background: var(--bot-bg); border: 1px solid rgba(0, 255, 0, 0.2); border-bottom-left-radius: 2px; width: 100%; overflow-x: hidden;}
         .sys-msg { align-self: center; background: rgba(255, 0, 0, 0.1); border: 1px solid rgba(255, 0, 0, 0.3); color: #ff6666; font-style: italic; font-size: 0.9em; text-align: center; max-width: 80%; }
         .r2-msg img { max-width: 100%; height: auto; border: 1px solid var(--neon-green); margin-top: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,0,0.2);}
-        .msg pre { background: #111; padding: 12px; border-radius: 6px; overflow-x: auto; border: 1px solid #333; }
-        .msg code { font-family: 'Courier New', monospace; font-size: 0.9em; }
+        
+        /* NOVO DESIGN DOS BLOCOS DE CÓDIGO (ESTILO GEMINI/CHATGPT) */
+        .code-container { margin: 15px 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 255, 255, 0.3); background: #0a0a0f; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 51, 51, 0.8); padding: 8px 15px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); }
+        .code-lang { color: var(--neon); font-family: 'Courier New', monospace; font-size: 0.85em; text-transform: uppercase; font-weight: bold; }
+        .copy-btn { background: transparent; color: #fff; border: 1px solid var(--neon); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8em; font-family: inherit; font-weight: bold; transition: 0.2s; }
+        .copy-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 8px var(--neon); }
+        .code-container pre { margin: 0; padding: 15px; overflow-x: auto; background: transparent; border: none; }
+        .code-container code { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.95em; line-height: 1.5; }
+        /* Inline code normal */
+        p code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #ffeb3b; }
         
         #input-wrapper { background: var(--panel); border-top: 1px solid rgba(0, 255, 255, 0.2); backdrop-filter: blur(10px); display: flex; justify-content: center; }
         #input-container { width: 100%; max-width: 1200px; padding: 20px; }
@@ -333,6 +421,10 @@ HTML_TEMPLATE = """
         
         .icon-btn { background: rgba(0, 255, 255, 0.1); border: 1px solid rgba(0, 255, 255, 0.3); color: var(--neon); border-radius: 50%; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
         .icon-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
+        
+        .rag-toggle { background: rgba(0, 255, 255, 0.1); border: 1px solid rgba(0, 255, 255, 0.3); color: var(--neon); border-radius: 8px; padding: 0 15px; height: 45px; font-weight: bold; cursor: pointer; transition: 0.3s; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+        .rag-toggle.active { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
+        
         textarea { flex: 1; padding: 12px 15px; background: rgba(0, 0, 0, 0.5); color: #fff; border: 1px solid #004444; border-radius: 8px; font-family: inherit; font-size: 15px; outline: none; resize: none; min-height: 45px; max-height: 150px; overflow-y: auto; }
         textarea:focus { border-color: var(--neon); }
         .send-btn { padding: 0 25px; height: 45px; background: #006666; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; flex-shrink: 0; }
@@ -354,17 +446,17 @@ HTML_TEMPLATE = """
             #chat { padding: 15px 10px; gap: 15px; }
             .msg { max-width: 95%; padding: 12px 15px; font-size: 14px; }
             #input-container { padding: 12px 10px; }
-            #input-area { gap: 8px; }
-            .icon-btn { width: 40px; height: 40px; }
+            #input-area { gap: 8px; flex-wrap: wrap; }
+            .icon-btn, .rag-toggle { height: 40px; }
             .send-btn { padding: 0 15px; height: 40px; font-size: 13px; }
-            textarea { padding: 10px 12px; font-size: 14px; min-height: 40px; }
+            textarea { padding: 10px 12px; font-size: 14px; min-height: 40px; width: 100%; order: 4; }
         }
 
         @media (min-width: 1920px) {
             .msg { font-size: 18px; line-height: 1.8; }
             h2 { font-size: 1.5em; }
             textarea { font-size: 18px; }
-            .send-btn { font-size: 16px; padding: 0 35px; }
+            .send-btn, .rag-toggle { font-size: 16px; padding: 0 35px; }
         }
     </style>
 </head>
@@ -384,6 +476,7 @@ HTML_TEMPLATE = """
             <h3>🎛️ MÓDULOS TÁTICOS</h3>
             <button class="close-btn" onclick="toggleMenu()">✕</button>
         </div>
+        <button class="mod-btn" onclick="executarModulo('/doc sync', '📚 Sincronizando PDFs (RAG)...')">📚 Sincronizar PDFs</button>
         <button class="mod-btn" onclick="executarModulo('/cmd radar', '📡 Iniciando Radar Aéreo...')">📡 Radar de Voos</button>
         <button class="mod-btn" onclick="executarModulo('/cmd clima', '⛈️ Consultando Telemetria Atmosférica...')">⛈️ Clima (Ivinhema)</button>
         <button class="mod-btn" onclick="executarModulo('/cmd terremotos', '🌍 Rastreando Abalos Sísmicos...')">🌍 Monitor Sísmico</button>
@@ -398,7 +491,10 @@ HTML_TEMPLATE = """
 
     <div id="chat-wrapper">
         <div id="chat">
-            <div class="msg sys-msg">SISTEMA INICIADO. Visão Computacional Habilitada. Envie imagens para análise ou /img para gerar/clonar.</div>
+            <div class="msg sys-msg">
+                SISTEMA INICIADO.<br>
+                Botões e atalhos otimizados para Programação e Pesquisa Tática.
+            </div>
         </div>
     </div>
     
@@ -409,11 +505,16 @@ HTML_TEMPLATE = """
                 <button onclick="removeFile()" title="Remover anexo">✕</button>
             </div>
             <div id="input-area">
-                <input type="file" id="fileInput" style="display: none;" onchange="handleFile(event)">
                 <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Anexar Arquivo/Imagem">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                 </button>
-                <textarea id="msgBox" placeholder="Digite comando, envie imagem, ou /img..." rows="1" oninput="autoResize(this)"></textarea>
+                
+                <button id="ragToggleBtn" class="rag-toggle" onclick="toggleRag()" title="Travar no Modo Documento">
+                    <span>📄</span> DOC: <span id="ragText">OFF</span>
+                </button>
+                
+                <input type="file" id="fileInput" style="display: none;" onchange="handleFile(event)">
+                <textarea id="msgBox" placeholder="Digite comando, envie imagem, ou ative o MODO DOC..." rows="1" oninput="autoResize(this)"></textarea>
                 
                 <button class="send-btn stop-btn" id="stopBtn" onclick="stopAI()">PARAR</button>
                 <button class="send-btn" id="sendBtn" onclick="sendMsg()">ENVIAR</button>
@@ -422,12 +523,40 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        marked.setOptions({
-            highlight: function(code, lang) {
-                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                return hljs.highlight(code, { language }).value;
-            }
-        });
+        // CONFIGURAÇÃO DO RENDERIZADOR CUSTOMIZADO PARA CÓDIGO
+        const renderer = new marked.Renderer();
+        renderer.code = function(code, language) {
+            const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
+            const highlighted = hljs.highlight(code, { language: validLanguage }).value;
+            return `
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-lang">${language || 'código'}</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+                </div>
+                <pre><code class="hljs ${validLanguage}">${highlighted}</code></pre>
+            </div>`;
+        };
+        marked.setOptions({ renderer: renderer });
+
+        // FUNÇÃO PARA COPIAR O CÓDIGO
+        function copyCode(btn) {
+            const codeElement = btn.parentElement.nextElementSibling.querySelector('code');
+            const textToCopy = codeElement.innerText; // Extrai o texto limpo sem tags HTML
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = btn.innerText;
+                btn.innerText = "✓ Copiado!";
+                btn.style.background = "#00ff00";
+                btn.style.color = "#000";
+                
+                setTimeout(() => { 
+                    btn.innerText = originalText; 
+                    btn.style.background = "";
+                    btn.style.color = "";
+                }, 2000);
+            }).catch(err => console.error("Erro ao copiar código:", err));
+        }
 
         const ws_protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
         const ws = new WebSocket(ws_protocol + window.location.host + "/ws");
@@ -440,6 +569,8 @@ HTML_TEMPLATE = """
         let isThinking = false;
         let attachedFileContent = "";
         let attachedFileName = "";
+        
+        let ragMode = false;
 
         ws.onopen = () => { status.innerText = "● ONLINE"; status.style.color = "#00ff00"; };
         ws.onclose = () => { status.innerText = "○ OFFLINE"; status.style.color = "#ff0000"; removeThinking(); };
@@ -484,6 +615,22 @@ HTML_TEMPLATE = """
             const overlay = document.getElementById('overlay');
             menu.classList.toggle('open'); 
             overlay.classList.toggle('active');
+        }
+        
+        function toggleRag() {
+            ragMode = !ragMode;
+            const btn = document.getElementById("ragToggleBtn");
+            const txt = document.getElementById("ragText");
+            const msgBox = document.getElementById("msgBox");
+            if (ragMode) {
+                btn.classList.add("active");
+                txt.innerText = "ON";
+                msgBox.placeholder = "Pesquisar na Base de Dados (PDFs)...";
+            } else {
+                btn.classList.remove("active");
+                txt.innerText = "OFF";
+                msgBox.placeholder = "Digite comando, envie imagem, ou ative o MODO DOC...";
+            }
         }
         
         function scrollToBottom() { chatWrapper.scrollTo({ top: chatWrapper.scrollHeight, behavior: 'smooth' }); }
@@ -563,6 +710,10 @@ HTML_TEMPLATE = """
             chat.innerHTML += `<div class="msg user-msg">${userDisplayHtml.replace(/\\n/g, '<br>')}</div>`;
             
             let finalPayload = text;
+            if (ragMode && !text.startsWith("/") && !attachedFileContent) {
+                finalPayload = "/doc " + text;
+            }
+            
             if (attachedFileContent) { finalPayload += attachedFileContent; removeFile(); }
             
             ws.send(finalPayload);
@@ -588,7 +739,7 @@ async def serve_gui():
     return HTML_TEMPLATE
 
 # ==========================================
-# 🧠 6. ROTEADOR LÓGICO (WEBSOCKET COM VISÃO)
+# 🧠 7. ROTEADOR LÓGICO (WEBSOCKET COM VISÃO E RAG)
 # ==========================================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -607,10 +758,8 @@ async def websocket_endpoint(websocket: WebSocket):
             comando = await websocket.receive_text()
             cmd_lower = comando.lower().strip()
             
-            # --- LIMPEZA E DETEÇÃO DE IMAGENS ---
             img_match = re.search(r'\[IMAGEM_BASE64:\s*(data:image/[^;]+;base64,[^\]]+)\]', comando)
             
-            # --- 🛑 BLOQUEIO ANTI-CRASH (TENTATIVA DE CLONAGEM ERRADA) ---
             if img_match and "/img" in cmd_lower:
                 comando_texto_puro = re.sub(r'\[IMAGEM_BASE64:[^\]]+\]', '', comando).strip()
             else:
@@ -621,9 +770,57 @@ async def websocket_endpoint(websocket: WebSocket):
             cmd_lower = comando_texto.lower()
 
             # ==========================================
+            # 📚 BANCO DE DADOS (RAG - LER E PESQUISAR PDFs)
+            # ==========================================
+            if cmd_lower.startswith("/doc"):
+                acao = comando_texto[4:].strip()
+                
+                if acao.lower() == "sync":
+                    await websocket.send_json({"type": "system", "text": "📚 [RAG]: Lendo e vetorizando PDFs na pasta 'static/docs'..."})
+                    try:
+                        resultado = await asyncio.to_thread(rag_ops.sync)
+                        await websocket.send_json({"type": "system", "text": resultado})
+                    except Exception as e:
+                        await websocket.send_json({"type": "system", "text": f"❌ Erro ao sincronizar PDFs: {e}"})
+                    continue
+                elif acao:
+                    await websocket.send_json({"type": "system", "text": f"📚 [RAG]: Vasculhando PDFs sobre: '{acao}'..."})
+                    contexto = await asyncio.to_thread(rag_ops.search, acao)
+                    
+                    if not contexto:
+                        await websocket.send_json({"type": "system", "text": "⚠️ A Base de Dados está vazia. Coloque PDFs na pasta 'static/docs' e digite '/doc sync' primeiro."})
+                        continue
+                    
+                    prompt_rag = f"<|im_start|>system\n{sys_prompt}\nVocê é um assistente tático de pesquisa. Use EXCLUSIVAMENTE os documentos abaixo para responder à pergunta. Se a resposta não estiver nos documentos, diga 'Não possuo essa informação nos meus arquivos'.\n\n[DOCUMENTOS RECUPERADOS]:\n{contexto}<|im_end|>\n"
+                    prompt_rag += f"<|im_start|>user\n{acao}<|im_end|>\n<|im_start|>assistant\n"
+                    
+                    global STOP_GEN
+                    STOP_GEN = False
+                    try:
+                        stream = ai_brain(prompt_rag, max_tokens=-1, stop=["<|im_end|>"], stream=True, temperature=0.3, top_p=0.95)
+                        resp_completa = ""
+                        for chunk in stream:
+                            if STOP_GEN:
+                                await websocket.send_json({"type": "system", "text": "🛑 [INTERROMPIDO]"} )
+                                break
+                            token = chunk["choices"][0]["text"]
+                            resp_completa += token
+                            await websocket.send_json({"type": "stream", "text": token})
+                            await asyncio.sleep(0.001)
+                        
+                        await websocket.send_json({"type": "done"})
+                        historico_ia.append({"u": f"/doc {acao}", "a": resp_completa})
+                    except Exception as e:
+                        await websocket.send_json({"type": "system", "text": f"❌ Erro neural (RAG): {e}"})
+                    continue
+                else:
+                    await websocket.send_json({"type": "system", "text": "⚠️ Comando inválido. Use '/doc sync' para atualizar a base, ou '/doc [sua pergunta]' para pesquisar."})
+                    continue
+
+            # ==========================================
             # 🎨 GERAÇÃO E CLONAGEM DE IMAGEM (/img)
             # ==========================================
-            if cmd_lower.startswith("/img"):
+            elif cmd_lower.startswith("/img"):
                 prompt_img = comando_texto[4:].strip() 
                 pil_image = None
                 
@@ -662,7 +859,6 @@ async def websocket_endpoint(websocket: WebSocket):
             # 👁️ VISÃO COMPUTACIONAL (LLaVA - LER A IMAGEM)
             # ==========================================
             elif img_match:
-                global STOP_GEN, vision_brain, chat_handler
                 STOP_GEN = False
                 b64_uri = img_match.group(1)
                 

@@ -15,7 +15,7 @@ from PIL import Image
 # ==========================================
 NGROK_TOKEN = "2wFXKw03BkScewrpiPWLFLtIeOY_38Y3NZA4cpUBQdihaviXA"
 
-# Desativa avisos do HuggingFace
+# Desativa a exigência de privilégios de Administrador para downloads no Windows/Colab
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 
@@ -33,8 +33,7 @@ def garantir_ambiente_colab():
     except ImportError:
         print("📦 Compilando Cérebro Neural com suporte CUDA (isso pode levar 2 minutos)...")
         subprocess.check_call("CMAKE_ARGS=\"-DGGML_CUDA=on\" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir", shell=True)
-
-    # 2. Dependências do Servidor e Túnel
+    
     deps = [
         "fastapi", "uvicorn", "websockets", "python-multipart", 
         "huggingface_hub", "requests", "psutil", "python-dotenv", 
@@ -46,9 +45,9 @@ def garantir_ambiente_colab():
     for package in deps:
         import_name = package.replace("-", "_")
         if package == "python-dotenv": import_name = "dotenv"
-        if package == "speedtest-cli": import_name = "speedtest"
-        if package == "beautifulsoup4": import_name = "bs4"
-        if package == "nest-asyncio": import_name = "nest_asyncio"
+        elif package == "speedtest-cli": import_name = "speedtest"
+        elif package == "beautifulsoup4": import_name = "bs4"
+        elif package == "nest-asyncio": import_name = "nest_asyncio"
         
         try:
             __import__(import_name)
@@ -59,13 +58,15 @@ def garantir_ambiente_colab():
 garantir_ambiente_colab()
 
 import nest_asyncio
-nest_asyncio.apply() # Permite rodar o uvicorn dentro do loop do Colab
+nest_asyncio.apply()
 from pyngrok import ngrok
+import numpy as np
 
 # ==========================================
 # 🛑 ROTA DE EMERGÊNCIA (STOP)
 # ==========================================
 STOP_GEN = False
+
 
 # ==========================================
 # 🎨 2. MOTOR VISUAL SDXL (COM CLONAGEM IP-ADAPTER)
@@ -140,12 +141,14 @@ class UltraVisualCore:
         positive = f"photograph of {prompt_text}, highly detailed, true to life, ultra realistic, raw photo, natural lighting, 8k uhd, dslr"
         
         kwargs = {}
+        is_cloning = False
         
         if ip_image:
             self.load_ip_adapter_if_needed() 
             print("🧬 [VISUAL]: Injetando características faciais da imagem de referência...")
-            self.pipe.set_ip_adapter_scale(0.70) 
+            self.pipe.set_ip_adapter_scale(0.60) 
             kwargs["ip_adapter_image"] = ip_image
+            is_cloning = True
         else:
             if self.ip_adapter_loaded:
                 self.pipe.set_ip_adapter_scale(0.0)
@@ -158,11 +161,11 @@ class UltraVisualCore:
                 num_inference_steps=35, 
                 height=1216, 
                 width=832,
-                guidance_scale=6.5,
+                guidance_scale=5.0 if is_cloning else 6.5,
                 **kwargs 
             ).images[0]
         
-        if HAS_ADETAILER:
+        if HAS_ADETAILER and not is_cloning:
             try:
                 print("✨ [VISUAL]: Refinando detalhes anatômicos...")
                 common_args = {"prompt": positive, "negative_prompt": negative, "steps": 20, "strength": 0.35}
@@ -173,8 +176,9 @@ class UltraVisualCore:
             
         return image
 
+
 # ==========================================
-# 📥 3. GESTÃO DE MATRIZES NEURAIS
+# 📥 3. GESTÃO DE MATRIZES NEURAIS (TEXTO E VISÃO)
 # ==========================================
 def baixar_modelos():
     from huggingface_hub import hf_hub_download
@@ -259,8 +263,8 @@ img_ops = UltraVisualCore()
 try:
     from llama_cpp import Llama
     print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural...")
-    # No Colab, limitamos as camadas da GPU (n_gpu_layers=25) para não esgotar a memória antes do Motor Visual ligar
-    ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=4096, n_gpu_layers=25, verbose=False)
+    # Mantido em 16384. n_gpu_layers=25 evita que a memória da GPU no Colab estoure antes da geração de imagem
+    ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=16384, n_gpu_layers=25, verbose=False)
 except Exception as e:
     print(f"❌ Erro ao iniciar IA de Texto: {e}")
     ai_brain = None
@@ -326,8 +330,16 @@ HTML_TEMPLATE = """
         .r2-msg { align-self: flex-start; background: var(--bot-bg); border: 1px solid rgba(0, 255, 0, 0.2); border-bottom-left-radius: 2px; width: 100%; overflow-x: hidden;}
         .sys-msg { align-self: center; background: rgba(255, 0, 0, 0.1); border: 1px solid rgba(255, 0, 0, 0.3); color: #ff6666; font-style: italic; font-size: 0.9em; text-align: center; max-width: 80%; }
         .r2-msg img { max-width: 100%; height: auto; border: 1px solid var(--neon-green); margin-top: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,0,0.2);}
-        .msg pre { background: #111; padding: 12px; border-radius: 6px; overflow-x: auto; border: 1px solid #333; }
-        .msg code { font-family: 'Courier New', monospace; font-size: 0.9em; }
+        
+        /* DESIGN DOS BLOCOS DE CÓDIGO */
+        .code-container { margin: 15px 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 255, 255, 0.3); background: #0a0a0f; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 51, 51, 0.8); padding: 8px 15px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); }
+        .code-lang { color: var(--neon); font-family: 'Courier New', monospace; font-size: 0.85em; text-transform: uppercase; font-weight: bold; }
+        .copy-btn { background: transparent; color: #fff; border: 1px solid var(--neon); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8em; font-family: inherit; font-weight: bold; transition: 0.2s; }
+        .copy-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 8px var(--neon); }
+        .code-container pre { margin: 0; padding: 15px; overflow-x: auto; background: transparent; border: none; }
+        .code-container code { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.95em; line-height: 1.5; }
+        p code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #ffeb3b; }
         
         #input-wrapper { background: var(--panel); border-top: 1px solid rgba(0, 255, 255, 0.2); backdrop-filter: blur(10px); display: flex; justify-content: center; }
         #input-container { width: 100%; max-width: 1200px; padding: 20px; }
@@ -338,6 +350,7 @@ HTML_TEMPLATE = """
         
         .icon-btn { background: rgba(0, 255, 255, 0.1); border: 1px solid rgba(0, 255, 255, 0.3); color: var(--neon); border-radius: 50%; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
         .icon-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
+        
         textarea { flex: 1; padding: 12px 15px; background: rgba(0, 0, 0, 0.5); color: #fff; border: 1px solid #004444; border-radius: 8px; font-family: inherit; font-size: 15px; outline: none; resize: none; min-height: 45px; max-height: 150px; overflow-y: auto; }
         textarea:focus { border-color: var(--neon); }
         .send-btn { padding: 0 25px; height: 45px; background: #006666; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; flex-shrink: 0; }
@@ -359,10 +372,10 @@ HTML_TEMPLATE = """
             #chat { padding: 15px 10px; gap: 15px; }
             .msg { max-width: 95%; padding: 12px 15px; font-size: 14px; }
             #input-container { padding: 12px 10px; }
-            #input-area { gap: 8px; }
-            .icon-btn { width: 40px; height: 40px; }
+            #input-area { gap: 8px; flex-wrap: wrap; }
+            .icon-btn { height: 40px; }
             .send-btn { padding: 0 15px; height: 40px; font-size: 13px; }
-            textarea { padding: 10px 12px; font-size: 14px; min-height: 40px; }
+            textarea { padding: 10px 12px; font-size: 14px; min-height: 40px; width: 100%; order: 4; }
         }
 
         @media (min-width: 1920px) {
@@ -403,7 +416,10 @@ HTML_TEMPLATE = """
 
     <div id="chat-wrapper">
         <div id="chat">
-            <div class="msg sys-msg">SISTEMA INICIADO. Visão Computacional Habilitada. Envie imagens para análise ou /img para gerar/clonar.</div>
+            <div class="msg sys-msg">
+                SISTEMA INICIADO (COLAB MODE).<br>
+                Botões e atalhos otimizados para Programação e Pesquisa Tática (RAG Offline).
+            </div>
         </div>
     </div>
     
@@ -414,10 +430,11 @@ HTML_TEMPLATE = """
                 <button onclick="removeFile()" title="Remover anexo">✕</button>
             </div>
             <div id="input-area">
-                <input type="file" id="fileInput" style="display: none;" onchange="handleFile(event)">
                 <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Anexar Arquivo/Imagem">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                 </button>
+                
+                <input type="file" id="fileInput" style="display: none;" onchange="handleFile(event)">
                 <textarea id="msgBox" placeholder="Digite comando, envie imagem, ou /img..." rows="1" oninput="autoResize(this)"></textarea>
                 
                 <button class="send-btn stop-btn" id="stopBtn" onclick="stopAI()">PARAR</button>
@@ -427,14 +444,41 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        marked.setOptions({
-            highlight: function(code, lang) {
-                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                return hljs.highlight(code, { language }).value;
-            }
-        });
+        // CONFIGURAÇÃO DO RENDERIZADOR CUSTOMIZADO PARA CÓDIGO
+        const renderer = new marked.Renderer();
+        renderer.code = function(code, language) {
+            const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
+            const highlighted = hljs.highlight(code, { language: validLanguage }).value;
+            return `
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-lang">${language || 'código'}</span>
+                    <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
+                </div>
+                <pre><code class="hljs ${validLanguage}">${highlighted}</code></pre>
+            </div>`;
+        };
+        marked.setOptions({ renderer: renderer });
 
-        // O websocket usa o protocolo HTTPS configurado pelo Ngrok de forma inteligente
+        // FUNÇÃO PARA COPIAR O CÓDIGO
+        function copyCode(btn) {
+            const codeElement = btn.parentElement.nextElementSibling.querySelector('code');
+            const textToCopy = codeElement.innerText; // Extrai o texto limpo sem tags HTML
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = btn.innerText;
+                btn.innerText = "✓ Copiado!";
+                btn.style.background = "#00ff00";
+                btn.style.color = "#000";
+                
+                setTimeout(() => { 
+                    btn.innerText = originalText; 
+                    btn.style.background = "";
+                    btn.style.color = "";
+                }, 2000);
+            }).catch(err => console.error("Erro ao copiar código:", err));
+        }
+
         const ws_protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
         const ws = new WebSocket(ws_protocol + window.location.host + "/ws");
         const chat = document.getElementById("chat");
@@ -666,7 +710,6 @@ async def websocket_endpoint(websocket: WebSocket):
             # 👁️ VISÃO COMPUTACIONAL (LLaVA - LER A IMAGEM)
             # ==========================================
             elif img_match:
-                global STOP_GEN, vision_brain, chat_handler
                 STOP_GEN = False
                 b64_uri = img_match.group(1)
                 
@@ -791,7 +834,6 @@ if __name__ == "__main__":
     print("🚀 INICIANDO R2 WEB OS (COLAB MODE)")
     print("="*50)
     
-    # 3. O Ngrok entra em ação aqui
     try:
         ngrok.set_auth_token(NGROK_TOKEN)
         public_url = ngrok.connect(8000).public_url

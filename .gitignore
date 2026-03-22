@@ -36,6 +36,7 @@ models/*.gguf
 models/*.bin
 *.onnx
 *.weights
+static/docs/
 # Se você tiver uma pasta específica para modelos
 models/
 
