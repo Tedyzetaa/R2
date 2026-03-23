@@ -15,12 +15,12 @@ from PIL import Image
 # ==========================================
 NGROK_TOKEN = "3BK9gGa1BTbrq0GBMEG3uqF8UJF_7LEU7pdisYtzHcmc8XVjU"
 
-# Desativa a exigência de privilégios de Administrador para downloads no Windows/Colab
+# Desativa a exigência de privilégios de Administrador
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 
 # ==========================================
-# 🛠️ 1. MOTOR DE AUTO-INSTALAÇÃO (COLAB OPTIMIZED)
+# 🛠️ 1. MOTOR DE AUTO-INSTALAÇÃO
 # ==========================================
 def garantir_ambiente_colab():
     print("\n" + "="*50)
@@ -66,9 +66,8 @@ import numpy as np
 # ==========================================
 STOP_GEN = False
 
-
 # ==========================================
-# 🎨 2. MOTOR VISUAL SDXL (COM CLONAGEM IP-ADAPTER)
+# 🎨 2. MOTOR VISUAL SDXL
 # ==========================================
 import torch
 from diffusers import StableDiffusionXLPipeline, EulerAncestralDiscreteScheduler
@@ -175,9 +174,8 @@ class UltraVisualCore:
             
         return image
 
-
 # ==========================================
-# 📥 3. GESTÃO DE MATRIZES NEURAIS (TEXTO E VISÃO)
+# 📥 3. GESTÃO DE MATRIZES NEURAIS
 # ==========================================
 def baixar_modelos():
     from huggingface_hub import hf_hub_download
@@ -283,8 +281,8 @@ async def stop_generation():
     STOP_GEN = True
     return {"status": "ok"}
 
-# O r indica uma string raw no Python, evitando problemas com os \n e \r do HTML/JS
-HTML_TEMPLATE = r"""
+# HTML BLINDADO SEM STRING INTERPOLATION DO JS PARA EVITAR CRASH NO PYTHON
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -298,18 +296,15 @@ HTML_TEMPLATE = r"""
         :root { --bg: #050510; --panel: rgba(10, 10, 26, 0.9); --neon: #00ffff; --neon-green: #00ff00; --user-bg: rgba(0, 51, 51, 0.6); --bot-bg: rgba(0, 26, 0, 0.6); }
         * { box-sizing: border-box; }
         body { background-color: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-image: radial-gradient(circle at 50% 0%, #0a192f 0%, var(--bg) 70%); }
-        
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: #004444; border-radius: 4px; }
-        
         #header { background: var(--panel); padding: 15px 25px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center; z-index: 10; }
         .header-left { display: flex; align-items: center; gap: 15px; }
         #menu-btn { background: none; border: none; color: var(--neon); font-size: 28px; cursor: pointer; transition: 0.3s; padding: 0; }
         #menu-btn:hover { text-shadow: 0 0 10px var(--neon); transform: scale(1.1); }
         h2 { margin: 0; color: var(--neon); font-family: 'Courier New', monospace; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0, 255, 255, 0.5); }
         .status { color: #ffff00; font-weight: bold; font-family: 'Courier New', monospace; font-size: 0.9em; }
-        
         #side-menu { position: fixed; left: -320px; top: 0; width: 300px; max-width: 80vw; height: 100%; background: var(--panel); backdrop-filter: blur(15px); border-right: 1px solid rgba(0,255,255,0.3); transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; box-shadow: 5px 0 20px rgba(0,0,0,0.8); }
         #side-menu.open { left: 0; }
         .menu-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 15px; margin-bottom: 10px; }
@@ -317,19 +312,16 @@ HTML_TEMPLATE = r"""
         .close-btn { background: none; border: none; color: #ff6666; font-size: 24px; cursor: pointer; padding: 0 10px; }
         .mod-btn { background: rgba(0, 51, 51, 0.5); border: 1px solid #004444; color: #fff; padding: 12px 15px; border-radius: 6px; cursor: pointer; text-align: left; font-size: 14px; font-weight: bold; transition: 0.2s; display: flex; align-items: center; gap: 10px; }
         .mod-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
-        
         #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
         #overlay.active { display: block; }
-
         #chat-wrapper { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
         #chat { width: 100%; max-width: 1200px; padding: 25px; display: flex; flex-direction: column; gap: 20px; scroll-behavior: smooth; }
-        .msg { max-width: 85%; padding: 15px 20px; border-radius: 12px; line-height: 1.6; font-size: 15px; animation: fadeIn 0.3s ease-in-out; }
+        .msg { max-width: 85%; padding: 15px 20px; border-radius: 12px; line-height: 1.6; font-size: 15px; animation: fadeIn 0.3s ease-in-out; word-wrap: break-word; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .user-msg { align-self: flex-end; background: var(--user-bg); border: 1px solid rgba(0, 255, 255, 0.3); border-bottom-right-radius: 2px; }
         .r2-msg { align-self: flex-start; background: var(--bot-bg); border: 1px solid rgba(0, 255, 0, 0.2); border-bottom-left-radius: 2px; width: 100%; overflow-x: hidden;}
         .sys-msg { align-self: center; background: rgba(255, 0, 0, 0.1); border: 1px solid rgba(255, 0, 0, 0.3); color: #ff6666; font-style: italic; font-size: 0.9em; text-align: center; max-width: 80%; }
         .r2-msg img { max-width: 100%; height: auto; border: 1px solid var(--neon-green); margin-top: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,0,0.2);}
-        
         .code-container { margin: 15px 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 255, 255, 0.3); background: #0a0a0f; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 51, 51, 0.8); padding: 8px 15px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); }
         .code-lang { color: var(--neon); font-family: 'Courier New', monospace; font-size: 0.85em; text-transform: uppercase; font-weight: bold; }
@@ -338,30 +330,25 @@ HTML_TEMPLATE = r"""
         .code-container pre { margin: 0; padding: 15px; overflow-x: auto; background: transparent; border: none; }
         .code-container code { font-family: 'Consolas', 'Courier New', monospace; font-size: 0.95em; line-height: 1.5; }
         p code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #ffeb3b; }
-        
         #input-wrapper { background: var(--panel); border-top: 1px solid rgba(0, 255, 255, 0.2); backdrop-filter: blur(10px); display: flex; justify-content: center; }
         #input-container { width: 100%; max-width: 1200px; padding: 20px; }
         #file-preview { display: none; margin-bottom: 10px; font-size: 0.85em; color: #aaa; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 4px; border: 1px dashed #555; align-items: center; justify-content: space-between; max-width: max-content; }
         #file-preview span { margin-right: 15px; word-break: break-all; }
         #file-preview button { background: none; border: none; color: #ff6666; cursor: pointer; padding: 0 5px; font-weight: bold; font-size: 1.2em; }
         #input-area { display: flex; gap: 12px; align-items: flex-end; }
-        
         .icon-btn { background: rgba(0, 255, 255, 0.1); border: 1px solid rgba(0, 255, 255, 0.3); color: var(--neon); border-radius: 50%; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
         .icon-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
-        
         textarea { flex: 1; padding: 12px 15px; background: rgba(0, 0, 0, 0.5); color: #fff; border: 1px solid #004444; border-radius: 8px; font-family: inherit; font-size: 15px; outline: none; resize: none; min-height: 45px; max-height: 150px; overflow-y: auto; }
         textarea:focus { border-color: var(--neon); }
         .send-btn { padding: 0 25px; height: 45px; background: #006666; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; flex-shrink: 0; }
         .send-btn:hover { background: var(--neon); color: #000; }
         .stop-btn { background: #990000; border: 1px solid #ff3333; display: none; }
         .stop-btn:hover { background: #ff0000; box-shadow: 0 0 10px #ff0000; }
-        
         .typing { display: flex; gap: 4px; padding: 5px 0; }
         .typing span { width: 6px; height: 6px; background: var(--neon-green); border-radius: 50%; animation: bounce 1.3s linear infinite; }
         .typing span:nth-child(2) { animation-delay: -1.1s; }
         .typing span:nth-child(3) { animation-delay: -0.9s; }
         @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
-
         @media (max-width: 768px) {
             #header { padding: 10px 15px; }
             h2 { font-size: 1.1em; }
@@ -375,7 +362,6 @@ HTML_TEMPLATE = r"""
             .send-btn { padding: 0 15px; height: 40px; font-size: 13px; }
             textarea { padding: 10px 12px; font-size: 14px; min-height: 40px; width: 100%; order: 4; }
         }
-
         @media (min-width: 1920px) {
             .msg { font-size: 18px; line-height: 1.8; }
             h2 { font-size: 1.5em; }
@@ -431,10 +417,8 @@ HTML_TEMPLATE = r"""
                 <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Anexar Arquivo/Imagem">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                 </button>
-                
                 <input type="file" id="fileInput" style="display: none;" onchange="handleFile(event)">
                 <textarea id="msgBox" placeholder="Digite comando, envie imagem, ou /img..." rows="1" oninput="autoResize(this)"></textarea>
-                
                 <button class="send-btn stop-btn" id="stopBtn" onclick="stopAI()">PARAR</button>
                 <button class="send-btn" id="sendBtn" onclick="sendMsg()">ENVIAR</button>
             </div>
@@ -446,33 +430,32 @@ HTML_TEMPLATE = r"""
         renderer.code = function(code, language) {
             const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
             const highlighted = hljs.highlight(code, { language: validLanguage }).value;
-            return `
-            <div class="code-container">
-                <div class="code-header">
-                    <span class="code-lang">${language || 'código'}</span>
-                    <button class="copy-btn" onclick="copyCode(this)">Copiar</button>
-                </div>
-                <pre><code class="hljs ${validLanguage}">${highlighted}</code></pre>
-            </div>`;
+            
+            // Construção segura de DOM sem usar crases que crashem o Python
+            return "<div class='code-container'>" +
+                   "<div class='code-header'>" +
+                   "<span class='code-lang'>" + (language || 'código') + "</span>" +
+                   "<button class='copy-btn' onclick='copyCode(this)'>Copiar</button>" +
+                   "</div>" +
+                   "<pre><code class='hljs " + validLanguage + "'>" + highlighted + "</code></pre>" +
+                   "</div>";
         };
         marked.setOptions({ renderer: renderer });
 
         function copyCode(btn) {
             const codeElement = btn.parentElement.nextElementSibling.querySelector('code');
             const textToCopy = codeElement.innerText; 
-            
             navigator.clipboard.writeText(textToCopy).then(() => {
                 const originalText = btn.innerText;
                 btn.innerText = "✓ Copiado!";
                 btn.style.background = "#00ff00";
                 btn.style.color = "#000";
-                
                 setTimeout(() => { 
                     btn.innerText = originalText; 
                     btn.style.background = "";
                     btn.style.color = "";
                 }, 2000);
-            }).catch(err => console.error("Erro ao copiar código:", err));
+            });
         }
 
         const ws_protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
@@ -497,7 +480,6 @@ HTML_TEMPLATE = r"""
                 removeThinking();
                 document.getElementById("stopBtn").style.display = "block";
                 document.getElementById("sendBtn").style.display = "none";
-                
                 if (!currentBotDiv) {
                     currentBotDiv = document.createElement("div");
                     currentBotDiv.className = "msg r2-msg";
@@ -515,21 +497,20 @@ HTML_TEMPLATE = r"""
             }
             else if (data.type === "system") {
                 removeThinking();
-                chat.innerHTML += `<div class="msg sys-msg">${data.text.replace(/\\n/g, '<br>')}</div>`;
+                chat.innerHTML += "<div class='msg sys-msg'>" + data.text.replace(/\\n/g, '<br>') + "</div>";
                 scrollToBottom();
             }
             else if (data.type === "image") {
                 removeThinking();
-                chat.innerHTML += `<div class="msg r2-msg">${data.text ? marked.parse(data.text) : ""}<img src="${data.url}"></div>`;
+                let txt = data.text ? marked.parse(data.text) : "";
+                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<img src='" + data.url + "'></div>";
                 scrollToBottom();
             }
         };
 
         function toggleMenu() { 
-            const menu = document.getElementById('side-menu');
-            const overlay = document.getElementById('overlay');
-            menu.classList.toggle('open'); 
-            overlay.classList.toggle('active');
+            document.getElementById('side-menu').classList.toggle('open'); 
+            document.getElementById('overlay').classList.toggle('active');
         }
         
         function scrollToBottom() { chatWrapper.scrollTo({ top: chatWrapper.scrollHeight, behavior: 'smooth' }); }
@@ -543,7 +524,7 @@ HTML_TEMPLATE = r"""
             try {
                 await fetch('/stop');
                 document.getElementById("stopBtn").innerText = "PARANDO...";
-            } catch (e) { console.error("Erro ao parar", e); }
+            } catch (e) {}
         }
 
         function handleFile(event) {
@@ -554,15 +535,14 @@ HTML_TEMPLATE = r"""
             attachedFileName = file.name;
             
             const reader = new FileReader();
-            
             if (file.type.startsWith('image/')) {
                 reader.onload = function(e) {
-                    attachedFileContent = "\n\n[IMAGEM_BASE64: " + e.target.result + "]\n";
+                    attachedFileContent = "\\n\\n[IMAGEM_BASE64: " + e.target.result + "]\\n";
                 };
                 reader.readAsDataURL(file); 
             } else {
                 reader.onload = function(e) {
-                    attachedFileContent = "\n\n[INÍCIO DO ARQUIVO ANEXADO: " + file.name + "]\n```\n" + e.target.result + "\n```\n[FIM DO ARQUIVO ANEXADO]\n";
+                    attachedFileContent = "\\n\\n[INÍCIO DO ARQUIVO ANEXADO: " + file.name + "]\\n```\\n" + e.target.result + "\\n```\\n[FIM DO ARQUIVO ANEXADO]\\n";
                 };
                 reader.readAsText(file);
             }
@@ -580,11 +560,10 @@ HTML_TEMPLATE = r"""
             document.getElementById("sendBtn").style.display = "none";
             document.getElementById("stopBtn").style.display = "block";
             document.getElementById("stopBtn").innerText = "PARAR";
-            
             const div = document.createElement("div");
             div.id = "thinking";
             div.className = "msg r2-msg";
-            div.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
+            div.innerHTML = "<div class='typing'><span></span><span></span><span></span></div>";
             chat.appendChild(div);
             scrollToBottom();
         }
@@ -604,9 +583,9 @@ HTML_TEMPLATE = r"""
             
             let userDisplayHtml = text;
             if (attachedFileName) {
-                userDisplayHtml = `<div style="font-size:0.8em; color:#aaa; margin-bottom:5px;">📎 Arquivo: ${attachedFileName}</div>` + text;
+                userDisplayHtml = "<div style='font-size:0.8em; color:#aaa; margin-bottom:5px;'>📎 Arquivo: " + attachedFileName + "</div>" + text;
             }
-            chat.innerHTML += `<div class="msg user-msg">${userDisplayHtml.replace(/\\n/g, '<br>')}</div>`;
+            chat.innerHTML += "<div class='msg user-msg'>" + userDisplayHtml.replace(/\\n/g, '<br>') + "</div>";
             
             let finalPayload = text;
             if (attachedFileContent) { finalPayload += attachedFileContent; removeFile(); }
@@ -619,8 +598,7 @@ HTML_TEMPLATE = r"""
         function executarModulo(comando_oculto, rotulo_visual) {
             const menu = document.getElementById('side-menu');
             if (menu.classList.contains('open')) { toggleMenu(); }
-            
-            chat.innerHTML += `<div class="msg user-msg" style="color:var(--neon); border-color:var(--neon);">${rotulo_visual}</div>`;
+            chat.innerHTML += "<div class='msg user-msg' style='color:var(--neon); border-color:var(--neon);'>" + rotulo_visual + "</div>";
             ws.send(comando_oculto);
             showThinking();
         }
