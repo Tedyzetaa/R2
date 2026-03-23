@@ -102,7 +102,7 @@ class UltraVisualCore:
         self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
 
         if self.device == "cuda":
-            self.pipe.vae.to(torch.float32)
+            # A LINHA ASSASSINA (self.pipe.vae.to(torch.float32)) FOI REMOVIDA DAQUI
             self.pipe.enable_model_cpu_offload()
             self.pipe.vae.enable_slicing()
             self.pipe.vae.enable_tiling()
@@ -134,6 +134,7 @@ class UltraVisualCore:
     def generate(self, prompt_text, ip_image=None):
         if not self.pipe: self.load_engine()
         
+        # Limpeza agressiva de RAM antes da geração
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -159,7 +160,7 @@ class UltraVisualCore:
                 self.pipe.set_ip_adapter_scale(0.0)
 
         print(f"🎬 [VISUAL]: Renderizando imagem...")
-        with torch.autocast(self.device):
+        with torch.inference_mode(), torch.autocast(self.device):
             image = self.pipe(
                 positive, 
                 negative_prompt=negative, 
@@ -290,7 +291,7 @@ img_ops = UltraVisualCore()
 try:
     from llama_cpp import Llama
     print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural...")
-    # REDUZIDO: 4096 contexto e 10 layers. Isso impede a morte do Colab por falta de VRAM!
+    # AGORA SIM! MEMÓRIA BLINDADA EM 4096 E 10 LAYERS!
     ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=4096, n_gpu_layers=10, verbose=False)
 except Exception as e:
     print(f"❌ Erro ao iniciar IA de Texto: {e}")
@@ -425,7 +426,7 @@ HTML_TEMPLATE = """
         <div id="chat">
             <div class="msg sys-msg">
                 SISTEMA INICIADO (COLAB MODE ESTÁVEL).<br>
-                Memória de Leitura otimizada para impedir falhas na Renderização de Imagens.
+                Pronto para gerar Imagens.
             </div>
         </div>
     </div>
