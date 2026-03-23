@@ -281,7 +281,6 @@ async def stop_generation():
     STOP_GEN = True
     return {"status": "ok"}
 
-# HTML BLINDADO SEM STRING INTERPOLATION DO JS PARA EVITAR CRASH NO PYTHON
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -431,7 +430,6 @@ HTML_TEMPLATE = """
             const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
             const highlighted = hljs.highlight(code, { language: validLanguage }).value;
             
-            // Construção segura de DOM sem usar crases que crashem o Python
             return "<div class='code-container'>" +
                    "<div class='code-header'>" +
                    "<span class='code-lang'>" + (language || 'código') + "</span>" +
@@ -503,7 +501,7 @@ HTML_TEMPLATE = """
             else if (data.type === "image") {
                 removeThinking();
                 let txt = data.text ? marked.parse(data.text) : "";
-                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<img src='" + data.url + "'></div>";
+                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<img src='" + data.url + "' style='max-width:100%; border-radius:8px; border:1px solid #00ff00;'></div>";
                 scrollToBottom();
             }
         };
@@ -664,6 +662,19 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "system", "text": f"🎨 Renderizando SDXL do zero: '{prompt_img}'..."})
                 
                 if img_ops:
+                    geracao_ativa = [True]
+                    
+                    # CORREÇÃO CRÍTICA DO NGROK (HEARTBEAT)
+                    async def keep_alive():
+                        while geracao_ativa[0]:
+                            try:
+                                await websocket.send_json({"type": "stream", "text": "█ "})
+                                await asyncio.sleep(4)
+                            except:
+                                break
+                                
+                    asyncio.create_task(keep_alive())
+                    
                     def render_task():
                         if not img_ops.pipe: img_ops.load_engine()
                         img = img_ops.generate(prompt_img, ip_image=pil_image)
@@ -674,9 +685,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                     try:
                         img_path = await asyncio.to_thread(render_task)
-                        await websocket.send_json({"type": "image", "url": f"/{img_path}", "text": "✅ Imagem gerada."})
-                        await websocket.send_json({"type": "done"})
+                        geracao_ativa[0] = False
+                        await websocket.send_json({"type": "done"}) 
+                        await websocket.send_json({"type": "image", "url": f"/{img_path}", "text": "✅ Renderização Concluída."})
                     except Exception as e:
+                        geracao_ativa[0] = False
+                        await websocket.send_json({"type": "done"}) 
                         await websocket.send_json({"type": "system", "text": f"❌ Erro visual: {e}"})
                 continue
 
