@@ -12,11 +12,13 @@ from io import BytesIO
 from PIL import Image
 
 # ==========================================
-# 🔑 CHAVE DO NGROK (PREENCHA AQUI)
+# 🔑 CHAVE DO NGROK
 # ==========================================
 NGROK_TOKEN = "3BK9gGa1BTbrq0GBMEG3uqF8UJF_7LEU7pdisYtzHcmc8XVjU"
 
-# Desativa a exigência de privilégios de Administrador
+# Chave API gratuita do ImgBB (Upload anónimo e imediato)
+IMGBB_API_KEY = "1e8f2979268ce20b4ec749f1db774be0" 
+
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 
@@ -68,7 +70,7 @@ import numpy as np
 STOP_GEN = False
 
 # ==========================================
-# 🎨 2. MOTOR VISUAL SDXL
+# 🎨 2. MOTOR VISUAL SDXL (COM CLOUD UPLOAD)
 # ==========================================
 import torch
 from diffusers import StableDiffusionXLPipeline, EulerAncestralDiscreteScheduler
@@ -132,7 +134,6 @@ class UltraVisualCore:
     def generate(self, prompt_text, ip_image=None):
         if not self.pipe: self.load_engine()
         
-        # LIMPEZA DE MEMÓRIA CRÍTICA ANTES DE GERAR (EVITA MORTE DO COLAB)
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -177,17 +178,40 @@ class UltraVisualCore:
                 image = ad_main(self.pipe, image, common_args=common_args, ad_args=ad_args).images[0]
             except Exception as e:
                 print(f"⚠️ Aviso Face Fix: {e}")
+                
+        # --- UPLOAD INVISÍVEL PARA A NUVEM (IMGBB) ---
+        print("☁️ [VISUAL]: Fazendo upload para a nuvem de entrega...")
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG", quality=90)
+        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        
+        try:
+            res = requests.post(
+                "https://api.imgbb.com/1/upload",
+                data={"key": IMGBB_API_KEY, "image": img_b64},
+                timeout=15
+            ).json()
+            if res.get("success"):
+                final_url = res["data"]["url"]
+                print(f"✅ Upload concluído: {final_url}")
+                return final_url
+        except Exception as e:
+            print(f"❌ Erro no upload: {e}")
             
-        return image
+        # Fallback local (caso o upload falhe)
+        nome = f"render_{int(time.time())}.jpg"
+        path = f"static/media/{nome}"
+        image.save(path)
+        return f"/{path}"
 
 # ==========================================
 # 📥 3. GESTÃO DE MATRIZES NEURAIS
 # ==========================================
 def baixar_modelos():
     from huggingface_hub import hf_hub_download
-    print("\n🧠 Checando Matrizes Neurais...")
+    print("\n🧠 Checando Matrizes Neurais (Texto e Visão)...")
     
-    paths = {"models": "models"}
+    paths = {"models": "models", "loras": os.path.join("models", "loras"), "checkpoints": os.path.join("models", "checkpoints")}
     for p in paths.values(): os.makedirs(p, exist_ok=True)
     
     repo_dolphin = "bartowski/Dolphin3.0-Llama3.1-8B-GGUF"
@@ -226,16 +250,46 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path: sys.path.insert(0, BASE_DIR)
 os.makedirs("static/media", exist_ok=True)
 
 print("\n🔄 [SISTEMA] Carregando módulos táticos...")
+
+def safe_import(module_name, class_name):
+    try:
+        mod = __import__(f"features.{module_name}", fromlist=[class_name])
+        return getattr(mod, class_name)
+    except Exception:
+        return None
+
+WeatherSystem = safe_import("weather_system", "WeatherSystem")
+RadarAereoAPI = safe_import("radar_api", "RadarAereoAPI")
+IntelWar = safe_import("intel_war", "IntelWar")
+VolcanoMonitor = safe_import("volcano_monitor", "VolcanoMonitor")
+GeoSeismicSystem = safe_import("geo_seismic", "GeoSeismicSystem")
+AstroDefense = safe_import("astro_defense", "AstroDefenseSystem")
+RadioScanner = safe_import("radio_scanner", "RadioScanner")
+GeopoliticsManager = safe_import("geopolitics", "GeopoliticsManager")
+SpeedTestModule = safe_import("net_speed", "SpeedTestModule")
+SystemScanner = safe_import("system_scanner", "SystemScanner")
+
+clima_ops = WeatherSystem(api_key="SUA_CHAVE_AQUI") if WeatherSystem else None
+radar_ops = RadarAereoAPI() if RadarAereoAPI else None
+intel_ops = IntelWar() if IntelWar else None
+vulcao_ops = VolcanoMonitor() if VolcanoMonitor else None
+sismo_ops = GeoSeismicSystem() if GeoSeismicSystem else None
+astro_ops = AstroDefense() if AstroDefense else None
+radio_ops = RadioScanner() if RadioScanner else None
+news_ops = GeopoliticsManager() if GeopoliticsManager else None
+speed_ops = SpeedTestModule() if SpeedTestModule else None
+sys_scan_ops = SystemScanner() if SystemScanner else None
 
 img_ops = UltraVisualCore()
 
 try:
     from llama_cpp import Llama
     print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural...")
-    # REDUZIDO PARA 8192 PARA EVITAR A MORTE DO SERVIDOR COLAB DURANTE IMAGENS
     ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=8192, n_gpu_layers=20, verbose=False)
 except Exception as e:
     print(f"❌ Erro ao iniciar IA de Texto: {e}")
@@ -369,8 +423,8 @@ HTML_TEMPLATE = """
     <div id="chat-wrapper">
         <div id="chat">
             <div class="msg sys-msg">
-                SISTEMA INICIADO (COLAB MODE ESTÁVEL).<br>
-                Botões e atalhos otimizados para Programação e Geração de Imagens.
+                SISTEMA INICIADO (CLOUD DELIVERY MODE).<br>
+                Pronto para gerar Imagens e processar Textos Extensos.
             </div>
         </div>
     </div>
@@ -468,10 +522,10 @@ HTML_TEMPLATE = """
                 scrollToBottom();
             }
             else if (data.type === "image") {
+                // A IMAGEM AGORA VEM DIRETA DO IMGBB, SEM PESAR O NGROK
                 removeThinking();
                 let txt = data.text ? marked.parse(data.text) : "";
-                // AGORA USAMOS A URL LIMPA DO ARQUIVO SALVO NO DISCO
-                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<img src='" + data.url + "' style='max-width:100%; border-radius:8px; border:1px solid #00ff00;'></div>";
+                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<br><img src='" + data.url + "' style='max-width:100%; border-radius:8px; border:1px solid #00ff00; margin-top:10px;'></div>";
                 scrollToBottom();
             }
         };
@@ -651,16 +705,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     asyncio.create_task(keep_alive())
                     
                     def render_task():
-                        if not img_ops.pipe: img_ops.load_engine()
-                        img = img_ops.generate(prompt_img, ip_image=pil_image)
-                        
-                        nome = f"render_{int(time.time())}.jpg"
-                        path = f"static/media/{nome}"
-                        img.save(path, format="JPEG", quality=90)
-                        return path
+                        return img_ops.generate(prompt_img, ip_image=pil_image)
                         
                     try:
-                        img_path = await asyncio.to_thread(render_task)
+                        final_image_url = await asyncio.to_thread(render_task)
                     except Exception as e:
                         geracao_ativa[0] = False
                         await safe_send({"type": "done"}) 
@@ -669,7 +717,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                     geracao_ativa[0] = False
                     await safe_send({"type": "done"}) 
-                    await safe_send({"type": "image", "url": f"/{img_path}", "text": "✅ Renderização Concluída."})
+                    await safe_send({"type": "image", "url": final_image_url, "text": "✅ Renderização e Upload Concluídos."})
                     
                 continue
 
@@ -731,6 +779,33 @@ async def websocket_endpoint(websocket: WebSocket):
                 except Exception as e:
                     await safe_send({"type": "system", "text": f"❌ Erro na Visão: {e}"})
                 
+                continue
+
+            # ==========================================
+            # 🕹️ COMANDOS TÁTICOS (/cmd)
+            # ==========================================
+            elif cmd_lower.startswith("/cmd "):
+                acao = cmd_lower.replace("/cmd ", "")
+                
+                if acao == "radar" and radar_ops:
+                    await safe_send({"type": "system", "text": "📡 Acessando OpenSky Network..."})
+                    msg, caminho_img = await asyncio.to_thread(radar_ops.gerar_radar, "Ivinhema")
+                    if caminho_img and os.path.exists(caminho_img):
+                        novo_caminho = f"static/media/radar_{int(time.time())}.png"
+                        os.replace(caminho_img, novo_caminho)
+                        await safe_send({"type": "image", "url": f"/{novo_caminho}", "text": msg})
+                    else:
+                        await safe_send({"type": "system", "text": msg})
+                    continue
+
+                elif acao == "clima" and clima_ops:
+                    await safe_send({"type": "system", "text": "⛈️ Conectando satélites..."})
+                    resultado = await asyncio.to_thread(clima_ops.obter_clima, "Ivinhema ms")
+                    await safe_send({"type": "stream", "text": resultado})
+                    await safe_send({"type": "done"})
+                    continue
+                    
+                await safe_send({"type": "system", "text": f"⚠️ Comando tático '{acao}' executado sem retorno visual."})
                 continue
 
             # ==========================================
