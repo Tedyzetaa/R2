@@ -498,10 +498,11 @@ HTML_TEMPLATE = """
                 chat.innerHTML += "<div class='msg sys-msg'>" + data.text.replace(/\\n/g, '<br>') + "</div>";
                 scrollToBottom();
             }
-            else if (data.type === "image") {
+            else if (data.type === "image_base64") {
+                // ROTA NOVA: APANHA A IMAGEM EM BASE64 DIRECTA
                 removeThinking();
                 let txt = data.text ? marked.parse(data.text) : "";
-                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<img src='" + data.url + "' style='max-width:100%; border-radius:8px; border:1px solid #00ff00;'></div>";
+                chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<img src='" + data.b64 + "' style='max-width:100%; border-radius:8px; border:1px solid #00ff00;'></div>";
                 scrollToBottom();
             }
         };
@@ -664,7 +665,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 if img_ops:
                     geracao_ativa = [True]
                     
-                    # CORREÇÃO CRÍTICA DO NGROK (HEARTBEAT)
                     async def keep_alive():
                         while geracao_ativa[0]:
                             try:
@@ -678,16 +678,20 @@ async def websocket_endpoint(websocket: WebSocket):
                     def render_task():
                         if not img_ops.pipe: img_ops.load_engine()
                         img = img_ops.generate(prompt_img, ip_image=pil_image)
-                        nome = f"render_{int(time.time())}.png"
-                        path = f"static/media/{nome}"
-                        img.save(path)
-                        return path
+                        
+                        # O SEGREDO ESTÁ AQUI: Convertemos a imagem gerada de volta para Base64
+                        buffered = BytesIO()
+                        img.save(buffered, format="JPEG", quality=85)
+                        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                        return "data:image/jpeg;base64," + img_str
                         
                     try:
-                        img_path = await asyncio.to_thread(render_task)
+                        b64_resultado = await asyncio.to_thread(render_task)
                         geracao_ativa[0] = False
                         await websocket.send_json({"type": "done"}) 
-                        await websocket.send_json({"type": "image", "url": f"/{img_path}", "text": "✅ Renderização Concluída."})
+                        
+                        # Envia a matemática da imagem crua para o ecrã
+                        await websocket.send_json({"type": "image_base64", "b64": b64_resultado, "text": "✅ Renderização Concluída."})
                     except Exception as e:
                         geracao_ativa[0] = False
                         await websocket.send_json({"type": "done"}) 
