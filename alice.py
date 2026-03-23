@@ -198,7 +198,7 @@ class UltraVisualCore:
         except Exception as e:
             print(f"❌ Erro no upload: {e}")
             
-        # Fallback local (caso o upload falhe)
+        # Fallback local
         nome = f"render_{int(time.time())}.jpg"
         path = f"static/media/{nome}"
         image.save(path)
@@ -209,7 +209,7 @@ class UltraVisualCore:
 # ==========================================
 def baixar_modelos():
     from huggingface_hub import hf_hub_download
-    print("\n🧠 Checando Matrizes Neurais (Texto e Visão)...")
+    print("\n🧠 Checando Matrizes Neurais...")
     
     paths = {"models": "models", "loras": os.path.join("models", "loras"), "checkpoints": os.path.join("models", "checkpoints")}
     for p in paths.values(): os.makedirs(p, exist_ok=True)
@@ -290,7 +290,8 @@ img_ops = UltraVisualCore()
 try:
     from llama_cpp import Llama
     print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural...")
-    ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=8192, n_gpu_layers=20, verbose=False)
+    # REDUZIDO: 4096 contexto e 10 layers. Isso impede a morte do Colab por falta de VRAM!
+    ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=4096, n_gpu_layers=10, verbose=False)
 except Exception as e:
     print(f"❌ Erro ao iniciar IA de Texto: {e}")
     ai_brain = None
@@ -423,8 +424,8 @@ HTML_TEMPLATE = """
     <div id="chat-wrapper">
         <div id="chat">
             <div class="msg sys-msg">
-                SISTEMA INICIADO (CLOUD DELIVERY MODE).<br>
-                Pronto para gerar Imagens e processar Textos Extensos.
+                SISTEMA INICIADO (COLAB MODE ESTÁVEL).<br>
+                Memória de Leitura otimizada para impedir falhas na Renderização de Imagens.
             </div>
         </div>
     </div>
@@ -522,7 +523,6 @@ HTML_TEMPLATE = """
                 scrollToBottom();
             }
             else if (data.type === "image") {
-                // A IMAGEM AGORA VEM DIRETA DO IMGBB, SEM PESAR O NGROK
                 removeThinking();
                 let txt = data.text ? marked.parse(data.text) : "";
                 chat.innerHTML += "<div class='msg r2-msg'>" + txt + "<br><img src='" + data.url + "' style='max-width:100%; border-radius:8px; border:1px solid #00ff00; margin-top:10px;'></div>";
@@ -634,7 +634,7 @@ async def serve_gui():
     return HTML_TEMPLATE
 
 # ==========================================
-# 🧠 6. ROTEADOR LÓGICO (WEBSOCKET COM VISÃO)
+# 🧠 6. ROTEADOR LÓGICO (WEBSOCKET)
 # ==========================================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -700,7 +700,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     async def keep_alive():
                         while geracao_ativa[0]:
                             await safe_send({"type": "stream", "text": "█ "})
-                            await asyncio.sleep(2.5) 
+                            await asyncio.sleep(3) 
                                 
                     asyncio.create_task(keep_alive())
                     
@@ -712,12 +712,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     except Exception as e:
                         geracao_ativa[0] = False
                         await safe_send({"type": "done"}) 
-                        await safe_send({"type": "system", "text": f"❌ Erro visual: {e}"})
+                        await safe_send({"type": "system", "text": f"❌ Erro visual/Memória Esgotada: {e}"})
                         continue
                         
                     geracao_ativa[0] = False
                     await safe_send({"type": "done"}) 
-                    await safe_send({"type": "image", "url": final_image_url, "text": "✅ Renderização e Upload Concluídos."})
+                    await safe_send({"type": "image", "url": final_image_url, "text": "✅ Processamento e Entrega concluídos."})
                     
                 continue
 
@@ -782,33 +782,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             # ==========================================
-            # 🕹️ COMANDOS TÁTICOS (/cmd)
-            # ==========================================
-            elif cmd_lower.startswith("/cmd "):
-                acao = cmd_lower.replace("/cmd ", "")
-                
-                if acao == "radar" and radar_ops:
-                    await safe_send({"type": "system", "text": "📡 Acessando OpenSky Network..."})
-                    msg, caminho_img = await asyncio.to_thread(radar_ops.gerar_radar, "Ivinhema")
-                    if caminho_img and os.path.exists(caminho_img):
-                        novo_caminho = f"static/media/radar_{int(time.time())}.png"
-                        os.replace(caminho_img, novo_caminho)
-                        await safe_send({"type": "image", "url": f"/{novo_caminho}", "text": msg})
-                    else:
-                        await safe_send({"type": "system", "text": msg})
-                    continue
-
-                elif acao == "clima" and clima_ops:
-                    await safe_send({"type": "system", "text": "⛈️ Conectando satélites..."})
-                    resultado = await asyncio.to_thread(clima_ops.obter_clima, "Ivinhema ms")
-                    await safe_send({"type": "stream", "text": resultado})
-                    await safe_send({"type": "done"})
-                    continue
-                    
-                await safe_send({"type": "system", "text": f"⚠️ Comando tático '{acao}' executado sem retorno visual."})
-                continue
-
-            # ==========================================
             # 🧠 FALLBACK: CÉREBRO DE TEXTO (Dolphin)
             # ==========================================
             elif ai_brain:
@@ -846,7 +819,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     print("\n" + "="*50)
-    print("🚀 INICIANDO R2 WEB OS (COLAB MODE)")
+    print("🚀 INICIANDO R2 WEB OS (COLAB MODE ESTÁVEL)")
     print("="*50)
     
     try:
