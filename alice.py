@@ -27,7 +27,6 @@ def garantir_ambiente_colab():
     print("⚙️ [BOOTSTRAP] PREPARANDO AMBIENTE GOOGLE COLAB")
     print("="*50)
     
-    # 1. Instalação forçada do LLaMA com aceleração de GPU (CUDA)
     try:
         import llama_cpp
     except ImportError:
@@ -263,7 +262,6 @@ img_ops = UltraVisualCore()
 try:
     from llama_cpp import Llama
     print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural...")
-    # Mantido em 16384. n_gpu_layers=25 evita que a memória da GPU no Colab estoure antes da geração de imagem
     ai_brain = Llama(model_path=CAMINHO_TEXTO, n_ctx=16384, n_gpu_layers=25, verbose=False)
 except Exception as e:
     print(f"❌ Erro ao iniciar IA de Texto: {e}")
@@ -285,7 +283,8 @@ async def stop_generation():
     STOP_GEN = True
     return {"status": "ok"}
 
-HTML_TEMPLATE = """
+# O r indica uma string raw no Python, evitando problemas com os \n e \r do HTML/JS
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -331,7 +330,6 @@ HTML_TEMPLATE = """
         .sys-msg { align-self: center; background: rgba(255, 0, 0, 0.1); border: 1px solid rgba(255, 0, 0, 0.3); color: #ff6666; font-style: italic; font-size: 0.9em; text-align: center; max-width: 80%; }
         .r2-msg img { max-width: 100%; height: auto; border: 1px solid var(--neon-green); margin-top: 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,0,0.2);}
         
-        /* DESIGN DOS BLOCOS DE CÓDIGO */
         .code-container { margin: 15px 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 255, 255, 0.3); background: #0a0a0f; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .code-header { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 51, 51, 0.8); padding: 8px 15px; border-bottom: 1px solid rgba(0, 255, 255, 0.2); }
         .code-lang { color: var(--neon); font-family: 'Courier New', monospace; font-size: 0.85em; text-transform: uppercase; font-weight: bold; }
@@ -418,7 +416,7 @@ HTML_TEMPLATE = """
         <div id="chat">
             <div class="msg sys-msg">
                 SISTEMA INICIADO (COLAB MODE).<br>
-                Botões e atalhos otimizados para Programação e Pesquisa Tática (RAG Offline).
+                Botões e atalhos otimizados para Programação e Geração de Imagens.
             </div>
         </div>
     </div>
@@ -444,7 +442,6 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        // CONFIGURAÇÃO DO RENDERIZADOR CUSTOMIZADO PARA CÓDIGO
         const renderer = new marked.Renderer();
         renderer.code = function(code, language) {
             const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
@@ -460,10 +457,9 @@ HTML_TEMPLATE = """
         };
         marked.setOptions({ renderer: renderer });
 
-        // FUNÇÃO PARA COPIAR O CÓDIGO
         function copyCode(btn) {
             const codeElement = btn.parentElement.nextElementSibling.querySelector('code');
-            const textToCopy = codeElement.innerText; // Extrai o texto limpo sem tags HTML
+            const textToCopy = codeElement.innerText; 
             
             navigator.clipboard.writeText(textToCopy).then(() => {
                 const originalText = btn.innerText;
@@ -561,12 +557,12 @@ HTML_TEMPLATE = """
             
             if (file.type.startsWith('image/')) {
                 reader.onload = function(e) {
-                    attachedFileContent = `\\n\\n[IMAGEM_BASE64: ${e.target.result}]\\n`;
+                    attachedFileContent = "\n\n[IMAGEM_BASE64: " + e.target.result + "]\n";
                 };
                 reader.readAsDataURL(file); 
             } else {
                 reader.onload = function(e) {
-                    attachedFileContent = `\\n\\n[INÍCIO DO ARQUIVO ANEXADO: ${file.name}]\\n\`\`\`\\n${e.target.result}\\n\`\`\`\\n[FIM DO ARQUIVO ANEXADO]\\n`;
+                    attachedFileContent = "\n\n[INÍCIO DO ARQUIVO ANEXADO: " + file.name + "]\n```\n" + e.target.result + "\n```\n[FIM DO ARQUIVO ANEXADO]\n";
                 };
                 reader.readAsText(file);
             }
