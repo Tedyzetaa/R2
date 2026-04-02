@@ -12,31 +12,16 @@ import shutil
 from io import BytesIO
 from PIL import Image
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-from pyngrok import ngrok 
-
-# ==========================================
-# 🔑 CONFIGURAÇÃO DO NGROK
-# ==========================================
-# Insira seu token do dashboard.ngrok.com aqui
-NGROK_TOKEN = "COLE_SEU_TOKEN_AQUI"
-
-# Desativa avisos de Administrador para downloads no Windows
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 
 # ==========================================
 # 🛠️ 1. MOTOR DE AUTO-INSTALAÇÃO (BOOTSTRAP)
 # ==========================================
 def garantir_ambiente():
     print("\n" + "="*50)
-    print("⚙️ [BOOTSTRAP] SINCRONIZANDO ARSENAL TÁTICO")
+    print("⚙️ [BOOTSTRAP] PREPARANDO AMBIENTE SUPREMO")
     print("="*50)
     
+    # Lista de dependências de alto calibre
     deps = [
         "fastapi", "uvicorn", "websockets", "python-multipart", 
         "huggingface_hub", "requests", "psutil", "python-dotenv", 
@@ -47,18 +32,40 @@ def garantir_ambiente():
     ]
     
     for package in deps:
-        import_name = package.replace("-", "_").replace("python-dotenv", "dotenv").replace("opencv-python", "cv2")
-        if "<" in import_name: import_name = import_name.split("<")[0]
         try:
-            __import__(import_name)
+            name = package.split('<')[0] if '<' in package else package
+            __import__(name.replace("-", "_").replace("python-dotenv", "dotenv").replace("opencv-python", "cv2"))
         except ImportError:
-            print(f"📦 Equipando R2 com: {package}...")
+            print(f"📦 Instalando componente: {package}...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
 
+# Executa o bootstrap antes de qualquer importação especial
 garantir_ambiente()
 
 # ==========================================
-# 📂 2. GESTOR DE MÓDULOS (PASTA FEATURES)
+# 📂 2. IMPORTAÇÕES PÓS-INSTALAÇÃO
+# ==========================================
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+from pyngrok import ngrok 
+import torch
+from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler
+from transformers import CLIPVisionModelWithProjection
+
+# ==========================================
+# 🔑 CONFIGURAÇÃO DO NGROK
+# ==========================================
+NGROK_TOKEN = "COLE_SEU_TOKEN_DO_NGROK_AQUI"
+
+# Desativa avisos de Administrador
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
+
+# ==========================================
+# 📂 3. GESTOR DE MÓDULOS (PASTA FEATURES)
 # ==========================================
 def safe_import(module_name, class_name):
     try:
@@ -66,10 +73,10 @@ def safe_import(module_name, class_name):
         mod = importlib.import_module(f"features.{module_name}")
         return getattr(mod, class_name)
     except Exception as e:
-        print(f"⚠️ Alerta: Módulo {class_name} ({module_name}) indisponível.")
+        print(f"⚠️ Alerta: Módulo {class_name} ({module_name}) indisponível: {e}")
         return None
 
-# Importação do Arsenal Tático
+# Importação do Arsenal
 OrbitalSystem = safe_import("orbital_system", "OrbitalSystem")
 RadarAereoAPI = safe_import("radar_api", "RadarAereoAPI")
 AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
@@ -82,7 +89,7 @@ MarketSystem = safe_import("market_system", "MarketSystem")
 NewsBriefing = safe_import("news_briefing", "NewsBriefing")
 
 # ==========================================
-# 📚 3. NÚCLEO RAG (PROCESSADOR DE PDFs)
+# 📚 4. NÚCLEO RAG (PROCESSADOR DE PDFs)
 # ==========================================
 class KnowledgeBase:
     def __init__(self, docs_dir="static/docs"):
@@ -101,23 +108,23 @@ class KnowledgeBase:
         
         self.chunks = []
         pdf_files = [f for f in os.listdir(self.docs_dir) if f.lower().endswith('.pdf')]
-        if not pdf_files: return "⚠️ Nenhum PDF encontrado na pasta static/docs."
+        if not pdf_files: return "⚠️ Nenhum PDF encontrado em static/docs."
         
         for pdf_file in pdf_files:
             try:
                 with open(os.path.join(self.docs_dir, pdf_file), 'rb') as f:
                     reader = PyPDF2.PdfReader(f)
-                    text = "".join([p.extract_text() for p in reader.pages if p.extract_text()])
+                    text = "".join([p.extract_text() or "" for p in reader.pages])
                     for i in range(0, len(text), 800):
                         chunk = text[i:i+1000].strip()
                         if len(chunk) > 50: self.chunks.append(f"[Fonte: {pdf_file}] {chunk}")
             except: continue
         
-        if not self.chunks: return "⚠️ Falha ao processar documentos."
+        if not self.chunks: return "⚠️ Falha ao ler PDFs (podem estar corrompidos ou protegidos)."
         embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True)
         self.index = faiss.IndexFlatL2(embeddings.shape[1])
         self.index.add(embeddings)
-        return f"✅ Cérebro Atualizado! {len(pdf_files)} PDFs integrados à rede neural."
+        return f"✅ Cérebro Atualizado! {len(pdf_files)} arquivos integrados à base."
 
     def search(self, query):
         if not self.index: return None
@@ -126,12 +133,8 @@ class KnowledgeBase:
         return "\n\n".join([self.chunks[idx] for idx in indices[0] if idx < len(self.chunks)])
 
 # ==========================================
-# 🎨 4. MOTOR VISUAL (UNFILTERED v2.1)
+# 🎨 5. MOTOR VISUAL (UNFILTERED v2.1)
 # ==========================================
-import torch
-from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler
-from transformers import CLIPVisionModelWithProjection
-
 class UltraVisualCore:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -150,7 +153,7 @@ class UltraVisualCore:
         self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
         if self.device == "cuda":
             self.pipe.enable_model_cpu_offload()
-        print("✅ Motor visual sem filtros operacional.")
+        print("✅ Motor visual operacional.")
 
     def generate(self, prompt):
         if not self.pipe: self.load_engine()
@@ -159,13 +162,14 @@ class UltraVisualCore:
         
         positive = f"photo of {prompt}, ultra detailed, realistic skin, 8k, raw"
         with torch.inference_mode(), torch.autocast(self.device):
-            # Resolução v1.5 ideal: 512x768
+            # Resolução ideal para SD 1.5
             image = self.pipe(positive, num_inference_steps=30, height=768, width=512, guidance_scale=7.5).images[0]
         return image
 
 # ==========================================
-# 🧠 5. INICIALIZAÇÃO DE SISTEMAS
+# 🧠 6. INICIALIZAÇÃO DE SISTEMAS
 # ==========================================
+os.makedirs("static/media", exist_ok=True)
 rag_ops = KnowledgeBase()
 img_ops = UltraVisualCore()
 iss_ops = OrbitalSystem() if OrbitalSystem else None
@@ -185,10 +189,9 @@ try:
 except: ai_brain = None
 
 # ==========================================
-# 🌐 6. INTERFACE WEB (FASTAPI + KEBAB MENU)
+# 🌐 7. SERVIDOR WEB E INTERFACE (MENU KEBAB)
 # ==========================================
 app = FastAPI()
-os.makedirs("static/media", exist_ok=True)
 app.add_middleware(CORSMiddleware, allow_origins=["*"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -208,7 +211,7 @@ HTML_TEMPLATE = """
         .kebab { cursor: pointer; padding: 10px; font-size: 24px; color: var(--neon); font-weight: bold; }
         #tactical-panel { position: absolute; top: 60px; right: 20px; background: var(--panel); border: 1px solid var(--neon); border-radius: 8px; width: 280px; display: none; flex-direction: column; padding: 10px; z-index: 1000; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
         #tactical-panel.show { display: flex; }
-        .btn { background: rgba(255,255,255,0.05); border: 1px solid #333; color: #fff; padding: 10px; margin: 3px 0; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; transition: 0.2s; }
+        .btn { background: rgba(255,255,255,0.05); border: 1px solid #333; color: #fff; padding: 10px; margin: 3px 0; border-radius: 4px; cursor: pointer; text-align: left; font-size: 12px; }
         .btn:hover { background: var(--neon); color: #000; font-weight: bold; }
         #chat-wrapper { flex: 1; overflow-y: auto; padding: 25px; display: flex; flex-direction: column; gap: 20px; }
         .msg { max-width: 85%; padding: 15px; border-radius: 12px; line-height: 1.6; font-size: 15px; }
@@ -225,7 +228,7 @@ HTML_TEMPLATE = """
         <h2 style="color:var(--neon); margin:0; letter-spacing:2px;">⚡ R2 TACTICAL OS</h2>
         <div class="kebab" onclick="toggleMenu()">⋮</div>
         <div id="tactical-panel">
-            <button class="btn" style="color:gold; border-color:gold;" onclick="exec('/doc sync')">🧠 SINCRONIZAR PDFs (RAG)</button>
+            <button class="btn" style="color:gold; border-color:gold;" onclick="exec('/doc sync')">🧠 SINCRONIZAR PDFs</button>
             <button class="btn" onclick="exec('/cmd radar')">📡 RADAR AÉREO</button>
             <button class="btn" onclick="exec('/cmd iss')">🛰️ RASTREAR ISS</button>
             <button class="btn" onclick="exec('/cmd solar')">☀️ MONITOR SOLAR (NOAA)</button>
@@ -257,22 +260,22 @@ HTML_TEMPLATE = """
         };
         let curDiv = null; let curRaw = "";
         function appendBot(t) {
-            if(!curDiv) { curDiv = document.createElement("div"); curDiv.className = "msg r2-msg"; chat.appendChild(curDiv); }
+            if(!curDiv) { curDiv = document.createElement(\"div\"); curDiv.className = \"msg r2-msg\"; document.getElementById(\"chat\").appendChild(curDiv); }
             curRaw += t; curDiv.innerHTML = marked.parse(curRaw);
             chatWrap.scrollTo(0, chatWrap.scrollHeight);
         }
         function addMsg(t, c) {
-            const d = document.createElement("div"); d.className = "msg " + c; d.innerText = t; 
-            chat.appendChild(d); chatWrap.scrollTo(0, chatWrap.scrollHeight);
+            const d = document.createElement(\"div\"); d.className = \"msg \" + c; d.innerText = t; 
+            document.getElementById(\"chat\").appendChild(d); chatWrap.scrollTo(0, chatWrap.scrollHeight);
         }
         function addImg(u, t) {
             if(!u) return;
-            const d = document.createElement("div"); d.className = "msg r2-msg";
-            d.innerHTML = `<b>${t}</b><br><img src="${u}">`;
-            chat.appendChild(d); chatWrap.scrollTo(0, chatWrap.scrollHeight);
+            const d = document.createElement(\"div\"); d.className = \"msg r2-msg\";
+            d.innerHTML = `<b>${t}</b><br><img src=\"${u}\">`;
+            document.getElementById(\"chat\").appendChild(d); chatWrap.scrollTo(0, chatWrap.scrollHeight);
         }
-        function finalize() { curDiv = null; curRaw = ""; }
-        function send() { const b = document.getElementById("msgBox"); if(b.value) { ws.send(b.value); addMsg(b.value, 'user-msg'); b.value = ""; } }
+        function finalize() { curDiv = null; curRaw = \"\"; }
+        function send() { const b = document.getElementById(\"msgBox\"); if(b.value) { ws.send(b.value); addMsg(b.value, 'user-msg'); b.value = \"\"; } }
     </script>
 </body>
 </html>
@@ -282,7 +285,7 @@ HTML_TEMPLATE = """
 async def serve_gui(): return HTML_TEMPLATE
 
 # ==========================================
-# 🧠 7. ROTEADOR LÓGICO (WEBSOCKET)
+# 🧠 8. ROTEADOR LÓGICO (WEBSOCKET)
 # ==========================================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -303,17 +306,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
             if cmd_l.startswith("/cmd "):
                 sub = cmd_l.replace("/cmd ", "")
-                # Execução de Módulos Táticos
+                # NOAA
                 if sub == "solar" and noaa_ops:
                     path, _ = await asyncio.to_thread(noaa_ops.get_drap_map); url = await processar_midia(path)
-                    await websocket.send_json({"type": "image", "url": url, "text": "📡 Mapa de Absorção D-RAP"})
+                    await websocket.send_json({"type": "image", "url": url, "text": "📡 Mapa D-RAP"})
                 elif sub == "radar":
                     m, p = await asyncio.to_thread(radar_ops.gerar_radar, "Ivinhema"); u = await processar_midia(p)
                     await websocket.send_json({"type": "image", "url": u, "text": m})
                 elif sub == "iss":
                     p, m = await asyncio.to_thread(iss_ops.rastrear_iss); u = await processar_midia(p)
                     await websocket.send_json({"type": "image", "url": u, "text": m})
-                # ... (outros comandos aqui)
                 continue
 
             if cmd_l.startswith("/img"):
@@ -326,7 +328,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 res = await asyncio.to_thread(rag_ops.sync); await websocket.send_json({"type": "system", "text": res})
                 continue
 
-            # Resposta IA Padrão
             if ai_brain:
                 prompt = f"<|im_start|>user\n{comando}<|im_end|>\n<|im_start|>assistant\n"
                 stream = ai_brain(prompt, max_tokens=-1, stop=["<|im_end|>"], stream=True)
@@ -336,11 +337,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect: pass
 
 # ==========================================
-# 🚀 8. LANÇAMENTO COM NGROK UPLINK
+# 🚀 9. LANÇAMENTO COM NGROK UPLINK
 # ==========================================
 if __name__ == "__main__":
     try:
-        if NGROK_TOKEN and NGROK_TOKEN != "COLE_SEU_TOKEN_AQUI":
+        if NGROK_TOKEN and NGROK_TOKEN != "COLE_SEU_TOKEN_DO_NGROK_AQUI":
             ngrok.set_auth_token(NGROK_TOKEN)
             public_url = ngrok.connect(8000).public_url
             print(f"\n🌍 UPLINK REMOTO ATIVADO: {public_url}")
