@@ -60,26 +60,44 @@ class VideoSurgeon:
         regras_rag = f"\n[SABEDORIA TÁTICA (RAG)]:\n{rag_context}\n" if rag_context else ""
         
         prompt = f"""<|im_start|>system
-Você é um Diretor de TV especialista em retenção viral. Analise a transcrição e extraia os melhores momentos.{regras_rag}
-Regra 1: Você OBRIGATORIAMENTE deve escolher de 2 a 4 trechos separados para criar um clipe dinâmico.
-Regra 2: A soma total deve estar entre 60 e 180 segundos.
-Regra 3: Defina 'position' (0-100) para a legenda (20=base, 50=centro, 80=topo).
-Responda APENAS com JSON. Exemplo: {{"cortes": [{{"start": 10, "end": 40}}, {{"start": 80, "end": 110}}], "position": 20}}<|im_end|>
+Você é um algoritmo de edição de vídeo estritamente lógico. Sua única função é analisar a transcrição e retornar um objeto JSON perfeito.{regras_rag}
+Regra 1: Escolha MÚLTIPLOS trechos curtos (2 a 4) que formem uma narrativa com começo, meio e fim.
+Regra 2: A soma total dos trechos deve ser de 60 a 180 segundos.
+Regra 3: NÃO escreva nenhuma palavra fora do JSON. Não explique seus motivos.
+Responda APENAS com este formato exato:
+{{"cortes": [{{"start": 15, "end": 35}}, {{"start": 80, "end": 110}}], "position": 20}}<|im_end|>
 <|im_start|>user
 {transcricao_str}<|im_end|>
 <|im_start|>assistant
 """
-        stream = ai_brain(prompt, max_tokens=400, stop=["<|im_end|>"], temperature=0.3)
+        # Temperatura abaixada para 0.1: Deixa a IA mais fria, lógica e obediente a formatos.
+        stream = ai_brain(prompt, max_tokens=300, stop=["<|im_end|>"], temperature=0.1)
         resposta = stream["choices"][0]["text"].strip()
         
-        match = re.search(r'\{.*?\}', resposta, re.DOTALL)
-        if match:
-            try:
+        try:
+            # Novo extrator blindado: ignora se a IA colocar "```json" antes da resposta
+            match = re.search(r'\{[\s\S]*\}', resposta)
+            if match:
                 dados = json.loads(match.group(0))
-                return dados.get("cortes", [{"start": 10, "end": 70}]), dados.get("position", 20)
-            except: pass
+                cortes = dados.get("cortes", [])
+                
+                if len(cortes) > 1:
+                    print(f"✅ [IA OBEDECEU]: {len(cortes)} cortes estratégicos extraídos com sucesso!")
+                    return cortes, dados.get("position", 20)
+                else:
+                    print("⚠️ [ALERTA]: A IA retornou apenas 1 corte. Forçando reavaliação tática.")
+                    # Se ela teimar em dar 1 corte, o sistema vai pegar esse corte e dividir no meio
+                    st = cortes[0]["start"]
+                    nd = cortes[0]["end"]
+                    meio = st + ((nd - st) / 2)
+                    return [{"start": st, "end": meio - 2}, {"start": meio + 2, "end": nd}], dados.get("position", 20)
+        except Exception as e:
+            print(f"❌ [ERRO DE LÓGICA DA IA]: A IA não gerou um JSON válido. Resposta crua: {resposta}")
+            pass
+            
+        print("⚠️ Acionando Protocolo de Sobrevivência (Corte Padrão 10s-70s).")
         return [{"start": 10, "end": 70}], 20
-
+    
     def processar_alvo(self, config, ai_brain=None, callback=None, rag_context=None):
         def log(msg):
             print(msg)
