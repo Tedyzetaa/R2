@@ -59,10 +59,12 @@ class VideoSurgeon:
         return None 
 
     def analisar_com_llama(self, transcricao_str, ai_brain):
-        print("🧠 [CÉREBRO]: Analisando roteiro e decidindo posicionamento tático...")
+        print("🧠 [CÉREBRO]: Analisando roteiro com a Sabedoria Tática dos Manuais (RAG)...")
+        
+        regras_rag = f"\n[SABEDORIA TÁTICA (RAG)]:\n{rag_context}\n(Use estas táticas para escolher os melhores ganchos e momentos!)\n" if rag_context else ""
+        
         prompt = f"""<|im_start|>system
-Você é um editor de vídeos virais. Analise a transcrição e defina os cortes e o melhor posicionamento da legenda.
-Regra 1: Escolha de 2 a 4 trechos (total 60-180s).
+Você é um Diretor de TV especialista em retenção para TikTok e vídeos virais. Analise a transcrição e extraia os melhores momentos.{regras_rag}
 Regra 2: Determine o campo 'position' (0 a 100). Use 20 para base (padrão), 50 para centro ou 80 para topo, baseado na ênfase do texto.
 Responda APENAS com JSON. Exemplo: {{"cortes": [{{"start": 10, "end": 70}}], "position": 25}}<|im_end|>
 <|im_start|>user
@@ -76,12 +78,21 @@ Responda APENAS com JSON. Exemplo: {{"cortes": [{{"start": 10, "end": 70}}], "po
         if match:
             try:
                 dados = json.loads(match.group(0))
-                # Retorna a lista de cortes e a posição sugerida pela IA
-                return dados.get("cortes", [{"start": 10, "end": 70}]), dados.get("position", 20)
-            except: pass
+                cortes_encontrados = dados.get("cortes", [])
+                
+                # Alerta no radar se a IA tentar dar o golpe de mandar 1 corte só
+                if len(cortes_encontrados) <= 1:
+                    print("⚠️ IA ignorou a regra e retornou apenas 1 corte. Tática de costura mínima ativada.")
+                    
+                if not cortes_encontrados:
+                    cortes_encontrados = [{"start": 10, "end": 70}]
+                    
+                return cortes_encontrados, dados.get("position", 20)
+            except Exception as e:
+                print(f"⚠️ Erro ao decodificar matriz de cortes: {e}")
+                pass
         return [{"start": 10, "end": 70}], 20
-
-    def processar_alvo(self, config, ai_brain=None, callback=None):
+    def processar_alvo(self, config, ai_brain=None, callback=None, rag_context=None):
         def log(msg):
             print(msg)
             if callback:
@@ -118,8 +129,8 @@ Responda APENAS com JSON. Exemplo: {{"cortes": [{{"start": 10, "end": 70}}], "po
             transcricao_str = transcricao_str[:limite_tatico] + "\n...[FIM DE LEITURA SEGURA]"
 
         if ai_brain:
-            log("🧠 <b>[Fase 3/5] Decisão:</b> LLaMA calculando clímax e posicionamento...")
-            cortes, pos_sugerida = self.analisar_com_llama(transcricao_str, ai_brain)
+            log("🧠 <b>[Fase 3/5] Decisão:</b> LLaMA calculando clímax com base nos Manuais Táticos (RAG)...")
+            cortes, pos_sugerida = self.analisar_com_llama(transcricao_str, ai_brain, rag_context) # <--- Aqui passamos o RAG para dentro da função
             # Se o usuário escolheu "Auto", usamos o que a IA decidiu
             y_final = pos_sugerida if auto_pos else config.get("pos", 20)
             msg_cortes = ", ".join([f"({c['start']:.0f}s - {c['end']:.0f}s)" for c in cortes])
