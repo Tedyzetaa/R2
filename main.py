@@ -118,7 +118,8 @@ def garantir_ambiente():
         "feedparser", "geopy", "matplotlib", "beautifulsoup4",
         "diffusers", "transformers", "accelerate", "torch", "peft", 
         "PyPDF2", "sentence-transformers", "faiss-cpu", "numpy<2", 
-        "pyngrok", "imageio-ffmpeg", "Pillow" 
+        "pyngrok", "imageio-ffmpeg", "Pillow",
+        "yt-dlp", "openai-whisper", "moviepy", "opencv-python" # <-- NOVAS MUNIÇÕES ADICIONADAS
     ]
     
     for package in deps:
