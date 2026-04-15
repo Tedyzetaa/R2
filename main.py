@@ -51,6 +51,15 @@ def extrair_artefato(url, pasta_destino, nome_arquivo, descricao):
 def garantir_arsenal_completo():
     print("⚙️ [BOOTSTRAP] Verificando integridade do Arsenal Neural...")
     
+    # 1. Cérebro de Texto (O LLaMA em si - QUE ESTAVA FALTANDO!)
+    extrair_artefato(
+        url="https://huggingface.co/itlwas/Dolphin3.0-Llama3.1-8B-Q4_K_M-GGUF/resolve/main/dolphin3.0-llama3.1-8b-q4_k_m.gguf",
+        pasta_destino="models",
+        nome_arquivo="Dolphin3.0-Llama3.1-8B-Q4_K_M.gguf",
+        descricao="Cérebro de Texto LLaMA 3.1 Dolphin (Aprox. 4.9GB)"
+    )
+
+    # 2. Cérebro de Visão Primário
     extrair_artefato(
         url="https://huggingface.co/mys/ggml_llava-v1.5-7b/resolve/main/ggml-model-q4_k.gguf",
         pasta_destino="models",
@@ -58,6 +67,7 @@ def garantir_arsenal_completo():
         descricao="Cérebro de Visão Primário (Aprox. 4GB)"
     )
 
+    # 3. Nervo Ótico CLIP
     extrair_artefato(
         url="https://huggingface.co/mys/ggml_llava-v1.5-7b/resolve/main/mmproj-model-f16.gguf",
         pasta_destino="models",
@@ -65,6 +75,7 @@ def garantir_arsenal_completo():
         descricao="Nervo Ótico CLIP (Aprox. 600MB)"
     )
 
+    # 4. Matriz Juggernaut XL
     caminho_juggernaut = os.path.join("visual_models", "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors")
     if os.path.exists(caminho_juggernaut):
         print(f"✅ [SISTEMA] Motor Juggernaut XL v9 (Aprox. 6.5GB) localizado. Status: OPERACIONAL.")
