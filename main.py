@@ -1726,7 +1726,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         loop
                     )
                 
-                caminho_clip = await asyncio.to_thread(video_ops.processar_alvo, config, ai_brain, progresso_callback)
+                # ── NOVA INTEGRAÇÃO: Consultando o Cofre (RAG) para a Tesoura (COLAB) ──
+                rag_query = "jornada do herói, ganchos de retenção viral, tiktok, clímax narrativo"
+                contexto_rag = await asyncio.to_thread(rag_ops.search, rag_query) if rag_ops else None
+                
+                caminho_clip = await asyncio.to_thread(video_ops.processar_alvo, config, ai_brain, progresso_callback, contexto_rag)
                 
                 if caminho_clip:
                     await websocket.send_json({
