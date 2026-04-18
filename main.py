@@ -233,21 +233,33 @@ class KnowledgeBase:
                         if len(chunk) > 50: self.chunks.append(f"[Fonte: {arq}] {chunk}")
             except Exception: continue
 
+        # ==========================================
+        # BLINDAGEM NÍVEL MÁXIMO: PURIFICAÇÃO UTF-8
+        # ==========================================
         import re
+        
         textos_extraidos = []
         chunks_validos = [] 
         
         for pedaco in self.chunks:
             try:
-                if hasattr(pedaco, 'page_content'): txt = pedaco.page_content
-                elif isinstance(pedaco, dict) and 'text' in pedaco: txt = pedaco['text']
-                else: txt = pedaco
+                if hasattr(pedaco, 'page_content'):
+                    txt = pedaco.page_content
+                elif isinstance(pedaco, dict) and 'text' in pedaco:
+                    txt = pedaco['text']
+                else:
+                    txt = pedaco
                 
-                txt_str = str(txt).encode('utf-8', 'ignore').decode('utf-8')
-                txt_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', ' ', txt_str).strip()
+                txt_str = str(txt)
+                
+                # O EXORCISMO: Força a codificação pura, destruindo caracteres ilegíveis para o Rust/FAISS
+                txt_str = txt_str.encode('utf-8', 'ignore').decode('utf-8')
+                txt_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', ' ', txt_str)
+                txt_str = txt_str.strip()
                 
                 if len(txt_str) > 10:
                     textos_extraidos.append(txt_str)
+                    
                     if hasattr(pedaco, 'page_content'):
                         pedaco.page_content = txt_str
                         chunks_validos.append(pedaco)
@@ -256,13 +268,17 @@ class KnowledgeBase:
                         chunks_validos.append(pedaco)
                     else:
                         chunks_validos.append(txt_str)
-            except Exception: pass
+            except Exception:
+                pass
 
-        if not textos_extraidos: return "❌ Erro Crítico: A extração falhou completamente."
+        if not textos_extraidos:
+            return "❌ Erro Crítico: A extração falhou completamente."
+
         self.chunks = chunks_validos
 
         print(f"⚙️ [RAG]: Motor iniciando leitura de {len(textos_extraidos)} blocos purificados...")
         embeddings = self.embedder.encode(textos_extraidos, convert_to_numpy=True, show_progress_bar=True)
+        
         self.index = faiss.IndexFlatL2(embeddings.shape[1])
         self.index.add(embeddings)
         return f"✅ Cérebro Atualizado! {len(self.arquivos_indexados)} arquivos integrados."
@@ -1711,13 +1727,36 @@ async def websocket_endpoint(websocket: WebSocket):
 
             if cmd_l.startswith("/vid extract"):
                 if not video_ops:
-                    await websocket.send_json({"type": "system", "text": "❌ Módulo de vídeo inoperante. Verifique se video_colab.py está na raiz do projeto."})
+                    await websocket.send_json({
+                        "type": "system",
+                        "text": "❌ Módulo de vídeo inoperante. Verifique se video_ops.py está na raiz do projeto."
+                    })
                     continue
                 
                 json_str = comando.replace("/vid extract ", "").strip()
-                config = json.loads(json_str)
+                config   = json.loads(json_str)
                 
-                await websocket.send_json({"type": "system", "text": "🎬 Tesoura Neural ativada. Operação pesada iniciada — fique na escuta, Comandante..."})
+                await websocket.send_json({
+                    "type": "system",
+                    "text": "🎬 <b>Tesoura Neural V3 ativada.</b> Operação pesada iniciada — fique na escuta, Comandante..."
+                })
+
+                # ── FIX CRÍTICO: Extrai o RAG ANTES de chamar o vídeo ────────
+                # Usa a URL do vídeo como query — o FAISS vai trazer as táticas
+                # de retenção mais relevantes para o tipo de conteúdo
+                rag_context_video = None
+                if rag_ops and hasattr(rag_ops, "index") and rag_ops.index:
+                    try:
+                        query_rag   = config.get("url", "retenção de audiência TikTok viral")
+                        rag_context_video = await asyncio.to_thread(rag_ops.search, query_rag)
+                        if rag_context_video:
+                            await websocket.send_json({
+                                "type": "system",
+                                "text": "📚 <b>[RAG]:</b> Manuais Táticos carregados e prontos para guiar os cortes."
+                            })
+                    except Exception as e_rag:
+                        print(f"⚠️ [RAG VIDEO]: Falha ao buscar contexto — {e_rag}")
+                # ─────────────────────────────────────────────────────────────
                 
                 loop = asyncio.get_event_loop()
                 def progresso_callback(msg):
@@ -1726,16 +1765,23 @@ async def websocket_endpoint(websocket: WebSocket):
                         loop
                     )
                 
-                # ── NOVA INTEGRAÇÃO: Consultando o Cofre (RAG) para a Tesoura (COLAB) ──
-                rag_query = "jornada do herói, ganchos de retenção viral, tiktok, clímax narrativo"
-                contexto_rag = await asyncio.to_thread(rag_ops.search, rag_query) if rag_ops else None
-                
-                caminho_clip = await asyncio.to_thread(video_ops.processar_alvo, config, ai_brain, progresso_callback, contexto_rag)
+                # ── CHAMADA CORRETA: passa rag_context como argumento ─────────
+                caminho_clip = await asyncio.to_thread(
+                    video_ops.processar_alvo,
+                    config,
+                    ai_brain,
+                    progresso_callback,
+                    rag_context_video      # ← FIX: RAG agora chega dentro da função
+                )
                 
                 if caminho_clip:
                     await websocket.send_json({
                         "type": "system", 
-                        "text": f"✅ Corte finalizado!<br><video width='100%' controls style='border-radius:8px;margin-top:10px;'><source src='{caminho_clip}' type='video/mp4'></video>"
+                        "text": (
+                            f"✅ <b>Corte finalizado!</b><br>"
+                            f"<video width='100%' controls style='border-radius:8px;margin-top:10px;'>"
+                            f"<source src='{caminho_clip}' type='video/mp4'></video>"
+                        )
                     })
                 else:
                     await websocket.send_json({"type": "system", "text": "❌ Falha crítica ao renderizar. Verifique o terminal para detalhes."})
