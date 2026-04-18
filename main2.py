@@ -1,181 +1,16 @@
-import os
-import json
-import datetime
-import sys
-import time
-import asyncio
-import urllib.request
-import subprocess
-import shutil
-import re
-import gc
+import os, json, datetime, sys, time, asyncio, urllib.request, subprocess, shutil, re, gc
 from io import BytesIO
-
-# ==========================================
-# PROTOCOLO DE AUTO-AQUISIÇÃO LOGÍSTICA
-# ==========================================
-
-def extrair_artefato(url, pasta_destino, nome_arquivo, descricao):
-    """Baixa arquivos pesados com barra de progresso tática."""
-    if not os.path.exists(pasta_destino):
-        os.makedirs(pasta_destino)
-        
-    caminho_completo = os.path.join(pasta_destino, nome_arquivo)
-    
-    if os.path.exists(caminho_completo):
-        print(f"✅ [SISTEMA] {descricao} localizado. Status: OPERACIONAL.")
-        return
-
-    print(f"\n📥 [LOGÍSTICA] Artefato ausente. Iniciando extração de: {descricao}")
-    print(f"⚠️ Alvo travado. Mantenha a conexão ativa...")
-
-    def barra_progresso(blocos_lidos, tamanho_bloco, tamanho_total):
-        if tamanho_total > 0:
-            percentual = min(100, int((blocos_lidos * tamanho_bloco * 100) / tamanho_total))
-            sys.stdout.write(f"\r⏳ Progresso da Extração: {percentual}% concluído...")
-            sys.stdout.flush()
-
-    try:
-        urllib.request.urlretrieve(url, caminho_completo, reporthook=barra_progresso)
-        print(f"\n✅ [SISTEMA] {descricao} instalado com sucesso em {pasta_destino}!")
-    except Exception as e:
-        print(f"\n❌ [ERRO CRÍTICO] Falha na extração de {nome_arquivo}: {e}")
-        sys.exit(1)
-
-def garantir_arsenal_completo():
-    print("⚙️ [BOOTSTRAP] Verificando integridade do Arsenal Neural...")
-    
-    # 1. Cérebro de Visão (LLaVA 7B - Substitui o Llama puro para poder ver imagens)
-    extrair_artefato(
-        url="https://huggingface.co/mys/ggml_llava-v1.5-7b/resolve/main/ggml-model-q4_k.gguf",
-        pasta_destino="models",
-        nome_arquivo="ggml-model-q4_k.gguf",
-        descricao="Cérebro de Visão Primário (Aprox. 4GB)"
-    )
-
-    # 2. Nervo Ótico (Projetor CLIP para conectar os "olhos" da IA)
-    extrair_artefato(
-        url="https://huggingface.co/mys/ggml_llava-v1.5-7b/resolve/main/mmproj-model-f16.gguf",
-        pasta_destino="models",
-        nome_arquivo="mmproj-model-f16.gguf",
-        descricao="Nervo Ótico CLIP (Aprox. 600MB)"
-    )
-
-    # 3. Matriz de Fotorrealismo Extremo (Juggernaut XL v9 - Nível DSLR Profissional)
-    caminho_juggernaut = os.path.join("visual_models", "Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors")
-    if os.path.exists(caminho_juggernaut):
-        print(f"✅ [SISTEMA] Motor Juggernaut XL v9 (Aprox. 6.5GB) localizado. Status: OPERACIONAL.")
-    else:
-        print(f"\n📥 [LOGÍSTICA] Juggernaut XL v9 ausente. Iniciando extração via HuggingFace Hub...")
-        print(f"⚠️ Download de ~6.5GB. Mantenha a conexão ativa...")
-        try:
-            from dotenv import load_dotenv
-            from huggingface_hub import hf_hub_download
-            load_dotenv()
-            hf_token = os.getenv("HF_TOKEN")
-            if not os.path.exists("visual_models"):
-                os.makedirs("visual_models")
-            hf_hub_download(
-                repo_id="RunDiffusion/Juggernaut-XL-v9",
-                filename="Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors",
-                local_dir="visual_models",
-                token=hf_token
-            )
-            print(f"✅ [SISTEMA] Juggernaut XL v9 instalado com sucesso!")
-        except Exception as e:
-            print(f"\n❌ [ERRO CRÍTICO] Falha na extração do Juggernaut XL v9: {e}")
-            sys.exit(1)
-
-# ==========================================
-# MÓDULO DE MEMÓRIA CONTÍNUA (RAM & HD)
-# ==========================================
-
-# Memória RAM (Sessão atual - Limite de 20 mensagens para estabilidade da VRAM)
-memoria_ram = []
-
-def registrar_memoria_longo_prazo(usuario, resposta):
-    """Grava cada interação no cofre para o FAISS ler no futuro."""
-    pasta_docs = "static/docs"
-    if not os.path.exists(pasta_docs):
-        os.makedirs(pasta_docs)
-        
-    arquivo_memoria = os.path.join(pasta_docs, "Cofre_Memoria_R2.md")
-    data_hora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    
-    # Formata o registro como um documento tático
-    registro = f"\n### [DATA: {data_hora}]\n**Comandante Teddy:** {usuario}\n**R2:** {resposta}\n---\n"
-    
-    # Escreve silenciosamente no disco
-    with open(arquivo_memoria, "a", encoding="utf-8") as f:
-        f.write(registro)
-
-# ==========================================
-# 🛠️ 1. MOTOR DE AUTO-INSTALAÇÃO (BOOTSTRAP)
-# ==========================================
-def garantir_ambiente():
-    print("\n" + "="*50)
-    print("⚙️ [BOOTSTRAP] SINCRONIZANDO ARSENAL TÁTICO")
-    print("="*50)
-    
-    # Lista de dependências - Pillow é o nome do pacote para carregar 'PIL'
-    deps = [
-        "fastapi", "uvicorn", "websockets", "python-multipart", 
-        "huggingface_hub", "requests", "psutil", "python-dotenv", 
-        "greenlet", "playwright", "speedtest-cli",
-        "feedparser", "geopy", "matplotlib", "beautifulsoup4",
-        "diffusers", "transformers", "accelerate", "torch", "peft", 
-        "PyPDF2", "sentence-transformers", "faiss-cpu", "numpy<2", 
-        "pyngrok", "imageio-ffmpeg", "Pillow" 
-    ]
-    
-    for package in deps:
-        try:
-            # Tratamento para nomes de importação diferentes dos nomes de instalação
-            clean_name = package.split('<')[0] if '<' in package else package
-            import_name = clean_name.replace("-", "_").replace("python-dotenv", "dotenv").replace("Pillow", "PIL")
-            __import__(import_name)
-        except ImportError:
-            print(f"📦 Equipando R2 com: {package}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
-
-    # Tratamento especial para o Cérebro (llama-cpp)
-    try:
-        import llama_cpp
-        print("🧠 [CÉREBRO]: Motor neural detectado e pronto.")
-    except Exception as e:
-        print(f"❌ Falha crítica: O motor neural não está instalado corretamente. Erro: {e}")
-        print("Execute a instalação com CMAKE_ARGS=-DGGML_CUDA=on")
-
-
-# DISPARA O INSTALADOR ANTES DE TUDO — DEPENDÊNCIAS PRIMEIRO
-garantir_ambiente()
-# SÓ ENTÃO verifica os modelos pesados (precisa de huggingface_hub, etc.)
-garantir_arsenal_completo()
-
-# ==========================================
-# 📂 2. IMPORTAÇÕES TÁTICAS (AGORA É SEGURO)
-# ==========================================
-import numpy as np
-from PIL import Image
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from pyngrok import ngrok 
 import torch
-from diffusers import StableDiffusionXLPipeline, EulerAncestralDiscreteScheduler
+import faiss
+from sentence_transformers import SentenceTransformer
 
 # ==========================================
-# 🔑 CONFIGURAÇÕES GERAIS
-# ==========================================
-NGROK_TOKEN = "COLE_SEU_TOKEN_AQUI"
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
-STOP_GEN = False
-
-# ==========================================
-# 📂 3. CARREGAMENTO DOS MÓDULOS DE FEATURES/
+# 📂 IMPORTAÇÕES TÁTICAS SEGURAS
 # ==========================================
 def safe_import(module_name, class_name):
     try:
@@ -186,249 +21,125 @@ def safe_import(module_name, class_name):
         print(f"⚠️ Módulo {class_name} ({module_name}) indisponível: {e}")
         return None
 
-# Importando o arsenal completo
 AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
 AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
 PizzaINTService = safe_import("pizzint_service", "PizzaINTService")
 NOAAService = safe_import("noaa_service", "NOAAService")
 GeoSeismicSystem = safe_import("geo_seismic", "GeoSeismicSystem")
 SpeedTestModule = safe_import("net_speed", "SpeedTestModule")
+
 VideoSurgeon = safe_import("video_ops", "VideoSurgeon")
-# ── FALLBACK TÁTICO: se não achou em features/, tenta importar da raiz do projeto ──
 if not VideoSurgeon:
     try:
         from video_ops import VideoSurgeon
-        print("✂️ [TESOURA NEURAL]: Módulo carregado da raiz do projeto.")
-    except Exception as e:
-        print(f"⚠️ VideoSurgeon indisponível: {e}")
-        VideoSurgeon = None
+        print("✂️ [TESOURA NEURAL]: Carregada da raiz.")
+    except: VideoSurgeon = None
 video_ops = VideoSurgeon() if VideoSurgeon else None
 
 # ==========================================
-# 📚 4. NÚCLEO RAG (PROCESSADOR DE PDFs)
+# 📚 NÚCLEO RAG COM MEMÓRIA PERSISTENTE NO HD
 # ==========================================
 class KnowledgeBase:
     def __init__(self, docs_dir="static/docs"):
         self.docs_dir = docs_dir
-        self.embedder = None
-        self.index = None
-        self.chunks = []
-        self.arquivos_indexados = [] # 📋 Novo inventário tático
+        self.index_path = os.path.join(self.docs_dir, "faiss_index.bin")
+        self.data_path = os.path.join(self.docs_dir, "rag_data.json")
+        self.embedder = None; self.index = None; self.chunks = []; self.arquivos_indexados = []
         os.makedirs(self.docs_dir, exist_ok=True)
+        self.carregar_memoria()
+
+    def carregar_memoria(self):
+        if os.path.exists(self.index_path) and os.path.exists(self.data_path):
+            try:
+                self.index = faiss.read_index(self.index_path)
+                with open(self.data_path, "r", encoding="utf-8") as f:
+                    dados = json.load(f)
+                    self.chunks = dados.get("chunks", []); self.arquivos_indexados = dados.get("arquivos_indexados", [])
+                print(f"📚 [RAG]: Memória restaurada do HD! {len(self.arquivos_indexados)} arquivos no gatilho.")
+            except: print("⚠️ [RAG]: Erro ao ler memória. Use /doc sync para recriar.")
+        else: print("⚠️ [RAG]: Cofre vazio. Use /doc sync para gravar pela primeira vez.")
 
     def sync(self):
-        import faiss
         import PyPDF2
-        from sentence_transformers import SentenceTransformer
         if not self.embedder: self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
-        self.chunks = []
-        self.arquivos_indexados = [] # Reseta o inventário antes de ler
-        
+        self.chunks = []; self.arquivos_indexados = [] 
         arquivos = [f for f in os.listdir(self.docs_dir) if f.lower().endswith(('.pdf', '.md'))]
-        if not arquivos: return "⚠️ Nenhum documento (.pdf ou .md) em static/docs."
+        if not arquivos: return "⚠️ Nenhum documento em static/docs."
         
         for arq in arquivos:
             try:
-                full_path = os.path.join(self.docs_dir, arq)
-                if arq.lower().endswith('.pdf'):
-                    with open(full_path, 'rb') as f:
-                        reader = PyPDF2.PdfReader(f)
-                        text = "".join([p.extract_text() or "" for p in reader.pages])
+                p = os.path.join(self.docs_dir, arq)
+                if arq.endswith('.pdf'):
+                    with open(p, 'rb') as f: text = "".join([pg.extract_text() or "" for pg in PyPDF2.PdfReader(f).pages])
                 else:
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        text = f.read()
+                    with open(p, 'r', encoding='utf-8') as f: text = f.read()
                 
                 if text.strip():
-                    self.arquivos_indexados.append(arq) # Registro de sucesso
+                    self.arquivos_indexados.append(arq) 
                     for i in range(0, len(text), 800):
-                        chunk = text[i:i+1000].strip()
+                        chunk = text[i:i+1000].encode('utf-8', 'ignore').decode('utf-8')
+                        chunk = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', ' ', chunk).strip()
                         if len(chunk) > 50: self.chunks.append(f"[Fonte: {arq}] {chunk}")
-            except Exception: continue
+            except: continue
 
-        # ==========================================
-        # BLINDAGEM NÍVEL MÁXIMO: PURIFICAÇÃO UTF-8
-        # ==========================================
-        import re
-        
-        textos_extraidos = []
-        chunks_validos = [] # Guarda o pedaço original para não perder o sincronismo da página
-        
-        for pedaco in self.chunks:
-            try:
-                # 1. Extração
-                if hasattr(pedaco, 'page_content'):
-                    txt = pedaco.page_content
-                elif isinstance(pedaco, dict) and 'text' in pedaco:
-                    txt = pedaco['text']
-                else:
-                    txt = pedaco
-                
-                # 2. Conversão forçada
-                txt_str = str(txt)
-                
-                # 3. O EXORCISMO: Força a codificação pura, destruindo caracteres ilegíveis para o Rust
-                txt_str = txt_str.encode('utf-8', 'ignore').decode('utf-8')
-                
-                # 4. Remove caracteres fantasmas de controle da tabela ASCII e do Unicode
-                txt_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', ' ', txt_str)
-                txt_str = txt_str.strip()
-                
-                # 5. Só aprova se for texto útil
-                if len(txt_str) > 10:
-                    textos_extraidos.append(txt_str)
-                    
-                    # Atualiza o objeto original para o sistema RAG não se perder
-                    if hasattr(pedaco, 'page_content'):
-                        pedaco.page_content = txt_str
-                        chunks_validos.append(pedaco)
-                    elif isinstance(pedaco, dict) and 'text' in pedaco:
-                        pedaco['text'] = txt_str
-                        chunks_validos.append(pedaco)
-                    else:
-                        chunks_validos.append(txt_str)
-            except Exception:
-                pass
-
-        if not textos_extraidos:
-            return "❌ Erro Crítico: A extração falhou completamente."
-
-        # Substitui a lista de rascunhos pela lista purificada e sincronizada
-        self.chunks = chunks_validos
-
-        print(f"⚙️ [RAG]: Motor iniciando leitura de {len(textos_extraidos)} blocos purificados...")
-        
-        # Vetorização (Agora o Rust não vai travar)
-        embeddings = self.embedder.encode(textos_extraidos, convert_to_numpy=True, show_progress_bar=True)
-        # ==========================================
-        
+        if not self.chunks: return "❌ Extração falhou."
+        embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True, show_progress_bar=True)
         self.index = faiss.IndexFlatL2(embeddings.shape[1])
         self.index.add(embeddings)
-        return f"✅ Cérebro Atualizado! {len(self.arquivos_indexados)} arquivos integrados."
+        
+        try:
+            faiss.write_index(self.index, self.index_path)
+            with open(self.data_path, "w", encoding="utf-8") as f:
+                json.dump({"chunks": self.chunks, "arquivos_indexados": self.arquivos_indexados}, f, ensure_ascii=False)
+        except Exception as e: return f"⚠️ Gravado em RAM, erro no HD: {e}"
+        return f"✅ Cérebro Blindado no HD! {len(self.arquivos_indexados)} arquivos integrados."
 
     def search(self, query):
         if not self.index: return None
+        if not self.embedder: self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         q_emb = self.embedder.encode([query], convert_to_numpy=True)
         _, indices = self.index.search(q_emb, 3)
         return "\n\n".join([self.chunks[idx] for idx in indices[0] if idx < len(self.chunks)])
 
 # ==========================================
-# 🎨 5. MOTOR VISUAL (REALISTIC VISION V5.1 - SD 1.5)
+# 🎨 MOTOR VISUAL E INICIALIZAÇÃO
 # ==========================================
 class UltraVisualCore:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.pipe = None
-        # Apontando para o motor que não explode a RAM
-        self.caminho_modelo = "visual_models/Realistic_Vision_V5.1.safetensors"
-        
-    def load_engine(self):
-        if self.pipe: return
-        
-        print(f"🎨 [VISUAL]: Acoplando Realistic Vision V5.1 à RTX 3050...")
-
-        try:
-            from diffusers import StableDiffusionPipeline # Usando o pipeline padrão (não o XL)
-            import torch
-            import gc
-
-            # Esvazia a lixeira da RAM antes de iniciar
-            gc.collect()
-            if torch.cuda.is_available(): torch.cuda.empty_cache()
-
-            # Carrega o modelo de 2GB de forma segura
-            self.pipe = StableDiffusionPipeline.from_single_file(
-                self.caminho_modelo,
-                torch_dtype=torch.float16,
-                use_safetensors=True,
-                local_files_only=True
-            )
-
-            # ── BLINDAGEM DE VRAM PARA RTX 3050 ──────────────────────────────
+        self.pipe = None; self.caminho = "visual_models/Realistic_Vision_V5.1.safetensors"
+    def generate(self, prompt):
+        if not self.pipe:
+            from diffusers import StableDiffusionPipeline
+            self.pipe = StableDiffusionPipeline.from_single_file(self.caminho, torch_dtype=torch.float16, use_safetensors=True, local_files_only=True)
             self.pipe.enable_model_cpu_offload()
             self.pipe.enable_attention_slicing()
-            # ─────────────────────────────────────────────────────────────────
-
-            print("🎨 [VISUAL]: Fotorrealismo Operacional. Pronto para combate.")
-        except Exception as e:
-            print(f"❌ [ERRO VISUAL]: Falha ao acoplar a matriz. Detalhes: {e}")
-            self.pipe = None
-
-    def generate(self, prompt):
-        if not self.pipe: self.load_engine()
-        if not self.pipe:
-            raise RuntimeError("Motor visual não inicializado.")
-
-        import gc
-        import torch
-        gc.collect()
-        if torch.cuda.is_available(): torch.cuda.empty_cache()
-
-        # Prompt engineering para SD 1.5 (Fotorrealismo)
-        pos = (
-            f"RAW photo, {prompt}, 8k uhd, dslr, soft lighting, high quality, film grain, Fujifilm XT4"
-        )
-        neg = (
-            "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), "
-            "text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, "
-            "morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, "
-            "blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions"
-        )
-
-        # SD 1.5 opera perfeitamente em modo retrato (512x768) na RTX 3050
         with torch.inference_mode():
-            image = self.pipe(
-                prompt=pos,
-                negative_prompt=neg,
-                num_inference_steps=25,
-                height=768,
-                width=512,
-                guidance_scale=7.5
-            ).images[0]
-        return image
+            return self.pipe(prompt=f"RAW photo, {prompt}, 8k uhd", negative_prompt="cgi, render, cartoon", num_inference_steps=25, height=768, width=512).images[0]
 
-# ==========================================
-# 🧠 6. INICIALIZAÇÃO DE SISTEMAS
-# ==========================================
 os.makedirs("static/media", exist_ok=True)
-rag_ops = KnowledgeBase()
-img_ops = UltraVisualCore()
+rag_ops = KnowledgeBase(); img_ops = UltraVisualCore()
 radar_ops = AirTrafficControl() if AirTrafficControl else None
 astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
 pizza_ops = PizzaINTService(config={}) if PizzaINTService else None
 noaa_ops = NOAAService() if NOAAService else None
-sismo_ops = GeoSeismicSystem() if GeoSeismicSystem else None
-speed_ops = SpeedTestModule() if SpeedTestModule else None
 
 try:
     from llama_cpp import Llama
-    print("🧠 [CÉREBRO DE TEXTO] Iniciando motor Neural otimizado para RTX 3050...")
-    
-    # Reduzi o contexto para 8192 (ainda é enorme, o equivalente a um livro pequeno) 
-    # e ajustei as camadas para 20. Assim a sua placa não "explode" de falta de VRAM!
-    ai_brain = Llama(
-            model_path="models/Dolphin3.0-Llama3.1-8B-Q4_K_M.gguf", 
-            n_ctx=4096, 
-            n_gpu_layers=20, 
-            verbose=False
-        )
-except Exception as e:
-    print(f"❌ Erro ao iniciar IA de Texto: {e}")
-    ai_brain = None
+    print("🧠 [CÉREBRO] Iniciando LLaMA otimizado...")
+    ai_brain = Llama(model_path="models/Dolphin3.0-Llama3.1-8B-Q4_K_M.gguf", n_ctx=10240, n_gpu_layers=20, verbose=False)
+except: ai_brain = None
 
-# ==========================================
-# 🌐 7. SERVIDOR E INTERFACE CUSTOMIZADA
-# ==========================================
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/stop")
-async def stop_gen_route():
-    global STOP_GEN
-    STOP_GEN = True
-    return {"status": "ok"}
+STOP_GEN = False
+memoria_ram = []
 
-# O SEU HTML_TEMPLATE INTEGRADO
+# ==========================================
+# INJEÇÃO HTML AUTOMÁTICA
+# ==========================================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1752,154 +1463,86 @@ conectarMatriz();
 async def serve_gui(): return HTML_TEMPLATE
 
 # ==========================================
-# 🧠 8. ROTEADOR LÓGICO (WEBSOCKET)
+# 🧠 ROTEADOR LÓGICO (WEBSOCKET)
 # ==========================================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    
     async def processar_midia(caminho):
         if caminho and os.path.exists(caminho):
-            nome = f"scan_{int(time.time())}_{os.path.basename(caminho)}"
-            shutil.copy(caminho, os.path.join("static/media", nome))
-            return f"/static/media/{nome}"
+            n = f"scan_{int(time.time())}_{os.path.basename(caminho)}"
+            shutil.copy(caminho, os.path.join("static/media", n))
+            return f"/static/media/{n}"
         return None
-
-    sys_prompt = "Você é o R2, um assistente tático de IA. Seja preciso, estratégico e direto."
 
     try:
         while True:
-            comando = await websocket.receive_text()
-            cmd_l = comando.lower().strip()
+            comando = await websocket.receive_text(); cmd_l = comando.lower().strip()
 
-            # Módulos Táticos
             if cmd_l.startswith("/cmd "):
                 sub = cmd_l.replace("/cmd ", "")
-                if sub == "radar" and radar_ops:
-                    p, q, m = await asyncio.to_thread(radar_ops.radar_scan, "Ivinhema")
-                    u = await processar_midia(p); await websocket.send_json({"type": "image", "url": u, "text": m})
-                elif sub == "astro" and astro_ops:
-                    r, i, n = await asyncio.to_thread(astro_ops.get_asteroid_report)
-                    await websocket.send_json({"type": "stream", "text": r}); await websocket.send_json({"type": "done"})
-                elif sub == "pizza" and pizza_ops:
-                    st = pizza_ops.get_status()
-                    await websocket.send_json({"type": "system", "text": f"🍕 PizzINT: {st['level']:.0f} pedidos/h."})
+                if sub == "pizza" and pizza_ops:
+                    st = await asyncio.to_thread(pizza_ops.get_status)
+                    if st.get('level', -1) == -1: msg = "❌ Falha ao interceptar a rede PizzINT."
+                    else:
+                        nivel = st['level']
+                        defcon = 5 if nivel < 20 else (4 if nivel < 40 else (3 if nivel < 60 else (2 if nivel < 80 else 1)))
+                        msg = f"🍕 **Monitor PizzINT**<br>Pedidos: <b>{nivel:.0f}/h</b><br>🚨 <b>DEFCON: {defcon}</b><br><br><b>Últimas:</b><br>"
+                        if st.get('news'):
+                            for n in st['news']: msg += f"• <a href='{n['url']}' target='_blank' style='color:#0ea5e9;'>{n['titulo']}</a><br>"
+                    await websocket.send_json({"type": "system", "text": msg})
+                
                 elif sub == "solar" and noaa_ops:
-                    p, _ = await asyncio.to_thread(noaa_ops.get_drap_map); u = await processar_midia(p)
-                    await websocket.send_json({"type": "image", "url": u, "text": "☀️ Mapa D-RAP"})
-                continue
+                    await websocket.send_json({"type": "system", "text": "🛰️ Varrendo clima espacial — aguarde telemetria da NASA/NOAA..."})
+                    
+                    # 1. Busca a inteligência completa (Textos + Alertas + Imagens)
+                    intel = await asyncio.to_thread(noaa_ops.get_full_intel)
+                    
+                    # 2. Envia o painel de texto tático blindado (mesmo que a imagem atrase)
+                    painel_html = noaa_ops.gerar_html_painel(intel)
+                    await websocket.send_json({"type": "system", "text": painel_html})
+                    
+                    # 3. Tenta renderizar o mapa D-RAP separadamente
+                    drap_path, _ = intel.get("media", {}).get("drap", (None, None))
+                    if drap_path:
+                        u = await processar_midia(drap_path)
+                        if u: 
+                            await websocket.send_json({"type": "image", "url": u, "text": "🗺️ Mapa D-RAP (Absorção HF)"})
+                            continue
 
-            # Operação Tesoura Neural
             if cmd_l.startswith("/vid extract"):
-                if not video_ops:
-                    await websocket.send_json({"type": "system", "text": "❌ Módulo de vídeo inoperante. Verifique se video_ops.py está na raiz do projeto."})
-                    continue
-                
-                json_str = comando.replace("/vid extract ", "").strip()
-                config = json.loads(json_str)
-                
-                await websocket.send_json({"type": "system", "text": "🎬 Tesoura Neural ativada. Operação pesada iniciada — fique na escuta, Comandante..."})
-                
-                # ── CALLBACK DE PROGRESSO ──
-                # Permite que a thread do vídeo envie status em tempo real pro chat
+                config = json.loads(comando.replace("/vid extract ", ""))
                 loop = asyncio.get_event_loop()
-                def progresso_callback(msg):
-                    asyncio.run_coroutine_threadsafe(
-                        websocket.send_json({"type": "system", "text": msg}),
-                        loop
-                    )
-                
-                caminho_clip = await asyncio.to_thread(video_ops.processar_alvo, config, ai_brain, progresso_callback)
-                
-                if caminho_clip:
-                    await websocket.send_json({
-                        "type": "system", 
-                        "text": f"✅ Corte finalizado!<br><video width='100%' controls style='border-radius:8px;margin-top:10px;'><source src='{caminho_clip}' type='video/mp4'></video>"
-                    })
-                else:
-                    await websocket.send_json({"type": "system", "text": "❌ Falha crítica ao renderizar. Verifique o terminal para detalhes."})
+                def cb(m): asyncio.run_coroutine_threadsafe(websocket.send_json({"type": "system", "text": m}), loop)
+                ctx_rag = await asyncio.to_thread(rag_ops.search, "jornada do herói clímax viral tiktok") if rag_ops else None
+                caminho_clip = await asyncio.to_thread(video_ops.processar_alvo, config, ai_brain, cb, ctx_rag)
+                if caminho_clip: await websocket.send_json({"type": "system", "text": f"✅ Corte finalizado!<br><video width='100%' controls><source src='{caminho_clip}' type='video/mp4'></video>"})
                 continue
 
-            # Geração de Imagem
-            if cmd_l.startswith("/img "):
-                p = comando[5:]; img = await asyncio.to_thread(img_ops.generate, p)
-                n = f"gen_{int(time.time())}.png"; path = os.path.join("static/media", n); img.save(path)
-                await websocket.send_json({"type": "image", "url": f"/static/media/{n}", "text": "✅ Renderizada."})
-                continue
-
-            # Sincronização Manual dos PDFs
             if cmd_l == "/doc sync":
                 res = await asyncio.to_thread(rag_ops.sync); await websocket.send_json({"type": "system", "text": res})
                 continue
-
-            # Listagem de Arquivos Indexados
             if cmd_l == "/doc list":
-                if hasattr(rag_ops, 'arquivos_indexados') and rag_ops.arquivos_indexados:
-                    lista = ", ".join(rag_ops.arquivos_indexados)
-                    res = f"📋 **Arquivos no Córtex:** {lista}"
-                else:
-                    res = "⚠️ Nenhum arquivo indexado no momento."
+                res = f"📋 **Arquivos:** {', '.join(rag_ops.arquivos_indexados)}" if rag_ops.arquivos_indexados else "⚠️ Nenhum arquivo indexado."
                 await websocket.send_json({"type": "system", "text": res}); continue
 
-            # ==========================================
-            # 🧠 ONISCIÊNCIA: TEXTO + RAG AUTOMÁTICO
-            # ==========================================
             if ai_brain:
-                # 1. Guarda na RAM
                 memoria_ram.append(f"Teddy: {comando}")
-                if len(memoria_ram) > 20: 
-                    memoria_ram.pop(0)
-
-                # 1. Pesquisa invisível no Banco de Dados
-                contexto_recuperado = await asyncio.to_thread(rag_ops.search, comando)
-                
-                # 2. Constrói a linha de raciocínio
-                prompt = f"<|im_start|>system\n{sys_prompt}\n"
-                
-                # 3. Injeta a sabedoria dos livros apenas se achar algo relevante
-                if contexto_recuperado:
-                    prompt += f"\n[DADOS DOS MANUAIS TÁTICOS (PDFs)]:\n{contexto_recuperado}\nUse essas informações para basear sua resposta.\n"
-                
+                ctx = await asyncio.to_thread(rag_ops.search, comando)
+                prompt = f"<|im_start|>system\nVocê é o R2, IA direta e tática.\n"
+                if ctx: prompt += f"\n[RAG PDFs]:\n{ctx}\n"
                 prompt += "<|im_end|>\n"
-                
-                # 4. Adiciona o histórico recente (memória da conversa)
-                # Converte a RAM para o formato ChatML esperado pelo Dolphin
-                for m in memoria_ram[:-1]:
-                    if m.startswith("Teddy: "):
-                        prompt += f"<|im_start|>user\n{m[7:]}<|im_end|>\n"
-                    elif m.startswith("R2: "):
-                        prompt += f"<|im_start|>assistant\n{m[4:]}<|im_end|>\n"
-                
-                # 5. Adiciona o comando atual
+                for m in memoria_ram[-10:-1]: prompt += f"<|im_start|>user\n{m[7:]}<|im_end|>\n" if m.startswith("Teddy: ") else f"<|im_start|>assistant\n{m[4:]}<|im_end|>\n"
                 prompt += f"<|im_start|>user\n{comando}<|im_end|>\n<|im_start|>assistant\n"
-
-                # 6. Gera a resposta e envia
-                global STOP_GEN
-                STOP_GEN = False
+                
+                global STOP_GEN; STOP_GEN = False; resp_completa = ""
                 stream = ai_brain(prompt, max_tokens=-1, stop=["<|im_end|>"], stream=True, temperature=0.5)
-                
-                resp_completa = ""
                 for chunk in stream:
-                    if STOP_GEN:
-                        STOP_GEN = False
-                        break
-                    token = chunk["choices"][0]["text"]
-                    resp_completa += token
+                    if STOP_GEN: break
+                    token = chunk["choices"][0]["text"]; resp_completa += token
                     await websocket.send_json({"type": "stream", "text": token})
-                
                 await websocket.send_json({"type": "done"})
-                
-                # 3. Guarda a resposta da IA na RAM
                 memoria_ram.append(f"R2: {resp_completa}")
-                # 4. Grava no Cofre de Longo Prazo (HD)
-                registrar_memoria_longo_prazo(comando, resp_completa)
-
     except WebSocketDisconnect: pass
 
-if __name__ == "__main__":
-    try:
-        if NGROK_TOKEN and NGROK_TOKEN != "COLE_SEU_TOKEN_AQUI":
-            ngrok.set_auth_token(NGROK_TOKEN)
-            print(f"\n🌍 UPLINK REMOTO: {ngrok.connect(8000).public_url}")
-    except: pass
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+if __name__ == "__main__": uvicorn.run(app, host="0.0.0.0", port=8000)
