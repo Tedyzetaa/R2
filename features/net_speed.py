@@ -1,6 +1,6 @@
 import speedtest
 
-class SpeedTestModule:
+class NetSpeedModule:
     def run_test(self):
         try:
             # O print ajuda a saber que não travou
