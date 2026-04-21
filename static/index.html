@@ -1,163 +1,253 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIT | R2 Neural Uplink</title>
-    <style>
-        :root {
-            --bg-color: #0d1117;
-            --chat-bg: #161b22;
-            --user-msg: #21262d;
-            --bot-msg: transparent;
-            --accent: #00ffff;
-            --text-main: #c9d1d9;
-            --text-muted: #8b949e;
-        }
-        body {
-            margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex; flex-direction: column; height: 100vh;
-        }
-        header {
-            text-align: center; padding: 15px; border-bottom: 1px solid #30363d;
-        }
-        header h1 { margin: 0; color: var(--accent); font-family: 'Courier New', Courier, monospace; font-size: 1.5rem; letter-spacing: 2px;}
-        header p { margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.85rem; }
-        
-        #chat-container {
-            flex: 1; overflow-y: auto; padding: 20px; max-width: 900px; margin: 0 auto; width: 100%;
-            display: flex; flex-direction: column; gap: 15px;
-        }
-        .message {
-            max-width: 80%; padding: 12px 16px; border-radius: 8px; line-height: 1.5;
-            word-wrap: break-word; font-size: 0.95rem;
-        }
-        .message.user {
-            background-color: var(--user-msg); border: 1px solid #30363d; align-self: flex-end;
-        }
-        .message.bot {
-            background-color: var(--bot-msg); align-self: flex-start; border-left: 2px solid var(--accent);
-        }
-        .message img { max-width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid #30363d; }
-        
-        #input-area {
-            max-width: 900px; margin: 0 auto; width: 100%; padding: 20px; box-sizing: border-box;
-        }
-        .input-wrapper {
-            display: flex; gap: 10px; background: #161b22; padding: 10px; border-radius: 12px;
-            border: 1px solid #30363d; box-shadow: 0 0 15px rgba(0, 255, 255, 0.05);
-        }
-        input[type="text"] {
-            flex: 1; background: transparent; border: none; color: white; font-size: 1rem;
-            outline: none; padding: 5px; font-family: 'Courier New', Courier, monospace;
-        }
-        button {
-            background: var(--accent); color: black; border: none; padding: 10px 20px;
-            border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s;
-        }
-        button:hover { background: #00cccc; box-shadow: 0 0 10px rgba(0, 255, 255, 0.4); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>R2 · Ghost Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/app.js" defer></script>
 </head>
 <body>
+<div class="scanline"></div>
+<div id="toast"></div>
+<div id="debug-hud" style="display:none"></div>
 
-    <header>
-        <h1>R2 CORE SYSTEM</h1>
-        <p>Terminal Neural Ativo • Módulos: Text & Image</p>
-    </header>
+<div id="app">
 
-    <div id="chat-container">
-        <div class="message bot">🟢 Uplink estabelecido. Sistemas online. Como posso ajudar?</div>
-    </div>
-
-    <div id="input-area">
-        <div class="input-wrapper">
-            <input type="text" id="user-input" placeholder="Digite um comando ou /img para gerar imagens..." autocomplete="off">
-            <button onclick="sendMessage()">ENVIAR</button>
+  <!-- HEADER -->
+  <header id="header">
+    <div class="header-left">
+      <button type="button" id="menu-btn" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6"  x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div class="logo">
+        <div class="logo-icon">R2</div>
+        <div class="logo-text">
+          <span class="logo-title">Ghost Protocol</span>
+          <span class="logo-sub">Tactical OS · v5.0</span>
         </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button type="button" id="clear-btn" title="Limpar chat">🗑</button>
+      <button type="button" id="settings-btn" class="settings-btn" title="Configurações">⚙️</button>
+      <button type="button" id="battle-mode-btn" class="battle-mode-btn" title="Modo Batalha (voz)">🎬 MODO BATALHA</button>
+      <div class="status-pill" id="status-pill">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">ONLINE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- OVERLAY -->
+  <div id="overlay" role="presentation"></div>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-brand">R2 · Menu</span>
+      <button type="button" class="sidebar-close">✕</button>
     </div>
 
-    <script>
-        const chatContainer = document.getElementById('chat-container');
-        const inputField = document.getElementById('user-input');
-        let ws;
+    <div class="sidebar-label">Documentos</div>
+    <button class="mod-btn" onclick="execCmd('/doc sync','📚 Sincronizando matriz de conhecimento...')">
+      <div class="icon">📚</div><span>Sincronizar PDFs</span>
+    </button>
+    <button class="mod-btn" onclick="execCmd('/doc list','📋 Verificando inventário...')">
+      <div class="icon">📋</div><span>Listar Arquivos</span>
+    </button>
 
-        // Conecta ao WebSocket para streaming de texto
-        function connectWebSocket() {
-            ws = new WebSocket(`ws://${window.location.host}/ws/chat`);
-            ws.onmessage = function(event) {
-                // Se for o primeiro pedaço da resposta, cria a bolha. Senão, adiciona texto.
-                let lastMsg = chatContainer.lastElementChild;
-                if (!lastMsg || lastMsg.classList.contains('user') || lastMsg.dataset.complete === "true") {
-                    addMessage("", 'bot');
-                    lastMsg = chatContainer.lastElementChild;
-                    lastMsg.dataset.complete = "false";
-                }
-                
-                if (event.data === "[DONE]") {
-                    lastMsg.dataset.complete = "true";
-                } else {
-                    lastMsg.innerHTML += event.data.replace(/\n/g, '<br>');
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                }
-            };
-            ws.onclose = () => setTimeout(connectWebSocket, 2000); // Tenta reconectar se cair
-        }
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Inteligência Tática</div>
+    <button class="mod-btn" onclick="execCmd('/cmd radar','📡 Ativando radar de voos...')">
+      <div class="icon">📡</div><span>Radar de Voos</span>
+    </button>
+    <button class="mod-btn" onclick="execCmd('/cmd astro','☄️ Consultando banco da NASA...')">
+      <div class="icon">☄️</div><span>Defesa Planetária</span>
+    </button>
+    <button class="mod-btn" onclick="execCmd('/cmd pizza','🍕 Checando monitor PizzINT...')">
+      <div class="icon">🍕</div><span>Monitor PizzINT</span>
+    </button>
+    <button class="mod-btn" onclick="execCmd('/cmd solar','☀️ Consultando dados solares...')">
+      <div class="icon">☀️</div><span>Clima Espacial</span>
+    </button>
 
-        function addMessage(content, sender, isHtml = false) {
-            const div = document.createElement('div');
-            div.className = `message ${sender}`;
-            if (isHtml) div.innerHTML = content;
-            else div.textContent = content;
-            chatContainer.appendChild(div);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            return div;
-        }
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Produção</div>
+    <button class="mod-btn" onclick="openStudio()">
+      <div class="icon">🎬</div><span>Estúdio de Cortes</span>
+    </button>
+  </nav>
 
-        async function sendMessage() {
-            const text = inputField.value.trim();
-            if (!text) return;
+  <!-- CHAT -->
+  <main id="chat-wrapper">
+    <div id="chat">
+      <div class="boot-msg" id="boot-screen">
+        <div class="boot-logo">R2</div>
+        <div class="boot-tagline">Ghost Protocol · Sistema Tático Online</div>
+        <div class="boot-grid">
+          <div class="boot-card" onclick="quickPrompt('Qual é seu status de operação atual?')">Status do sistema</div>
+          <div class="boot-card" onclick="quickPrompt('Liste os módulos táticos disponíveis.')">Módulos ativos</div>
+          <div class="boot-card" onclick="quickPrompt('O que você pode fazer por mim?')">Capacidades</div>
+          <div class="boot-card" onclick="execCmd('/cmd radar','📡 Ativando radar...')">Escanear radar</div>
+          <div class="boot-card" onclick="execCmd('/cmd astro','☄️ Consultando NASA...')">Asteroides</div>
+          <div class="boot-card" onclick="openStudio()">Estúdio de vídeo</div>
+        </div>
+      </div>
+    </div>
+  </main>
 
-            addMessage(text, 'user');
-            inputField.value = '';
+  <!-- INPUT -->
+  <footer id="input-wrapper">
+    <div id="input-row">
+      <button type="button" id="upload-btn" title="Anexar arquivo (ou Arraste para a tela)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+        </svg>
+      </button>
+      <input type="file" id="file-input" style="display:none" multiple>
+      <!-- NOVO BOTÃO MICROFONE PARA MENSAGEM DE ÁUDIO NO MODO SAFE -->
+      <button type="button" id="mic-msg-btn" class="mic-btn" title="Gravar áudio (clique para iniciar/parar)">🎤</button>
+      <textarea
+        id="msgBox"
+        rows="1"
+        placeholder="Digite sua ordem, Comandante..."
+        oninput="autoResize(this)"
+        onkeydown="handleKey(event)"
+      ></textarea>
+      <button type="button" id="send-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+        <span>Enviar</span>
+      </button>
+    </div>
+    <div class="input-hint">Enter · enviar &nbsp;|&nbsp; Shift+Enter · nova linha &nbsp;|&nbsp; 🎤 Clique e grave</div>
+  </footer>
+</div>
 
-            // Rota de Imagem (/img)
-            if (text.toLowerCase().startsWith('/img ') || text.toLowerCase().startsWith('/imagem ')) {
-                const prompt = text.replace(/^\/(img|imagem)\s+/i, '');
-                const loader = addMessage("🎨 Renderizando imagem. Aguarde...", 'bot');
-                
-                try {
-                    const response = await fetch('/api/image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt: prompt })
-                    });
-                    const data = await response.json();
-                    
-                    if (data.status === "success") {
-                        loader.innerHTML = `✅ Renderização concluída:<br><img src="${data.image_url}" alt="Gerada pela IA">`;
-                    } else {
-                        loader.innerHTML = `⚠️ Erro de renderização: ${data.error}`;
-                    }
-                } catch (e) {
-                    loader.innerHTML = `⚠️ Erro de comunicação com o servidor.`;
-                }
-                return;
-            }
+<!-- VIDEO STUDIO MODAL -->
+<div id="studio-backdrop" onclick="closeStudioOnBack(event)">
+  <div id="video-studio">
+    <div class="studio-header">
+      <div class="studio-title">
+        Estúdio de Cortes
+        <span class="studio-badge">TESOURA NEURAL</span>
+      </div>
+      <button class="close-studio" onclick="closeStudio()">✕</button>
+    </div>
+    <div class="studio-body">
+      <div class="preview-box">
+        <div id="preview-subtitle">JORNADA<br>DO HERÓI!</div>
+      </div>
+      <div class="controls-panel">
+        <div class="ctrl-group full">
+          <label class="ctrl-label">URL do YouTube</label>
+          <input type="text" id="vid-url" class="ctrl-input" placeholder="https://youtube.com/watch?v=...">
+        </div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <label class="ctrl-label">Legendas</label>
+            <div class="toggle-row">
+              <input type="checkbox" id="sub-active" checked>
+              <span>Ativar Legendas</span>
+            </div>
+          </div>
+          <div class="ctrl-group">
+            <label class="ctrl-label">Posição Automática</label>
+            <div class="toggle-row">
+              <input type="checkbox" id="sub-pos-auto" checked
+                onchange="document.getElementById('sub-pos').disabled=this.checked">
+              <span>IA decide posição</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <label class="ctrl-label">Cor da Legenda</label>
+            <input type="color" id="sub-color" class="ctrl-input" value="#ffffff" oninput="updatePreview()">
+          </div>
+          <div class="ctrl-group">
+            <label class="ctrl-label">Tamanho: <span id="size-val">13px</span></label>
+            <input type="range" id="sub-size" class="ctrl-input" min="10" max="22" value="13"
+              oninput="updatePreview(); document.getElementById('size-val').textContent=this.value+'px'">
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <label class="ctrl-label">Posição Y: <span id="pos-val">18%</span></label>
+            <input type="range" id="sub-pos" class="ctrl-input" min="5" max="95" value="18" disabled
+              oninput="updatePreview(); document.getElementById('pos-val').textContent=this.value+'%'">
+          </div>
+          <div class="ctrl-group">
+            <label class="ctrl-label">Estilo Visual</label>
+            <select id="sub-style" class="ctrl-input" onchange="updatePreview()">
+              <option value="outline">Borda Preta Grossa</option>
+              <option value="shadow">Sombra Suave</option>
+              <option value="box">Fundo Transparente</option>
+              <option value="yellow">Destaque Amarelo</option>
+            </select>
+          </div>
+        </div>
+        <button class="action-btn" onclick="startVideoExtraction()">🚀 Iniciar Extração Tática</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-            // Rota de Texto (WebSocket)
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(text);
-            } else {
-                addMessage("⚠️ Conexão com o servidor perdida.", 'bot');
-            }
-        }
+<!-- ========== MODO BATALHA - TELA PRETA COM SOUNDWAVES ========== -->
+<div id="battle-mode-screen" style="display: none;">
+  <div class="battle-container">
+    <div class="soundwave-container" id="soundwave-container">
+    </div>
+    <button id="safe-mode-btn" class="safe-mode-btn">MODO SAFE</button>
+    <div class="battle-hint">🎤 Aguardando "Hey R2" ou "R2" ...</div>
+  </div>
+</div>
 
-        inputField.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') sendMessage();
-        });
+<!-- ========== MODAL DE CONFIGURAÇÕES ========== -->
+<div id="settings-modal" class="settings-modal" style="display: none;">
+  <div class="settings-backdrop" onclick="closeSettingsModal()"></div>
+  <div class="settings-container">
+    <div class="settings-header">
+      <span class="settings-title">⚙️ CONFIGURAÇÕES TÁTICAS</span>
+      <button class="settings-close" onclick="closeSettingsModal()">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="setting-group">
+        <label class="setting-label">🎙️ VOZ DO R2</label>
+        <select id="voice-select" class="setting-select">
+          <option value="Antonio">Antonio (Masculino)</option>
+          <option value="Francisca">Francisca (Feminino)</option>
+          <option value="Thalita" selected>Thalita (Feminino)</option>
+        </select>
+        <div class="setting-hint">Voz utilizada no Modo Batalha e respostas faladas</div>
+      </div>
+      <div class="setting-group">
+        <label class="setting-label">🧠 DRIVER DE PROCESSAMENTO</label>
+        <select id="driver-select" class="setting-select">
+          <option value="Padrão">Padrão (Balanceado)</option>
+          <option value="Turbo">Turbo (Prioridade GPU)</option>
+          <option value="Stealth">Stealth (Baixo Consumo)</option>
+        </select>
+        <div class="setting-hint">Modo de execução do motor (influencia performance e consumo)</div>
+      </div>
+    </div>
+    <div class="settings-footer">
+      <button class="settings-save" onclick="saveSettings()">💾 SALVAR E APLICAR</button>
+    </div>
+  </div>
+</div>
 
-        connectWebSocket();
-    </script>
 </body>
 </html>
