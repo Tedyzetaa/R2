@@ -1,10 +1,9 @@
-import os
 import requests
 import datetime
 
 class AstroDefenseSystem:
     def __init__(self):
-        self.api_key = os.environ.get("NASA_API_KEY", "DEMO_KEY") 
+        self.api_key = "DEMO_KEY" 
         self.base_url = "https://api.nasa.gov/neo/rest/v1/feed"
 
     def get_asteroid_report(self):
@@ -46,7 +45,7 @@ class AstroDefenseSystem:
                     prox = ast['close_approach_data'][0]
                     vel = float(prox['relative_velocity']['kilometers_per_hour'])
                     dist = float(prox['miss_distance']['kilometers'])
-                except Exception as e:
+                except:
                     vel, dist = 0, 0
                 
                 icone = "⚠️" if perigoso else "🪨"

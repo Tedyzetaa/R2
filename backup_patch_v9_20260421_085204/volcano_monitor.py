@@ -24,11 +24,11 @@ class VolcanoMonitor:
                 return "⚠️ Nenhuma nova atividade reportada no feed global."
 
             for item in items:
-                title = item.findtext("title", default="")
+                title = item.find("title").text
                 # O título geralmente é "Volcano Name (Country) - Report Type"
                 # Ex: "Etna (Italy) - New Activity"
                 
-                description = item.findtext("description", default="")
+                description = item.find("description").text
                 # Limpa a descrição para ficar curta (primeiros 200 caracteres)
                 desc_curta = description.split('.')[0] + "." if description else "Detalhes não disponíveis."
                 if len(desc_curta) > 150:

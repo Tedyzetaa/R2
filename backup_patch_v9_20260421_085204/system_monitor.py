@@ -57,9 +57,9 @@ class SystemMonitor:
         except:
             report.append("ℹ️ [GUI]: Desativado (Headless Mode)")
 
-        report.append(f"\n⏱️ TIMESTAMP: {self._get_time()}")
+        report.append(f"\n⏱️ TIMESTAMP: {asyncio.run(self._get_time())}")
         return "\n".join(report)
 
-    def _get_time(self):
+    async def _get_time(self):
         from datetime import datetime
         return datetime.now().strftime("%H:%M:%S")

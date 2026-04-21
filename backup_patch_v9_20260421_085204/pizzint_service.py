@@ -1,5 +1,3 @@
-from __future__ import annotations
-from typing import Optional, List, Dict
 """
 PizzaINTService — Módulo de Inteligência Geopolítica / Nível DEFCON
 Versão: 3.0 TACTICAL
@@ -111,7 +109,7 @@ RSS_FEEDS = [
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-def _get_safe(url: str, timeout: int = 12) -> Optional[requests.Response]:
+def _get_safe(url: str, timeout: int = 12) -> requests.Response | None:
     """GET seguro com timeout e headers."""
     try:
         r = requests.get(url, headers=HEADERS, timeout=timeout)
@@ -160,7 +158,7 @@ def _score_para_defcon(score: int) -> dict:
     }
 
 
-def _parse_rss(url: str, limite: int = 5) -> List[Dict]:
+def _parse_rss(url: str, limite: int = 5) -> list[dict]:
     """
     Parseia feed RSS e extrai título, link e data.
     Funciona com feeds Atom e RSS 2.0.
@@ -228,7 +226,7 @@ class PizzaINTService:
     # FONTE 1: PizzINT.watch (scraping HTML)
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _scrape_pizzint(self) -> tuple[int, List[Dict], str]:
+    def _scrape_pizzint(self) -> tuple[int, list[dict], str]:
         """
         Raspa o site PizzINT e retorna (score_bruto, noticias, texto_raw).
         """
@@ -270,7 +268,7 @@ class PizzaINTService:
     # FONTE 2: RSS de agências primárias
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _coletar_rss(self, limite_por_feed: int = 4) -> tuple[int, List[Dict]]:
+    def _coletar_rss(self, limite_por_feed: int = 4) -> tuple[int, list[dict]]:
         """
         Coleta notícias de todos os RSS feeds e calcula score de ameaça.
         Retorna (score_total_rss, lista_noticias).

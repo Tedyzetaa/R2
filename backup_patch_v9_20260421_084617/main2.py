@@ -72,9 +72,6 @@ def salvar_no_historico_json(usuario, bot):
             except Exception as e:
                 print(f"[AVISO] Erro ao ler histórico: {e}")
         historico.append(interacao)
-        # V9.0: Manter apenas últimas 500 entradas
-        if len(historico) > 500:
-            historico = historico[-500:]
         try:
             with open(LOG_HISTORICO, "w", encoding="utf-8") as f:
                 json.dump(historico, f, ensure_ascii=False, indent=4)
@@ -300,14 +297,11 @@ eu_ops = None
 pizza_ops = None
 noaa_ops = None
 video_ops = None
-astro_ops = None  # <--- ADICIONE ESTA LINHA
-air_ops = None    # <--- ADICIONE ESTA TAMBÉM POR SEGURANÇA
-tiktok_ops = None # <--- E ESTA PARA GARANTIR O TIKTOK
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ai_brain, rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops
-    
+    global ai_brain, rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops
+
     os.makedirs("static/media", exist_ok=True)
     print("\n⚙️ [BOOT] Inicializando Módulos Táticos...")
 
@@ -322,15 +316,9 @@ async def lifespan(app: FastAPI):
     NOAAService = safe_import("noaa_service", "NOAAService")
     noaa_ops = NOAAService() if NOAAService else None
 
-    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
-    tiktok_ops = TikTokCommander() if TikTokCommander else None
-
-    # V9.0: Instanciar módulos táticos
-    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
-    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
-    air_ops = AirTrafficControl() if AirTrafficControl else None
-    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
-
+    # BUG FIX #2 (integração): Whisper é carregado PRIMEIRO e injetado no VideoSurgeon.
+    # Antes: VideoSurgeon era criado sem modelo → carregava seu próprio whisper internamente.
+    # Agora: o modelo global é passado via construtor, evitando dupla alocação de VRAM.
     whisper_model_global = get_whisper_model() if WHISPER_AVAILABLE else None
 
     try:
@@ -367,9 +355,7 @@ async def lifespan(app: FastAPI):
             status = "ONLINE" if obj else "OFFLINE (instale openai-whisper)"
         print(f"{nome}: {status}")
 
-    # O ÚNICO YIELD FICA AQUI NO FINAL (Sinaliza que o boot terminou)
     yield
-    
     print("[SHUTDOWN] Encerrando motores...")
 
 app = FastAPI(lifespan=lifespan)
@@ -443,25 +429,6 @@ async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
         return {"ok": True, "arquivos": salvos, "erros": erros}
     return {"ok": False, "error": "Nenhum arquivo salvo.", "erros": erros}
 
-class FilaPayload(BaseModel):
-    videos: List[str]
-
-@app.get("/api/cortes")
-async def listar_cortes():
-    pasta = "static/media/cortes_virais"
-    if not os.path.exists(pasta): return {"cortes": []}
-    arquivos = [f for f in os.listdir(pasta) if f.endswith(".mp4")]
-    arquivos.sort(key=lambda x: os.path.getmtime(os.path.join(pasta, x)), reverse=True)
-    return {"cortes": arquivos}
-
-@app.post("/api/enfileirar")
-async def enfileirar_tiktok(payload: FilaPayload):
-    if not tiktok_ops: return {"ok": False, "msg": "Módulo TikTok offline"}
-    for v in payload.videos:
-        caminho = os.path.abspath(os.path.join("static/media/cortes_virais", v))
-        tiktok_ops.enfileirar(caminho)
-    return {"ok": True, "msg": f"{len(payload.videos)} vídeos engatilhados no Silo."}
-
 @app.get("/", response_class=HTMLResponse)
 async def serve_gui(): 
     return FileResponse("static/index.html")
@@ -525,20 +492,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif sub == "solar" and noaa_ops:
                     await websocket.send_json({"type": "system", "text": noaa_ops.gerar_html_painel(await asyncio.to_thread(noaa_ops.get_full_intel))})
                 elif sub == "radar":
-                    if air_ops:
-                        filename, qtd, msg = await asyncio.to_thread(air_ops.radar_scan, "Ivinhema")
-                        await websocket.send_json({"type": "system", "text": f"{msg}<br><img src='/{filename}' style='max-width:100%; border-radius:8px;'>"})
-                    else:
-                        await websocket.send_json({"type": "system", "text": "📡 Módulo de Radar não está disponível."})
+                    await websocket.send_json({"type": "system", "text": "📡 Módulo de Radar não está conectado nesta sessão. Verifique se o serviço está ativo."})
                 elif sub == "astro":
                     await websocket.send_json({"type": "system", "text": "☄️ Módulo de Defesa Planetária não está conectado nesta sessão."})
-                elif sub == "tiktok":
-                    await websocket.send_json({"type": "system", "text": "<button onclick='abrirCentralPostagem()' style='background:#0ea5e9;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:bold;margin-top:10px;'>📱 Abrir Central de Lançamento</button>"})
-                    if astro_ops:
-                        texto, astro_id, astro_nome = await asyncio.to_thread(astro_ops.get_asteroid_report)
-                        await websocket.send_json({"type": "system", "text": texto})
-                    else:
-                        await websocket.send_json({"type": "system", "text": "☄️ Módulo de Defesa Planetária não está disponível."})
                 else:
                     await websocket.send_json({"type": "system", "text": f"⚠️ Comando /cmd {sub} não reconhecido."})
                 continue
@@ -671,6 +627,7 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
 
 if __name__ == "__main__":
+    import threading
     import webview
 
     def run_server():

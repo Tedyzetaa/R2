@@ -1,4 +1,5 @@
 import requests
+import random
 
 class RadioScanner:
     def __init__(self):

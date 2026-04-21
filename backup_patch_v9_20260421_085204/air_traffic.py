@@ -48,7 +48,7 @@ class AirTrafficControl:
             states = data.get('states', [])
             
             # --- GERAÇÃO DA IMAGEM ---
-            filename = os.path.abspath("radar_scan.png")
+            filename = "radar_scan.png"
             self._plotar_radar(states, filename, lat, lon, location_name)
             
             qtd = len(states) if states else 0
@@ -60,10 +60,8 @@ class AirTrafficControl:
             return None, 0, f"Falha no sistema de radar: {e}"
 
     def _plotar_radar(self, aircrafts, filename, center_lat, center_lon, location_name):
-        # plt.style.use('dark_background') # V9.0: removido global
+        plt.style.use('dark_background')
         fig, ax = plt.subplots(figsize=(8, 8))
-        ax.set_facecolor('black')
-        fig.patch.set_facecolor('black')
         
         # Legenda do ponto central dinâmico
         ax.plot(center_lon, center_lat, marker='P', color='#00ffff', markersize=15, label=f'BASE ({location_name.upper()})')

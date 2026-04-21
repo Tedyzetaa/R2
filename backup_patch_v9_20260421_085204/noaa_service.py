@@ -72,8 +72,7 @@ def _ffmpeg_run(cmd: list) -> bool:
             shell=False               # ← CORREÇÃO CRÍTICA
         )
         if result.returncode != 0:
-            stderr_str = result.stderr.decode("utf-8", errors="replace") if isinstance(result.stderr, bytes) else result.stderr
-            print(f"⚠️  [FFmpeg] Código de saída {result.returncode}: {stderr_str[-200:]}")
+            print(f"⚠️  [FFmpeg] Código de saída {result.returncode}: {result.stderr[-200:]}")
         return result.returncode == 0
     except FileNotFoundError:
         print(f"❌ [FFmpeg] Binário não encontrado: {_FFMPEG}")
