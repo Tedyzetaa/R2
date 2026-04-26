@@ -824,6 +824,33 @@ function initBattleMode() {
   criarBarrasSom();
 }
 
+/* ========== TRADING AUTÔNOMO ========== */
+function abrirBroker() {
+    notificar('Iniciando terminal de Trading Broker10...', 'ok');
+    closeSidebar();
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/broker/start', true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                var res;
+                try { res = JSON.parse(xhr.responseText); } catch(e) { res = {}; }
+                if (res.ok) {
+                    notificar('✅ Sessão da Broker iniciada com sucesso!', 'ok');
+                    // Abre automaticamente o painel Alpha para monitorar a tela
+                    if (typeof alphaPanel !== 'undefined') alphaPanel.open();
+                } else {
+                    notificar('❌ Erro: ' + res.erro, 'err');
+                }
+            } else {
+                notificar('❌ Falha ao iniciar terminal de trading.', 'err');
+            }
+        }
+    };
+    xhr.send();
+}
+
 (function init() {
   setupDragAndDrop();
   var mb = document.getElementById('menu-btn');  if (mb) mb.onclick = function(e) { e.preventDefault(); toggleSidebar(); };
@@ -839,73 +866,482 @@ function initBattleMode() {
   initMicrophone();
 }());
 
-/* ========== CENTRAL DE POSTAGEM TIKTOK ========== */
-function abrirCentralPostagem() {
-  closeSidebar();
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', '/api/cortes', true);
-  xhr.onload = function() {
-    if (xhr.status === 200) {
-      var res = JSON.parse(xhr.responseText);
-      renderModalTikTok(res.cortes);
-    } else {
-      showToast('❌ Erro ao buscar cortes.');
+// ========== SILO TIKTOK - MÓDULO INTEGRADO (ES5) ==========
+var siloBackdrop = document.getElementById('silo-backdrop');
+var picoSelecionado = null;
+var arquivoSelecionado = null;
+
+function abrirSiloTikTok() {
+    if (siloBackdrop) siloBackdrop.style.display = 'flex';
+    carregarFila();
+    listarMunicao();
+    // Configurar eventos uma única vez
+    if (!window._siloEventsSet) {
+        var dropZone = document.getElementById('drop-zone-silo');
+        var fileInput = document.getElementById('file-input-silo');
+        if (dropZone) {
+            dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+            dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('drag-over'); });
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                var files = e.dataTransfer.files;
+                if (files.length > 0) arquivoSelecionado = files[0];
+                atualizarNomeArquivo();
+            });
+        }
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) arquivoSelecionado = this.files[0];
+                atualizarNomeArquivo();
+            });
+        }
+        // Chips de horário
+        var chips = document.querySelectorAll('#peak-chips-silo .chip');
+        for (var i = 0; i < chips.length; i++) {
+            chips[i].addEventListener('click', function() {
+                var hora = this.getAttribute('data-hora');
+                selecionarPico(this, hora);
+            });
+        }
+        window._siloEventsSet = true;
     }
-  };
-  xhr.send();
 }
 
-function renderModalTikTok(cortes) {
-  var overlay = document.createElement('div');
-  overlay.id = 'tiktok-modal-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);';
-  var modal = document.createElement('div');
-  modal.style.cssText = 'background:#1a1c23;border:1px solid #0ea5e9;border-radius:12px;width:90%;max-width:500px;padding:20px;box-shadow:0 0 20px rgba(14,165,233,0.2);color:#e2e8f0;max-height:80vh;display:flex;flex-direction:column;';
-  var header = document.createElement('h2');
-  header.innerHTML = '📱 Silo de Lançamento (TikTok)';
-  header.style.cssText = 'margin-top:0;color:#0ea5e9;font-size:18px;border-bottom:1px solid #334155;padding-bottom:10px;';
-  var listContainer = document.createElement('div');
-  listContainer.style.cssText = 'overflow-y:auto;margin:15px 0;flex:1;';
-  if (cortes.length === 0) {
-    listContainer.innerHTML = '<p style="text-align:center;color:#94a3b8;">Nenhum corte viral encontrado na base.</p>';
-  } else {
-    cortes.forEach(function(corte) {
-      var label = document.createElement('label');
-      label.style.cssText = 'display:flex;align-items:center;padding:10px;background:#0f1115;border:1px solid #334155;margin-bottom:8px;border-radius:6px;cursor:pointer;';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox'; cb.value = corte; cb.className = 'tiktok-checkbox'; cb.style.marginRight = '12px';
-      var text = document.createElement('span');
-      text.textContent = corte.replace('.mp4', '').replace(/_/g, ' ');
-      label.appendChild(cb); label.appendChild(text);
-      listContainer.appendChild(label);
-    });
-  }
-  var btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;justify-content:space-between;gap:10px;margin-top:10px;';
-  var btnCancel = document.createElement('button');
-  btnCancel.textContent = 'Cancelar';
-  btnCancel.style.cssText = 'padding:10px;border-radius:6px;border:none;background:#334155;color:#fff;cursor:pointer;flex:1;';
-  btnCancel.onclick = function() { document.body.removeChild(overlay); };
-  var btnSend = document.createElement('button');
-  btnSend.textContent = 'Adicionar à Fila';
-  btnSend.style.cssText = 'padding:10px;border-radius:6px;border:none;background:#0ea5e9;color:#fff;cursor:pointer;flex:2;font-weight:bold;';
-  btnSend.onclick = function() {
-    var selecionados = [];
-    var checkboxes = listContainer.querySelectorAll('.tiktok-checkbox:checked');
-    for(var i=0; i<checkboxes.length; i++) selecionados.push(checkboxes[i].value);
-    if (selecionados.length === 0) { showToast('Selecione um vídeo!'); return; }
-    var xhrPost = new XMLHttpRequest();
-    xhrPost.open('POST', '/api/enfileirar', true);
-    xhrPost.setRequestHeader('Content-Type', 'application/json');
-    xhrPost.onload = function() {
-      var res = JSON.parse(xhrPost.responseText);
-      showToast(res.msg);
-      document.body.removeChild(overlay);
-    };
-    xhrPost.send(JSON.stringify({ videos: selecionados }));
-  };
-  btnRow.appendChild(btnCancel);
-  if (cortes.length > 0) btnRow.appendChild(btnSend);
-  modal.appendChild(header); modal.appendChild(listContainer); modal.appendChild(btnRow);
-  overlay.appendChild(modal); document.body.appendChild(overlay);
+function fecharSiloTikTok() {
+    if (siloBackdrop) siloBackdrop.style.display = 'none';
 }
+
+function atualizarNomeArquivo() {
+    var displayDiv = document.getElementById('file-name-display');
+    var nameSpan = document.getElementById('file-name-text');
+    if (arquivoSelecionado) {
+        displayDiv.style.display = 'block';
+        nameSpan.textContent = arquivoSelecionado.name;
+    } else {
+        displayDiv.style.display = 'none';
+        nameSpan.textContent = '';
+    }
+}
+
+function selecionarPico(el, hora) {
+    var chips = document.querySelectorAll('#peak-chips-silo .chip');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
+    el.classList.add('active');
+    picoSelecionado = hora;
+    var hoje = new Date();
+    var partes = hora.split(':');
+    hoje.setHours(parseInt(partes[0],10), parseInt(partes[1],10), 0, 0);
+    if (hoje <= new Date()) hoje.setDate(hoje.getDate() + 1);
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    var iso = hoje.getFullYear() + '-' + pad(hoje.getMonth()+1) + '-' + pad(hoje.getDate()) + 'T' + pad(hoje.getHours()) + ':' + pad(hoje.getMinutes());
+    document.getElementById('f-agenda').value = iso;
+}
+
+function notificar(msg, tipo) {
+    var toastDiv = document.getElementById('toast') || (function(){
+        var d = document.createElement('div'); d.id = 'toast'; d.style.position = 'fixed'; d.style.bottom = '20px'; d.style.right = '20px'; d.style.zIndex = '10001';
+        document.body.appendChild(d); return d;
+    })();
+    var notif = document.createElement('div');
+    notif.className = 'notif-msg' + (tipo === 'err' ? ' err' : '');
+    notif.textContent = msg;
+    toastDiv.appendChild(notif);
+    setTimeout(function() { notif.remove(); }, 3000);
+}
+
+function statusBadge(status) {
+    var map = { aguardando: '◌ AGUARDANDO', disparando: '◉ DISPARANDO', publicado: '✓ PUBLICADO', erro: '✕ ERRO' };
+    return map[status] || status;
+}
+
+function formatarData(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    return pad(d.getDate()) + '/' + pad(d.getMonth()+1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function toggleLog(id) {
+    var el = document.getElementById('log-' + id);
+    if (el) el.classList.toggle('open');
+}
+
+function criarCard(item) {
+    var card = document.createElement('div');
+    card.className = 'video-card status-' + item.status;
+    card.setAttribute('data-id', item.id);
+    var nomeArquivo = item.video_path ? item.video_path.split(/[\\/]/).pop() : '—';
+    var dataFormatada = formatarData(item.agendar_para);
+    var logsHtml = '';
+    var logs = item.log || [];
+    for (var k = 0; k < logs.length; k++) logsHtml += '<div class="log-line">' + escapeHtml(logs[k]) + '</div>';
+    if (!logsHtml) logsHtml = '<div class="log-line" style="opacity:0.4;">Nenhuma entrada de log.</div>';
+    var podeDisparar = (item.status === 'aguardando' || item.status === 'erro');
+    var btnDisabled = podeDisparar ? '' : 'disabled';
+    card.innerHTML = 
+        '<div class="card-top">' +
+            '<div class="card-thumb"><span>▶</span></div>' +
+            '<div class="card-body">' +
+                '<div style="display:flex;justify-content:space-between;">' +
+                    '<div class="card-titulo" title="' + escapeHtml(item.titulo) + '">' + escapeHtml(item.titulo) + '</div>' +
+                    '<span class="status-pill status-' + item.status + '">' + statusBadge(item.status) + '</span>' +
+                '</div>' +
+                '<div class="card-desc">' + escapeHtml(item.descricao) + '</div>' +
+                '<div class="card-hashtags">' + escapeHtml(item.hashtags) + '</div>' +
+                '<div class="card-meta">' +
+                    '<span>⏰ ' + dataFormatada + '</span>' +
+                    '<span>🎬 ' + escapeHtml(nomeArquivo) + '</span>' +
+                    '<span>#' + item.id + '</span>' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="card-actions">' +
+            '<button class="btn-post-now" ' + btnDisabled + ' onclick="dispararAgora(\'' + item.id + '\', this)">⚡ POSTAR AGORA</button>' +
+            '<button class="btn-log-toggle" onclick="toggleLog(\'' + item.id + '\')">LOG ▾</button>' +
+            '<button class="btn-del" onclick="removerItem(\'' + item.id + '\')">✕</button>' +
+        '</div>' +
+        '<div class="card-log" id="log-' + item.id + '">' + logsHtml + '</div>';
+    return card;
+}
+
+function carregarFila() {
+    fetch('/api/tiktok/fila')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var lista = data.fila || [];
+            document.getElementById('fila-count').textContent = lista.length;
+            var container = document.getElementById('fila-list');
+            if (!container) return;
+            container.innerHTML = '';
+            if (lista.length === 0) {
+                container.innerHTML = '<div class="empty-state">FILA VAZIA — AGUARDANDO MISSÕES</div>';
+                return;
+            }
+            for (var i = 0; i < lista.length; i++) {
+                container.appendChild(criarCard(lista[i]));
+            }
+        })
+        .catch(function(e) { notificar('Erro ao carregar fila: ' + e, 'err'); });
+}
+
+// ========== REFATORAÇÃO DO ARSENAL (MUNIÇÃO) ==========
+function listarMunicao() {
+    var container = document.getElementById('municao-list');
+    if (!container) return;
+
+    fetch('/api/tiktok/cortes')
+        .then(function(r) { return r.json(); })
+        .then(function(videos) {
+            container.innerHTML = '';
+            if (!videos || videos.length === 0) {
+                container.innerHTML = '<div style="font-size: 10px; color: #2d5a7a; text-align: center;">Nenhum vídeo no arsenal.</div>';
+                return;
+            }
+
+            for (var i = 0; i < videos.length; i++) {
+                var v = videos[i];
+                var card = document.createElement('div');
+                card.className = 'municao-card';
+                card.setAttribute('data-path', v.path);
+                card.style.padding = '8px';
+                card.style.border = '1px solid #0d2d45';
+                card.style.marginBottom = '6px';
+                card.style.cursor = 'pointer';
+                card.style.background = '#0a1520';
+                card.style.color = '#00d4ff';
+                card.style.fontFamily = 'monospace';
+                card.style.fontSize = '11px';
+                card.innerHTML = '🎬 ' + v.name;
+
+                // Ao clicar, seleciona o vídeo e preenche o formulário
+                (function(video) {
+                    card.onclick = function() {
+                        // Simula um arquivo real
+                        arquivoSelecionado = {
+                            name: video.name,
+                            path: video.path,
+                            fromArsenal: true
+                        };
+                        var tituloInput = document.getElementById('f-titulo');
+                        if (tituloInput) {
+                            tituloInput.value = video.name.replace('.mp4', '').replace(/_/g, ' ');
+                        }
+                        atualizarNomeArquivo();
+                        notificar('Vídeo selecionado: ' + video.name, 'ok');
+                    };
+                })(v);
+
+                container.appendChild(card);
+            }
+        })
+        .catch(function(e) { 
+            container.innerHTML = '<div style="color:#ff2d55;">Erro ao carregar arsenal.</div>';
+        });
+}
+
+function adicionarFila() {
+    if (!arquivoSelecionado) { notificar('Selecione um vídeo primeiro.', 'err'); return; }
+    var fd = new FormData();
+    fd.append('video', arquivoSelecionado);
+    fd.append('titulo', document.getElementById('f-titulo').value);
+    fd.append('descricao', document.getElementById('f-desc').value);
+    fd.append('hashtags', document.getElementById('f-tags').value);
+    fd.append('agendar_para', document.getElementById('f-agenda').value);
+    fetch('/api/tiktok/add', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                notificar('✓ Missão adicionada: ' + data.item.id);
+                arquivoSelecionado = null;
+                document.getElementById('file-input-silo').value = '';
+                atualizarNomeArquivo();
+                document.getElementById('f-titulo').value = '';
+                document.getElementById('f-desc').value = '';
+                document.getElementById('f-tags').value = '';
+                document.getElementById('f-agenda').value = '';
+                carregarFila();
+            } else {
+                notificar('Erro ao adicionar: ' + JSON.stringify(data), 'err');
+            }
+        })
+        .catch(function(e) { notificar('Erro de rede: ' + e, 'err'); });
+}
+
+function dispararAgora(id, btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ DISPARANDO...';
+    fetch('/api/tiktok/post_now/' + id, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                notificar('⚡ Disparo iniciado: ' + id);
+                setTimeout(carregarFila, 1500);
+                setTimeout(carregarFila, 4000);
+            } else {
+                notificar('Erro: ' + data.erro, 'err');
+                btn.disabled = false;
+                btn.textContent = '⚡ POSTAR AGORA';
+            }
+        })
+        .catch(function(e) {
+            notificar('Erro de rede: ' + e, 'err');
+            btn.disabled = false;
+            btn.textContent = '⚡ POSTAR AGORA';
+        });
+}
+
+function removerItem(id) {
+    fetch('/api/tiktok/remover/' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) { notificar('Item ' + id + ' removido.'); carregarFila(); }
+        })
+        .catch(function(e) { notificar('Erro: ' + e, 'err'); });
+}
+
+// Auto-refresh da fila a cada 8 segundos
+setInterval(carregarFila, 8000);
+// ========== PAINEL ALPHA (HUD NEURAL) - VERSÃO CORRIGIDA ==========
+var alphaPanel = (function () {
+    var _isOpen = false;
+    var _pollTimer = null;
+    var _autopilotOn = false;
+
+    function _el(id) { return document.getElementById(id); }
+    function _log(msg, type) {
+        var terminal = _el("alpha-terminal");
+        if (!terminal) return;
+        var line = document.createElement("div");
+        line.className = "alpha-log-line alpha-log-" + (type || "info");
+        var ts = new Date().toTimeString().substr(0, 8);
+        line.innerHTML = "[" + ts + "] " + msg;
+        terminal.appendChild(line);
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function _renderState(data) {
+        var state = data.state || data.last_state || "IDLE";
+        var conf = data.confidence || data.last_confidence || 0;
+        var action = data.recommended_action || data.last_action || "--";
+        var cycles = data.cycles || 0;
+
+        var nameEl = _el("alpha-state-name");
+        if (nameEl) nameEl.textContent = state;
+        var actionEl = _el("alpha-state-action");
+        if (actionEl) actionEl.textContent = action;
+        var barEl = _el("alpha-confidence-bar");
+        if (barEl) barEl.style.width = Math.round(conf * 100) + "%";
+        var labelEl = _el("alpha-confidence-label");
+        if (labelEl) labelEl.textContent = "Confianca: " + Math.round(conf * 100) + "%";
+        var cycleEl = _el("alpha-cycle-count");
+        if (cycleEl) cycleEl.textContent = cycles;
+    }
+
+    function _fetchStatus() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/alpha/status", true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var data = JSON.parse(xhr.responseText);
+                _renderState(data);
+                var lastAct = _el("alpha-last-action");
+                if (lastAct) lastAct.textContent = data.last_action || "--";
+            }
+        };
+        xhr.send();
+    }
+
+    function _startPolling() {
+        if (_pollTimer) return;
+        _pollTimer = setInterval(_fetchStatus, 3000);
+    }
+
+    function _stopPolling() {
+        if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    }
+
+    // Funções dummy para compatibilidade (autopilot é controlado pelo backend)
+    function _startAutopilotPoll() { /* não usado, mantido para evitar erro */ }
+    function _stopAutopilotPoll() { /* não usado */ }
+
+    function open() {
+        var modal = _el("modal-alpha");
+        if (modal) modal.style.display = "flex";
+        _isOpen = true;
+        _log("Painel Alpha ativado.", "sys");
+        _startPolling();
+        _fetchStatus();
+    }
+
+    function close() {
+        var modal = _el("modal-alpha");
+        if (modal) modal.style.display = "none";
+        _isOpen = false;
+        _stopPolling();
+    }
+
+    function analyze() {
+        _log("Iniciando ciclo Neural-RPA...", "sys");
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/alpha/analyze", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var data = JSON.parse(xhr.responseText);
+                _renderState(data);
+                _log("Estado: " + data.state + " | Ação: " + data.recommended_action, "state");
+            } else if (xhr.readyState === 4) {
+                _log("Erro no ciclo: " + xhr.status, "error");
+            }
+        };
+        xhr.send();
+    }
+
+    function toggleAutopilot() {
+        var btn = _el("btn-autopilot");
+        if (!_autopilotOn) {
+            _autopilotOn = true;
+            if (btn) {
+                btn.innerHTML = '<span class="alpha-btn-icon">&#9646;&#9646;</span> Parar Autopilot';
+                btn.className = "alpha-btn alpha-btn-autopilot running";
+            }
+            _log("AUTOPILOT ATIVADO — modo Blitz (0.5s)...", "warn");
+            var xhrStart = new XMLHttpRequest();
+            xhrStart.open("POST", "/api/alpha/autopilot", true);
+            xhrStart.setRequestHeader("Content-Type", "application/json");
+            xhrStart.onreadystatechange = function() {
+                if (xhrStart.readyState === 4) {
+                    if (xhrStart.status === 200) {
+                        var data;
+                        try { data = JSON.parse(xhrStart.responseText); } catch(e) { data = {}; }
+                        _log("Autopilot confirmado: " + (data.msg || "ativo"), "ok");
+                    } else {
+                        _log("Erro ao iniciar autopilot: " + xhrStart.status, "error");
+                        _autopilotOn = false;
+                        if (btn) {
+                            btn.innerHTML = '<span class="alpha-btn-icon">&#9658;</span> Ativar Autopilot';
+                            btn.className = "alpha-btn alpha-btn-autopilot";
+                        }
+                    }
+                }
+            };
+            xhrStart.send();
+        } else {
+            _autopilotOn = false;
+            if (btn) {
+                btn.innerHTML = '<span class="alpha-btn-icon">&#9658;</span> Ativar Autopilot';
+                btn.className = "alpha-btn alpha-btn-autopilot";
+            }
+            _log("Enviando sinal de parada...", "warn");
+            var xhrStop = new XMLHttpRequest();
+            xhrStop.open("POST", "/api/broker/stop_autopilot", true);
+            xhrStop.setRequestHeader("Content-Type", "application/json");
+            xhrStop.onreadystatechange = function() {
+                if (xhrStop.readyState === 4 && xhrStop.status === 200) {
+                    var data;
+                    try { data = JSON.parse(xhrStop.responseText); } catch(e) { data = {}; }
+                    _log("Autopilot parado. Ciclos: " + (data.total_cycles || "--"), "warn");
+                }
+            };
+            xhrStop.send();
+        }
+    }
+
+    function screenshot() {
+        _log("Capturando frame...", "sys");
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/alpha/screenshot", true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var data = JSON.parse(xhr.responseText);
+                if (data.screenshot_b64) {
+                    var wrap = _el("alpha-screenshot-wrap");
+                    var img = _el("alpha-screenshot-img");
+                    if (img) img.src = "data:image/png;base64," + data.screenshot_b64;
+                    if (wrap) wrap.style.display = "block";
+                    _log("Frame capturado.", "ok");
+                }
+            } else if (xhr.readyState === 4) {
+                _log("Erro na captura.", "error");
+            }
+        };
+        xhr.send();
+    }
+
+    function override(action) {
+        _log("Override manual: " + action, "warn");
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/alpha/override", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.send(JSON.stringify({ action: action }));
+    }
+
+    function clearLog() {
+        var terminal = _el("alpha-terminal");
+        if (terminal) terminal.innerHTML = "";
+        _log("Log limpo.", "sys");
+    }
+
+    return {
+        open: open, close: close, analyze: analyze,
+        toggleAutopilot: toggleAutopilot, screenshot: screenshot,
+        override: override, clearLog: clearLog
+    };
+})();
+
+// Inicializa os eventos do painel Alpha (chamar após DOM carregado)
+document.addEventListener("DOMContentLoaded", function() {
+    var alphaTrigger = document.querySelector(".btn-alpha-trigger");
+    if (alphaTrigger) alphaTrigger.onclick = function(e) { e.preventDefault(); alphaPanel.open(); };
+});

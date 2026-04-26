@@ -143,4 +143,4 @@ function renderModalTikTok(cortes) {
     print("\n🚀 [OPERACIONAL] Reinicie o servidor main2.py para ativar o Silo TikTok!")
 
 if __name__ == "__main__":
-    aplicar_patch()
+    aplicar_patch() 

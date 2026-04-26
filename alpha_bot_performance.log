@@ -1,0 +1,15 @@
+2026-04-25 14:13:14.945 [INFO] AlphaEngine - Módulo Alpha inicializado | Sistema pronto para operação HFT
+2026-04-25 14:13:45.682 [INFO] AlphaEngine - AlphaEngine anexado à página do navegador
+2026-04-25 14:17:00.704 [INFO] AlphaEngine - === INÍCIO DO CICLO #1 ===
+2026-04-25 14:17:01.606 [DEBUG] AlphaEngine - Tick contagem: 100 | asset 2298 | close=4.349545
+2026-04-25 14:17:02.370 [DEBUG] AlphaEngine - Tick contagem: 200 | asset 2298 | close=4.348805
+2026-04-25 14:17:03.072 [DEBUG] AlphaEngine - Tick contagem: 300 | asset 2298 | close=4.352165
+2026-04-25 14:17:03.762 [DEBUG] AlphaEngine - Tick contagem: 400 | asset 2298 | close=4.349565
+2026-04-25 14:17:04.681 [DEBUG] AlphaEngine - Tick contagem: 500 | asset 2298 | close=4.351635
+2026-04-25 14:17:05.552 [DEBUG] AlphaEngine - Tick contagem: 600 | asset 2298 | close=4.350245
+2026-04-25 14:17:06.419 [DEBUG] AlphaEngine - Tick contagem: 700 | asset 2298 | close=4.349985
+2026-04-25 14:17:07.231 [DEBUG] AlphaEngine - Tick contagem: 800 | asset 2298 | close=4.355895
+2026-04-25 14:17:07.572 [INFO] AlphaEngine - === CICLO #1 FINALIZADO | duração: 6868.36 ms ===
+2026-04-25 14:17:08.122 [INFO] AlphaEngine - === INÍCIO DO CICLO #2 ===
+2026-04-25 14:17:08.166 [INFO] AlphaEngine - === CICLO #2 FINALIZADO | duração: 44.75 ms ===
+2026-04-25 14:17:08.270 [INFO] AlphaEngine - Parada solicitada ao AlphaEngine

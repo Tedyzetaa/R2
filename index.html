@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R2 Tactical OS - Ghost Protocol</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <div id="loading-screen">
+        <div class="loading-content">
+            <div class="glitch-text" data-text="R2 TACTICAL OS">R2 TACTICAL OS</div>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            <div class="loading-status">Inicializando módulos táticos...</div>
+        </div>
+    </div>
+
+    <div id="main-container" class="hidden">
+        <!-- Header HUD -->
+        <header id="hud-header">
+            <div class="hud-title">
+                <span class="title-main">R2 TACTICAL OS</span>
+                <span class="title-sub">GHOST PROTOCOL v2.0</span>
+            </div>
+            <div class="hud-status">
+                <div class="status-item">
+                    <span class="status-label">ALPHA:</span>
+                    <span id="alpha-status" class="status-value offline">OFFLINE</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">BROKER:</span>
+                    <span id="broker-status" class="status-value offline">OFFLINE</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">TIKTOK:</span>
+                    <span id="tiktok-status" class="status-value offline">OFFLINE</span>
+                </div>
+            </div>
+            <div class="hud-time">
+                <span id="system-time">00:00:00</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main id="main-grid">
+            <!-- Left Panel - Neural Log -->
+            <section id="neural-log-panel" class="hud-panel">
+                <div class="panel-header">
+                    <h2>// NEURAL LOG</h2>
+                    <button id="clear-log-btn" class="hud-btn small">LIMPAR</button>
+                </div>
+                <div id="neural-terminal" class="terminal-output">
+                    <div class="log-entry system">[SYS] Terminal neural iniciado</div>
+                </div>
+                <div class="terminal-input-area">
+                    <input type="text" id="command-input" class="hud-input" placeholder="Digite comando tático...">
+                    <button id="send-cmd-btn" class="hud-btn">EXECUTAR</button>
+                </div>
+            </section>
+
+            <!-- Center Panel - Autopilot Control -->
+            <section id="autopilot-panel" class="hud-panel central">
+                <div class="panel-header">
+                    <h2>// AUTOPILOT CONTROL</h2>
+                </div>
+                <div class="autopilot-display">
+                    <div class="signal-indicator">
+                        <div id="signal-display" class="signal-box neutral">
+                            <span class="signal-label">SINAL</span>
+                            <span id="signal-value" class="signal-value">AGUARDANDO</span>
+                        </div>
+                    </div>
+                    <div class="autopilot-stats">
+                        <div class="stat-row">
+                            <span class="stat-label">UPTIME:</span>
+                            <span id="stat-uptime" class="stat-value">00:00:00</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">INFERENCES:</span>
+                            <span id="stat-inferences" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">SINAIS:</span>
+                            <span id="stat-signals" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">TRADES:</span>
+                            <span id="stat-trades" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">CONFIANÇA:</span>
+                            <span id="stat-confidence" class="stat-value">0.00%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="autopilot-controls">
+                    <button id="toggle-autopilot-btn" class="hud-btn large danger">
+                        <span id="autopilot-btn-text">ATIVAR AUTOPILOT</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Panel - Arsenal -->
+            <section id="arsenal-panel" class="hud-panel">
+                <div class="panel-header">
+                    <h2>// ARSENAL DE VÍDEOS</h2>
+                    <button id="refresh-arsenal-btn" class="hud-btn small">ATUALIZAR</button>
+                </div>
+                <div id="video-silo" class="video-grid">
+                    <div class="video-slot empty">
+                        <span class="slot-label">SLOT 1</span>
+                        <span class="slot-status">VAZIO</span>
+                    </div>
+                    <div class="video-slot empty">
+                        <span class="slot-label">SLOT 2</span>
+                        <span class="slot-status">VAZIO</span>
+                    </div>
+                    <div class="video-slot empty">
+                        <span class="slot-label">SLOT 3</span>
+                        <span class="slot-status">VAZIO</span>
+                    </div>
+                    <div class="video-slot empty">
+                        <span class="slot-label">SLOT 4</span>
+                        <span class="slot-status">VAZIO</span>
+                    </div>
+                </div>
+                <div class="arsenal-actions">
+                    <button id="publish-tiktok-btn" class="hud-btn" disabled>PUBLICAR TIKTOK</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer HUD -->
+        <footer id="hud-footer">
+            <div class="footer-left">
+                <span id="connection-status" class="connection-indicator disconnected">DESCONECTADO</span>
+            </div>
+            <div class="footer-center">
+                <span class="footer-info">R2 TACTICAL OS // MÓDULO ALPHA v2.0</span>
+            </div>
+            <div class="footer-right">
+                <button id="settings-btn" class="hud-btn icon" title="Configurações">⚙</button>
+            </div>
+        </footer>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>// CONFIGURAÇÕES TÁTICAS</h3>
+                    <button id="close-settings-btn" class="hud-btn small">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="setting-group">
+                        <label>Delay entre operações (ms):</label>
+                        <input type="number" id="setting-delay" class="hud-input" value="500" min="100" max="5000">
+                    </div>
+                    <div class="setting-group">
+                        <label>Limiar de confiança (%):</label>
+                        <input type="number" id="setting-confidence" class="hud-input" value="70" min="50" max="100">
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="setting-sound" checked>
+                            Som de notificação
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            <input type="checkbox" id="setting-voice" checked>
+                            Síntese de voz (Edge-TTS)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="save-settings-btn" class="hud-btn">SALVAR</button>
+                    <button id="cancel-settings-btn" class="hud-btn secondary">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

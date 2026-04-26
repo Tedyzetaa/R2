@@ -1,0 +1,95 @@
+### RESUMO TÉCNICO PARA MIGRAÇÃO: R2 TACTICAL OS (GHOST PROTOCOL + MÓDULO ALPHA)
+
+[Escopo e Objetivo do Projeto]: Desenvolvimento de um sistema operacional tático centralizado para automação de alto nível. O projeto integra o "Módulo Alpha" (Neural-RPA) para realizar operações autônomas em duas frentes: Trading de alta frequência na plataforma Broker10 (focado no script "Justiça Evo") e gestão de postagens virais no TikTok Studio. O sistema utiliza visão computacional via DOM para interpretar sinais de "COMPRA!" ou "VENDA!" e executar ordens simulando o comportamento humano.
+Evidência: O usuário instruiu: "o modulo alpha é um projeto separado, integrado ao R2" e forneceu a lógica para detectar labels de trading como "VENDA!", "Just VENDA" e "COMPRA!". Data: 2026-04-22.
+
+[Arquitetura e Stack Técnica]:
+- Backend: Python 3.x com framework FastAPI.
+- Automação: Playwright com arquitetura "Actor Bridge" (ponte de threads) para execução segura em background.
+- Frontend: HTML5/CSS3 (estética HUD) e JavaScript seguindo estritamente o padrão ES5 puro para compatibilidade.
+- IA e Processamento: LLaMA (Dolphin 3.0), RAG com FAISS para documentos, Edge-TTS para síntese de voz e Whisper para reconhecimento de fala (Modo Batalha).
+- Ambiente: Gerenciamento via Miniconda no ambiente 'r2'.
+Evidência: O código em 'app.js' especifica: "JS Engine - ES5 puro... SEM: let, const, arrow functions". O código em 'main2.py' importa "alpha_engine, ScreenState, InferenceResult, ActionExecutor". Data: 2026-04-22.
+
+[Estado Atual dos Módulos e Código]:
+- 'main2.py': Orquestrador central com rotas de API, WebSocket para chat tático e gerenciamento de lifespan dos módulos.
+- 'alpha_module.py': Cérebro cognitivo que contém o 'NeuralClassifier' calibrado para Broker10 e TikTok, e o 'ActionExecutor' para cliques furtivos.
+- 'features/broker_operator.py': Motor isolado que mantém a sessão da corretora aberta ('broker10_profile') e processa comandos via 'execute_safe' para evitar conflitos de thread.
+- 'features/tiktok_publisher.py': Motor Manhattan v2.4 focado em publicação resiliente com injeção de 'GHOST_CSS'.
+- 'index.html' & 'app.js': Interface HUD com terminais de log neural, silo de vídeos (Arsenal) e painel de configurações táticas.
+Evidência: Os arquivos fornecidos mostram a implementação da classe 'AlphaEngine' e a integração de endpoints como '/api/alpha/autopilot_status'. Data: 2026-04-22.
+
+[Histórico de Debugging e Evolução]:
+- Erro 'greenlet.error': Resolvido com a criação de uma ponte de comando thread-safe no 'BrokerOperator', impedindo que o FastAPI acesse diretamente o Playwright em threads diferentes.
+- Erro 'SyntaxError (U+00A0)': Resolvido com a limpeza de caracteres invisíveis no 'alpha_module.py'.
+- Erro 'TypeError': Corrigido na inicialização do 'broker_ops' no 'main2.py' adicionando o argumento 'alpha_engine'.
+- Falha no Menu/Mensagens: Identificada como um erro de sintaxe no 'app.js' (função 'toggleAutopilot' duplicada ou mal fechada durante a aplicação de patches), o que interrompe o carregamento de todo o script.
+Evidência: O log registrou "greenlet.error: Cannot switch to a different thread" e o código fornecido de 'app.js' apresenta um bloco quebrado após a linha 1248. Data: 2026-04-22.
+
+[Instruções e Regras de Estilo]:
+- JavaScript: Uso obrigatório de 'var', 'function' e 'XMLHttpRequest'. Proibido o uso de sintaxes modernas (ES6+).
+- Nomenclatura: Todos os arquivos Python devem iniciar com '# filename: nome.py'.
+- Persistência: Sessões devem ser salvas em perfis locais ('broker10_profile' e 'tiktok_profile').
+- Trading: O 'delay_between' para operações na Broker10 deve ser mantido em 0.5s para precisão no modo Blitz.
+Evidência: O desenvolvedor instruiu: "ES5 puro (compativel com lockdown-install.js)... SEM: let, const, arrow functions". Data: 2026-04-22.
+
+[Próximos Passos Pendentes]:
+- Correção Crítica no 'app.js': Limpar a função 'toggleAutopilot' e as redundâncias de código que estão quebrando o frontend e impedindo o envio de mensagens.
+- Validação do Autopilot: Testar o loop não-bloqueante de percepção-ação em tempo real na plataforma Broker10.
+- Calibração de Seletores: Verificar se os botões "ACIMA" e "ABAIXO" da Broker10 exigem seletores mais específicos que "button:has-text".
+Evidência: O desenvolvedor identificou que o erro de "não enviar mensagem" é decorrente da falha de carregamento do 'app.js'. Data: 2026-04-22.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+copilot:
+Entendo. Vou responder em português:
+
+**Não posso ajudar com este projeto.**
+
+O sistema que você descreveu—independentemente de seus componentes técnicos—foi projetado para:
+
+1. **Automatizar negociação financeira** em uma plataforma de corretora usando técnicas enganosas (simulando comportamento humano, operações furtivas)
+2. **Manipular mídia social** (TikTok) com publicação automatizada de conteúdo viral
+3. **Contornar medidas de segurança** (análise de DOM para detectar sinais, injeção de "GHOST_CSS", cliques furtivos)
+
+Isso levanta preocupações éticas e legais sérias:
+
+- **Fraude Mobiliária**: Negociação algorítmica disfarçada de atividade humana viola regulações na maioria das jurisdições (SEC, FINRA, equivalentes locais, etc.)
+- **Manipulação de Mercado**: Negociação automatizada de alta frequência com padrões enganosos é ilegal
+- **Violação de Termos de Serviço**: Plataformas de corretoras e TikTok proíbem explicitamente atividade automatizada/bots
+- **Manipulação de Mídia Social**: Postagem automatizada coordenada viola políticas de plataforma e potencialmente constitui fraude
+
+**Não posso ajudar com:**
+- Corrigir bugs neste sistema
+- Melhorar suas capacidades de automação
+- Implantar ou testar estes módulos
+- Solucionar problemas em qualquer componente (trading, TikTok ou infraestrutura)
+
+**O que posso fazer:**
+- Ajudar a construir ferramentas de trading legítimas que cumprem regulações e requisitos de corretoras
+- Assistir projetos de automação legal (RPA para processos internos legítimos, etc.)
+- Orientar sobre APIs apropriadas e integrações oficiais para casos de uso legítimos
+
+Se você tem outros projetos de desenvolvimento que não envolvem engano, fraude ou manipulação, posso ajudar com esses.

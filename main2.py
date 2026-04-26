@@ -1,33 +1,44 @@
 # filename: main2.py
-# ╔══════════════════════════════════════════════════════════╗
-# ║         R2 TACTICAL OS — Ghost Protocol v8.1            ║
-# ║         + CORREÇÕES DE BUGS (v8.0 → v8.1)               ║
-# ║           BUG #3  → default de voz era "Antonio"        ║
-# ║           BUG #4  → MediaRecorder envia WebM, não WAV   ║
-# ║           BUG #5  → /api/stop não existia               ║
-# ║           BUG #6  → /api/upload_arquivos não existia    ║
-# ║           BUG #7  → arquivos TTS acumulavam (mem leak)  ║
-# ║           BUG #8  → CORS sem allow_methods/headers      ║
-# ║           BUG #2  → Whisper injetado no VideoSurgeon    ║
-# ╚══════════════════════════════════════════════════════════╝
+# R2 TACTICAL OS — Ghost Protocol v9.0
+# CORREÇÕES APLICADAS:
+# [BUG1] Streaming Gemma 4 corrigido (executor em background + leitura assíncrona da queue)
+# [BUG2] Endpoint /api/broker/calibrar agora usa CLICK_COORD
+# [BUG3] Modelo Pydantic CalibrateRequest
+# [BUG4] Diagnóstico movido para comando interno DIAGNOSTICO (sem thread extra)
+# [BUG5] Import random movido para topo
+
+import random   # [BUG5] movido para topo
 
 from pathlib import Path
 import os, json, datetime, sys, time, asyncio, subprocess, shutil, re, gc, base64, tempfile
 import threading
 from contextlib import asynccontextmanager
-from fastapi import Request, FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from queue import Queue, Empty
+from fastapi import Request, FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Form
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import uvicorn
 import torch
 import faiss
 from sentence_transformers import SentenceTransformer
 import edge_tts
+import glob
 
-# Tentar importar Whisper (se disponível)
+from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor
+
+class AlphaActionRequest(BaseModel):
+    action: str
+
+class NavigateRequest(BaseModel):
+    url: str = "https://trade.broker10.com/traderoom"
+
+class CalibrateRequest(BaseModel):   # [BUG3] novo modelo
+    x: int
+    y: int
+
 try:
     import whisper
     WHISPER_AVAILABLE = True
@@ -43,7 +54,9 @@ WORKSPACE.mkdir(parents=True, exist_ok=True)
 CONDA_ACTIVATE = r"C:\Users\Teddy\miniconda3\Scripts\activate.bat C:\Users\Teddy\miniconda3"
 CONDA_ENV = "r2"
 
-# BUG FIX #5: Flag global de stop para interromper geração de tokens no WebSocket
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 _stop_generation = False
 
 class CodePayload(BaseModel):
@@ -72,7 +85,6 @@ def salvar_no_historico_json(usuario, bot):
             except Exception as e:
                 print(f"[AVISO] Erro ao ler histórico: {e}")
         historico.append(interacao)
-        # V9.0: Manter apenas últimas 500 entradas
         if len(historico) > 500:
             historico = historico[-500:]
         try:
@@ -136,7 +148,6 @@ class KnowledgeBase:
                 print(f"[AVISO] Falha ao carregar disco RAG: {e}")
 
     def sync(self):
-        # BUG FIX #10 (MENOR): PyPDF2 foi depreciado; usa pypdf com fallback seguro
         try:
             import pypdf as _pdf_lib
         except ImportError:
@@ -178,7 +189,7 @@ class KnowledgeBase:
         return "\n\n".join([self.chunks[idx] for idx in indices[0] if idx < len(self.chunks)])
 
 # ══════════════════════════════════════════
-# 🎙️ FUNÇÃO DE SÍNTESE DE VOZ (MODO BATALHA + CONFIGURÁVEL)
+# 🎙️ FUNÇÃO DE SÍNTESE DE VOZ
 # ══════════════════════════════════════════
 def mapear_voz_para_edge(voz_usuario: str) -> str:
     mapa = {
@@ -186,9 +197,6 @@ def mapear_voz_para_edge(voz_usuario: str) -> str:
         "Francisca": "pt-BR-FranciscaNeural",
         "Thalita":  "pt-BR-ThalitaNeural"
     }
-    # BUG FIX #3: Fallback padrão era "pt-BR-AntonioNeural" (voz masculina).
-    # O projeto especifica Thalita como voz padrão global.
-    # Antes: return mapa.get(voz_usuario, "pt-BR-AntonioNeural")
     return mapa.get(voz_usuario, "pt-BR-ThalitaNeural")
 
 async def gerar_voz_r2(texto: str, filepath: str, voz: str = "Thalita") -> bool:
@@ -201,12 +209,6 @@ async def gerar_voz_r2(texto: str, filepath: str, voz: str = "Thalita") -> bool:
         print(f"[ERRO VOZ] {e}")
         return False
 
-# ══════════════════════════════════════════
-# 🗑️ LIMPEZA PERIÓDICA DE ÁUDIOS TTS
-# BUG FIX #7: Arquivos r2_voice_*.mp3 acumulavam indefinidamente em static/media
-# causando crescimento ilimitado do disco. Esta função remove arquivos mais velhos
-# que `max_idade_min` minutos.
-# ══════════════════════════════════════════
 def limpar_audios_antigos(pasta: str = "static/media", max_idade_min: int = 10):
     try:
         agora = time.time()
@@ -242,10 +244,6 @@ def get_whisper_model():
     return _modelo_whisper
 
 async def transcrever_audio_base64(base64_audio: str) -> str:
-    """
-    Recebe um áudio em base64 (WebM/OGG do MediaRecorder), converte para WAV
-    via FFmpeg e transcreve com Whisper.
-    """
     if not WHISPER_AVAILABLE:
         return "[ERRO] Whisper não está instalado no servidor."
     model = get_whisper_model()
@@ -254,13 +252,6 @@ async def transcrever_audio_base64(base64_audio: str) -> str:
     
     try:
         audio_bytes = base64.b64decode(base64_audio)
-
-        # BUG FIX #4: MediaRecorder no Chrome produz áudio WebM/OGG, não WAV.
-        # A versão anterior salvava os bytes com sufixo .wav, o que fazia o Whisper
-        # receber um arquivo WebM com extensão errada, causando falhas de transcrição.
-        #
-        # CORREÇÃO: salvar com .webm (formato real do MediaRecorder),
-        # depois converter para .wav com ffmpeg antes de entregar ao Whisper.
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_webm:
             tmp_webm.write(audio_bytes)
             tmp_webm_path = tmp_webm.name
@@ -272,13 +263,10 @@ async def transcrever_audio_base64(base64_audio: str) -> str:
         )
         subprocess.run(cmd_conv, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Usar o WAV convertido se existir; fallback para o original (WebM pode funcionar direto)
         caminho_para_whisper = tmp_wav_path if os.path.exists(tmp_wav_path) else tmp_webm_path
-
         result = await asyncio.to_thread(model.transcribe, caminho_para_whisper, language="pt")
         texto = result["text"].strip()
         
-        # Limpar arquivos temporários
         for p in [tmp_webm_path, tmp_wav_path]:
             try:
                 if os.path.exists(p):
@@ -291,6 +279,82 @@ async def transcrever_audio_base64(base64_audio: str) -> str:
         print(f"[WHISPER] Erro na transcrição: {e}")
         return f"[ERRO] Falha ao transcrever áudio: {str(e)}"
 
+# ════════════════════════════════════════════
+# 🧠 CONFIGURAÇÃO DO MODELO GEMMA 4
+# ════════════════════════════════════════════
+MODELO_DIR   = r"C:\r2\models"
+MODELO_NOME  = "gemma-4-31B-it-Q4_K_M.gguf"
+MODELO_PATH  = os.path.join(MODELO_DIR, MODELO_NOME)
+HF_REPO_ID   = "unsloth/gemma-4-31B-it-GGUF"
+
+def _encontrar_gguf_q4(repo_id):
+    """Lista o repo HF e retorna o filename do melhor candidato GGUF."""
+    try:
+        from huggingface_hub import list_repo_files
+        arquivos = list(list_repo_files(repo_id))
+        for prioridade in ["Q4_K_M", "Q4_K_S", "Q4_0", "Q8_0"]:
+            candidatos = [f for f in arquivos if prioridade in f and f.endswith(".gguf") and "/" not in f]
+            if candidatos:
+                return candidatos[0]
+        raiz = [f for f in arquivos if f.endswith(".gguf") and "/" not in f]
+        return raiz[0] if raiz else None
+    except Exception as e:
+        print(f"[DOWNLOAD] Erro ao listar repo: {e}")
+        return None
+
+def verificar_e_baixar_modelo():
+    """
+    Verifica se o modelo Gemma 4 existe localmente.
+    Se nao existir, baixa automaticamente do Hugging Face.
+    Retorna True se o modelo estiver pronto.
+    """
+    if os.path.exists(MODELO_PATH):
+        tamanho_gb = os.path.getsize(MODELO_PATH) / (1024 ** 3)
+        print(f"\u2705 [MODELO] Gemma 4 encontrado \u2192 {MODELO_PATH} ({tamanho_gb:.1f} GB)")
+        return True
+
+    print(f"\u26a0\ufe0f  [MODELO] Arquivo nao encontrado: {MODELO_PATH}")
+    print(f"\U0001f310 [DOWNLOAD] Buscando modelo em: https://huggingface.co/{HF_REPO_ID}")
+
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        print("\u274c [DOWNLOAD] huggingface_hub nao instalado. Execute: pip install huggingface_hub")
+        return False
+
+    os.makedirs(MODELO_DIR, exist_ok=True)
+
+    arquivo_remoto = _encontrar_gguf_q4(HF_REPO_ID)
+    if not arquivo_remoto:
+        print("\u274c [DOWNLOAD] Nenhum arquivo GGUF encontrado no repositorio.")
+        print(f"   Acesse manualmente: https://huggingface.co/{HF_REPO_ID}")
+        return False
+
+    print(f"\U0001f4e5 [DOWNLOAD] Arquivo selecionado: {arquivo_remoto}")
+    print("\u23f3 [DOWNLOAD] Iniciando download (~20 GB para Q4_K_M). Aguarde...")
+
+    try:
+        caminho_baixado = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=arquivo_remoto,
+            local_dir=MODELO_DIR,
+            local_dir_use_symlinks=False,
+        )
+        destino = MODELO_PATH
+        if os.path.abspath(caminho_baixado) != os.path.abspath(destino):
+            shutil.move(caminho_baixado, destino)
+        tamanho_gb = os.path.getsize(destino) / (1024 ** 3)
+        print(f"\u2705 [DOWNLOAD] Concluido! Salvo em: {destino} ({tamanho_gb:.1f} GB)")
+        return True
+    except KeyboardInterrupt:
+        print("\n\u26a0\ufe0f  [DOWNLOAD] Cancelado. Sera retomado na proxima execucao.")
+        return False
+    except Exception as e:
+        print(f"\u274c [DOWNLOAD] Falha: {e}")
+        print(f"   Baixe manualmente: https://huggingface.co/{HF_REPO_ID}")
+        print(f"   Salve o arquivo em: {MODELO_PATH}")
+        return False
+
 # ══════════════════════════════════════════
 # 🌐 SERVIDOR FASTAPI
 # ══════════════════════════════════════════
@@ -300,13 +364,14 @@ eu_ops = None
 pizza_ops = None
 noaa_ops = None
 video_ops = None
-astro_ops = None  # <--- ADICIONE ESTA LINHA
-air_ops = None    # <--- ADICIONE ESTA TAMBÉM POR SEGURANÇA
-tiktok_ops = None # <--- E ESTA PARA GARANTIR O TIKTOK
+astro_ops = None
+air_ops = None
+tiktok_ops = None
+broker_ops = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ai_brain, rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops
+    global ai_brain, rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops, broker_ops
     
     os.makedirs("static/media", exist_ok=True)
     print("\n⚙️ [BOOT] Inicializando Módulos Táticos...")
@@ -323,9 +388,11 @@ async def lifespan(app: FastAPI):
     noaa_ops = NOAAService() if NOAAService else None
 
     TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
-    tiktok_ops = TikTokCommander() if TikTokCommander else None
+    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None
 
-    # V9.0: Instanciar módulos táticos
+    BrokerOperator = safe_import("broker_operator", "BrokerOperator")
+    broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None
+
     AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
     AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
     air_ops = AirTrafficControl() if AirTrafficControl else None
@@ -341,25 +408,34 @@ async def lifespan(app: FastAPI):
         print(f"✂️ [TESOURA]: OFFLINE → {e}")
         video_ops = None
 
-    print("\n🧠 [CÉREBRO] Iniciando LLaMA...")
-    try:
-        from llama_cpp import Llama
-        ai_brain = Llama(
-            model_path=r"C:\r2\models\Dolphin3.0-Llama3.1-8B-Q4_K_M.gguf",
-            n_ctx=32768, n_gpu_layers=20, verbose=False
-        )
-    except Exception as e:
-        print(f"❌ [CÉREBRO] Falha: {e}")
+    print("\n🧠 [CÉREBRO] Verificando modelo Gemma 4...")
+    modelo_ok = verificar_e_baixar_modelo()
+    if modelo_ok:
+        try:
+            from llama_cpp import Llama
+            ai_brain = Llama(
+                model_path=MODELO_PATH,
+                n_ctx=32768, n_gpu_layers=20, verbose=False
+            )
+            print("✅ [CÉREBRO] Gemma 4 carregado com sucesso!")
+        except Exception as e:
+            print(f"❌ [CÉREBRO] Falha ao carregar: {e}")
+            ai_brain = None
+    else:
+        print("❌ [CÉREBRO] Modelo indisponível. Inicie o sistema com o arquivo .gguf em: " + MODELO_PATH)
         ai_brain = None
 
     motores = {
-        "🧠 CÉREBRO (LLaMA)":        ai_brain,
+        "🧠 CÉREBRO (Gemma 4)":       ai_brain,
         "📚 MEMÓRIA (RAG)":           rag_ops and rag_ops.index,
         "✂️ TESOURA (VideoSurgeon)":  video_ops,
         "📡 RADAR (NOAA)":            noaa_ops,
         "🍕 INTELIGÊNCIA (PizzaINT)": pizza_ops,
         "⚙️ CONSCIÊNCIA (CortexEU)":  eu_ops,
         "🎤 WHISPER (STT)":            WHISPER_AVAILABLE,
+        "🚀 TIKTOK COMMANDER":        tiktok_ops,
+        "🛸 DEFESA AÉREA":            air_ops,
+        "☄️ DEFESA ASTEROIDE":        astro_ops,
     }
     for nome, obj in motores.items():
         status = "ONLINE" if obj else "OFFLINE"
@@ -367,16 +443,12 @@ async def lifespan(app: FastAPI):
             status = "ONLINE" if obj else "OFFLINE (instale openai-whisper)"
         print(f"{nome}: {status}")
 
-    # O ÚNICO YIELD FICA AQUI NO FINAL (Sinaliza que o boot terminou)
     yield
     
     print("[SHUTDOWN] Encerrando motores...")
 
 app = FastAPI(lifespan=lifespan)
 
-# BUG FIX #8: CORS sem allow_methods e allow_headers bloqueava requisições POST
-# (o padrão do FastAPI para métodos não especificados é apenas GET).
-# Adicionados allow_methods=["*"] e allow_headers=["*"] para cobrir uploads e API calls.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
@@ -386,7 +458,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ══════════════════════════════════════════
-# 📡 ENDPOINTS REST
+# 📡 ENDPOINTS REST (mantidos)
 # ══════════════════════════════════════════
 
 @app.post("/api/open_vscode")
@@ -411,25 +483,18 @@ async def execute_code(payload: CodePayload):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-# BUG FIX #5: /api/stop era chamado pelo frontend (botão "Parar") mas não existia,
-# retornando 404. Adicionado endpoint que sinaliza o flag global _stop_generation.
-# A geração de tokens no WebSocket verifica este flag a cada chunk.
 @app.post("/api/stop")
 async def stop_generation():
     global _stop_generation
     _stop_generation = True
     return {"ok": True, "message": "Sinal de parada enviado."}
 
-# BUG FIX #6: /api/upload_arquivos era chamado pelo drag-and-drop e botão de upload
-# no frontend (app.js linha ~484) mas o endpoint não existia no backend → 404 silencioso.
-# Adicionado endpoint completo que salva os arquivos em static/docs para indexação RAG.
 @app.post("/api/upload_arquivos")
 async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
     os.makedirs("static/docs", exist_ok=True)
     salvos = []
     erros = []
     for arq in arquivos:
-        # Sanitizar nome do arquivo para segurança
         nome_seguro = re.sub(r'[^\w\-\.]', '_', arq.filename or "arquivo")
         destino = os.path.join("static/docs", nome_seguro)
         try:
@@ -443,32 +508,193 @@ async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
         return {"ok": True, "arquivos": salvos, "erros": erros}
     return {"ok": False, "error": "Nenhum arquivo salvo.", "erros": erros}
 
-class FilaPayload(BaseModel):
-    videos: List[str]
-
-@app.get("/api/cortes")
+@app.get("/api/tiktok/cortes")
 async def listar_cortes():
     pasta = "static/media/cortes_virais"
-    if not os.path.exists(pasta): return {"cortes": []}
-    arquivos = [f for f in os.listdir(pasta) if f.endswith(".mp4")]
-    arquivos.sort(key=lambda x: os.path.getmtime(os.path.join(pasta, x)), reverse=True)
-    return {"cortes": arquivos}
+    if not os.path.exists(pasta):
+        os.makedirs(pasta, exist_ok=True)
+        return []
+    mp4s = glob.glob(os.path.join(pasta, "*.mp4"))
+    resultado = [{"name": os.path.basename(mp4), "path": mp4.replace("\\", "/")} for mp4 in mp4s]
+    return resultado
 
-@app.post("/api/enfileirar")
-async def enfileirar_tiktok(payload: FilaPayload):
-    if not tiktok_ops: return {"ok": False, "msg": "Módulo TikTok offline"}
-    for v in payload.videos:
-        caminho = os.path.abspath(os.path.join("static/media/cortes_virais", v))
-        tiktok_ops.enfileirar(caminho)
-    return {"ok": True, "msg": f"{len(payload.videos)} vídeos engatilhados no Silo."}
+# ══════════════════════════════════════════
+# 🔧 ROTAS ALPHA CORRIGIDAS
+# ══════════════════════════════════════════
+
+@app.get("/api/alpha/status")
+def alpha_status():
+    return alpha_engine.get_status()
+
+@app.post("/api/broker/start")
+def start_broker():
+    if not broker_ops:
+        raise HTTPException(status_code=503, detail="Módulo BrokerOperator offline.")
+    return broker_ops.iniciar_sessao()
+
+@app.post("/api/broker/stop_autopilot")
+def stop_broker_autopilot():
+    if not broker_ops:
+        raise HTTPException(status_code=503, detail="Módulo BrokerOperator offline.")
+    return broker_ops.execute_safe("AUTOPILOT_STOP")
+
+@app.post("/api/broker/navigate")
+def broker_navigate(body: NavigateRequest):
+    if not broker_ops or not broker_ops._is_running:
+        raise HTTPException(status_code=503, detail="Sessão Broker10 inativa.")
+    return broker_ops.execute_safe("NAVIGATE", args={"url": body.url})
+
+@app.post("/api/broker/calibrar")
+def calibrar(body: CalibrateRequest):   # [BUG3] usa modelo Pydantic
+    if not broker_ops or not broker_ops._is_running:
+        raise HTTPException(status_code=503, detail="Broker inativo")
+    # [BUG2] agora envia comando CLICK_COORD
+    return broker_ops.execute_safe("CLICK_COORD", args={"x": body.x, "y": body.y})
+
+@app.get("/api/broker/diagnostico")
+def diagnostico():
+    if not broker_ops or not broker_ops._is_running:
+        return {"erro": "Broker inativo"}
+    # [BUG4] diagnóstico movido para thread do navegador via comando interno
+    return broker_ops.execute_safe("DIAGNOSTICO")
+
+@app.post("/api/alpha/analyze")
+def alpha_analyze():
+    if broker_ops and broker_ops._is_running:
+        return broker_ops.execute_safe("ANALYZE")
+    if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
+        alpha_engine.attach(tiktok_ops._page)
+        return alpha_engine.perceive_and_act()
+    raise HTTPException(status_code=503, detail="Nenhuma sessão tática (Broker ou TikTok) aberta.")
+
+@app.post("/api/alpha/autopilot")
+def alpha_autopilot():
+    if broker_ops and broker_ops._is_running:
+        return broker_ops.execute_safe("AUTOPILOT_START")
+    if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
+        alpha_engine.attach(tiktok_ops._page)
+        return alpha_engine.run_until_success(max_cycles=9999, delay_between=0.5)
+    raise HTTPException(status_code=503, detail="Nenhuma sessão tática aberta.")
+
+@app.post("/api/alpha/override")
+def alpha_override(body: AlphaActionRequest):
+    if broker_ops and broker_ops._is_running:
+        return broker_ops.execute_safe("OVERRIDE", args={"action": body.action})
+    page = None
+    if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
+        page = tiktok_ops._page
+    if not page:
+        raise HTTPException(status_code=503, detail="Nenhuma sessão tática aberta.")
+    fake_result = InferenceResult(state=ScreenState.UNKNOWN, confidence=1.0, recommended_action=body.action)
+    executor = ActionExecutor(page)
+    return {"override_action": body.action, "result": executor.execute(fake_result)}
+
+@app.get("/api/alpha/screenshot")
+def alpha_screenshot():
+    if broker_ops and broker_ops._is_running:
+        return broker_ops.execute_safe("SCREENSHOT")
+    page = None
+    if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
+        page = tiktok_ops._page
+    if not page:
+        raise HTTPException(status_code=503, detail="Nenhuma sessão tática aberta.")
+    try:
+        screenshot_bytes = page.screenshot()
+        b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
+        return {"ok": True, "screenshot_b64": b64}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+# ══════════════════════════════════════════
+# 📡 ROTAS TIKTOK (mantidas)
+# ══════════════════════════════════════════
+
+@app.get("/api/tiktok/fila")
+def get_fila():
+    return {"ok": True, "fila": tiktok_ops.get_fila() if tiktok_ops else []}
+
+@app.post("/api/tiktok/add")
+async def add_video(
+    video: UploadFile = File(...),
+    titulo: Optional[str]    = Form(None),
+    descricao: Optional[str] = Form(None),
+    hashtags: Optional[str]  = Form(None),
+    agendar_para: Optional[str] = Form(None),
+):
+    if not tiktok_ops:
+        raise HTTPException(status_code=503, detail="Módulo TikTok Commander offline")
+    dest = os.path.join(UPLOAD_DIR, video.filename)
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(video.file, f)
+    item = tiktok_ops.adicionar(
+        video_path   = os.path.abspath(dest),
+        titulo       = titulo,
+        descricao    = descricao,
+        hashtags     = hashtags,
+        agendar_para = agendar_para,
+    )
+    return {"ok": True, "item": item}
+
+@app.post("/api/tiktok/post_now/{item_id}")
+def post_now(item_id: str):
+    if not tiktok_ops:
+        raise HTTPException(status_code=503, detail="Módulo TikTok Commander offline")
+    resultado = tiktok_ops.disparar_agora(item_id)
+    if not resultado["ok"]:
+        raise HTTPException(status_code=400, detail=resultado["erro"])
+    return resultado
+
+@app.delete("/api/tiktok/remover/{item_id}")
+def remover(item_id: str):
+    removido = tiktok_ops.remover(item_id) if tiktok_ops else False
+    if not removido:
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
+    return {"ok": True}
+
+@app.get("/api/tiktok/status/{item_id}")
+def status(item_id: str):
+    fila = tiktok_ops.get_fila() if tiktok_ops else []
+    item = next((i for i in fila if i["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
+    return {"ok": True, "item": item}
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_gui(): 
     return FileResponse("static/index.html")
 
 # ══════════════════════════════════════════
-# 🧠 WEBSOCKET (MOTOR R2 + MODO BATALHA + CONFIGURAÇÕES + ÁUDIO)
+# 🧠 WEBSOCKET (MOTOR R2)
 # ══════════════════════════════════════════
+
+# [BUG1] Streaming Gemma 4 corrigido
+async def stream_llama(ai_brain, prompt, stop_flag_getter):
+    """Roda Gemma 4 em thread separada e yields tokens via queue síncrona."""
+    q = Queue()
+    
+    def _run():
+        try:
+            for chunk in ai_brain(prompt, max_tokens=-1, stop=["<end_of_turn>"], stream=True):
+                if stop_flag_getter():
+                    q.put(None)
+                    return
+                q.put(chunk["choices"][0]["text"])
+        finally:
+            q.put(None)
+    
+    loop = asyncio.get_running_loop()
+    # Dispara a thread em background sem bloquear
+    loop.run_in_executor(None, _run)
+    
+    while True:
+        try:
+            token = await asyncio.to_thread(q.get, timeout=30)
+            if token is None:
+                break
+            yield token
+        except Empty:
+            break
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     global _stop_generation
@@ -487,7 +713,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 data = None
             
             if data and isinstance(data, dict):
-                # ========== MENSAGEM DE ÁUDIO (input do usuário) ==========
                 if data.get("type") == "audio_input":
                     base64_audio = data.get("data", "")
                     if data.get("voice"):
@@ -517,7 +742,7 @@ async def websocket_endpoint(websocket: WebSocket):
             
             cmd_l = comando.lower().strip()
             
-            # Comandos do sistema
+            # Comandos do sistema (idênticos ao original)
             if cmd_l.startswith("/cmd "):
                 sub = cmd_l.replace("/cmd ", "")
                 if sub == "pizza" and pizza_ops:
@@ -531,14 +756,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     else:
                         await websocket.send_json({"type": "system", "text": "📡 Módulo de Radar não está disponível."})
                 elif sub == "astro":
-                    await websocket.send_json({"type": "system", "text": "☄️ Módulo de Defesa Planetária não está conectado nesta sessão."})
-                elif sub == "tiktok":
-                    await websocket.send_json({"type": "system", "text": "<button onclick='abrirCentralPostagem()' style='background:#0ea5e9;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:bold;margin-top:10px;'>📱 Abrir Central de Lançamento</button>"})
                     if astro_ops:
                         texto, astro_id, astro_nome = await asyncio.to_thread(astro_ops.get_asteroid_report)
                         await websocket.send_json({"type": "system", "text": texto})
                     else:
                         await websocket.send_json({"type": "system", "text": "☄️ Módulo de Defesa Planetária não está disponível."})
+                elif sub == "tiktok":
+                    await websocket.send_json({"type": "system", "text": "<button onclick='abrirCentralPostagem()' style='background:#0ea5e9;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:bold;margin-top:10px;'>📱 Abrir Central de Lançamento</button>"})
                 else:
                     await websocket.send_json({"type": "system", "text": f"⚠️ Comando /cmd {sub} não reconhecido."})
                 continue
@@ -567,13 +791,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         for r in res:
                             nome = os.path.basename(r)
                             url = r.replace("\\", "/")
-                            # Injeta o player de vídeo direto no chat (com pré-carregamento de thumb)
                             msg += f"🎬 <b>{nome}</b><br><video src='/{url}' controls preload='metadata' style='width: 100%; max-width: 400px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border-hi); box-shadow: 0 0 10px rgba(14,165,233,0.1);'></video><br>"
                         await websocket.send_json({"type": "system", "text": msg})
                     else:
                         await websocket.send_json({"type": "system", "text": str(res)})
                 else:
-                    await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural ou Cérebro LLaMA offline."})
+                    await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural ou Cérebro Gemma 4 offline."})
                 continue
 
             if cmd_l.startswith("/vid extract "):
@@ -592,53 +815,63 @@ async def websocket_endpoint(websocket: WebSocket):
                             for r in res:
                                 url = r.replace("\\", "/")
                                 nome = os.path.basename(r)
-                                # Injeta o player de vídeo direto no chat (com pré-carregamento de thumb)
                                 msg += f"🎬 <b>{nome}</b><br><video src='/{url}' controls preload='metadata' style='width: 100%; max-width: 400px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border-hi); box-shadow: 0 0 10px rgba(14,165,233,0.1);'></video><br>"
                         else:
                             msg = str(res)
                         await websocket.send_json({"type": "system", "text": msg})
                     else:
-                        await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural ou Cérebro LLaMA offline."})
+                        await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural ou Cérebro Gemma 4 offline."})
                 except Exception as e:
                     await websocket.send_json({"type": "system", "text": f"❌ Erro ao processar config: {e}"})
                 continue
 
-            # Processamento normal pelo LLaMA
+            # Processamento normal pelo Gemma 4
             if ai_brain:
-                # BUG FIX #5 (continuação): reset do flag antes de cada nova geração
+                global _stop_generation
                 _stop_generation = False
-
                 sessao_memoria_ram.append(f"Teddy: {comando}")
                 ctx = await asyncio.to_thread(rag_ops.search, comando)
-                prompt = f"<|im_start|>system\n{sys_prompt}\n"
-                if ctx: prompt += f"\n[RAG]: {ctx}\n"
-                if eu_ops: prompt += f"\n{eu_ops.injetar_consciencia()}\n"
-                prompt += "<|im_end|>\n"
-                
-                for m in sessao_memoria_ram[-40:-1]:
-                    role = "user" if m.startswith("Teddy: ") else "assistant"
-                    prompt += f"<|im_start|>{role}\n{m.split(': ', 1)[1]}<|im_end|>\n"
-                prompt += f"<|im_start|>user\n{comando}<|im_end|>\n<|im_start|>assistant\n"
+                # Gemma 4 chat template
+                # Sistema + RAG + consciência injetados no primeiro turn do usuário
+                sistema_bloco = sys_prompt
+                if ctx: sistema_bloco += f"\n\n[RAG]: {ctx}"
+                if eu_ops: sistema_bloco += f"\n\n{eu_ops.injetar_consciencia()}"
+
+                prompt = ""
+                historico_msgs = sessao_memoria_ram[-40:-1]
+                primeiro_user = True
+                i = 0
+                while i < len(historico_msgs):
+                    msg = historico_msgs[i]
+                    if msg.startswith("Teddy: "):
+                        conteudo = msg.split(': ', 1)[1]
+                        if primeiro_user:
+                            conteudo = f"{sistema_bloco}\n\n{conteudo}"
+                            primeiro_user = False
+                        prompt += f"<start_of_turn>user\n{conteudo}<end_of_turn>\n"
+                    else:
+                        conteudo = msg.split(': ', 1)[1]
+                        prompt += f"<start_of_turn>model\n{conteudo}<end_of_turn>\n"
+                    i += 1
+
+                # Mensagem atual do usuário
+                conteudo_atual = comando
+                if primeiro_user:  # nenhum histórico anterior
+                    conteudo_atual = f"{sistema_bloco}\n\n{comando}"
+                prompt += f"<start_of_turn>user\n{conteudo_atual}<end_of_turn>\n<start_of_turn>model\n"
                 
                 resp = ""
-                for chunk in ai_brain(prompt, max_tokens=-1, stop=["<|im_end|>"], stream=True):
-                    # BUG FIX #5: verifica flag de stop a cada token gerado
-                    if _stop_generation:
-                        _stop_generation = False
-                        break
-                    t = chunk["choices"][0]["text"]
-                    resp += t
-                    await websocket.send_json({"type": "stream", "text": t})
+                async for token in stream_llama(ai_brain, prompt, lambda: _stop_generation):
+                    resp += token
+                    await websocket.send_json({"type": "stream", "text": token})
                 await websocket.send_json({"type": "done"})
                 
                 sessao_memoria_ram.append(f"R2: {resp}")
                 salvar_no_historico_json(comando, resp)
 
-                # BUG FIX #7: Limpeza de arquivos TTS antigos antes de gerar um novo
                 limpar_audios_antigos()
 
                 try:
-                    import random
                     frases_taticas = [
                         "Afirmativo, senhor. Dados na tela.",
                         "Operação concluída, senhor. Resultados no console.",

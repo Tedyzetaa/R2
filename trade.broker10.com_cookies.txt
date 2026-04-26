@@ -1,0 +1,14 @@
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+trade.broker10.com	FALSE	/	FALSE	1808207903	identity	901b317a53bee6be26e4437608f80e9fc28555193d58c6a1b74b07f8385825e334a69cb7ee4dd097f005c6169913ead908a3777689e69fb16127f8c5e576b3c6536d2fa1ae20d0200831ff4e3aad6d9c9f8a141cd0d017289fb9ab0a30a253a4272da0bd9115d8e9e3d2689c8d862bebae7bbfa37af986cb19cf02bd11b27500f32ab591465630e11056c1ceab425c2fb8776bff3f8619a6c5ff06d1e9fc06bb4d3619e62c31c6b6e6be07e14bce9d11db07b45f8dfe3206e6be07e14bce9d11fecfc8cc5ec99f427e58a3757ce1eb443d755b4816b7b5da
+.trade.broker10.com	TRUE	/	FALSE	1779466516	landing	trade.broker10.com
+.trade.broker10.com	TRUE	/	FALSE	1808415587	lang	pt_PT
+.trade.broker10.com	TRUE	/	FALSE	1808207904	pll_language	pt
+.broker10.com	TRUE	/	TRUE	1779462795	ssid	fdd5cd91a177b29e58d2406ab0c7991r
+.broker10.com	TRUE	/	TRUE	1808415599	lead_id	53df1e80-b726-4415-8854-c47b647c3eef
+.broker10.com	TRUE	/	TRUE	1779471600	touch_id	bb8fda72-fec9-4c85-bc25-dd2625c39687
+.trade.broker10.com	TRUE	/	FALSE	0	platform	244
+.trade.broker10.com	TRUE	/	FALSE	0	platform_version	3899.4.3922.release
+.trade.broker10.com	TRUE	/	TRUE	0	device_locale	pt

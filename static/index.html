@@ -11,8 +11,76 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
 <link rel="stylesheet" href="/static/css/style.css">
 <script src="/static/js/app.js" defer></script>
+<style>
+/* Estética Tática e Sombria */
+#tactical-splash {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background-color: #080808; /* Fundo negro absoluto */
+    z-index: 99999; /* Garante que fica por cima de toda a interface */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.8s ease-out;
+}
+
+/* Efeito de respiração (Pulse) na sua imagem */
+.splash-logo {
+    width: 250px; /* Ajuste o tamanho da sua imagem aqui */
+    margin-bottom: 40px;
+    animation: pulse 2s infinite;
+}
+
+/* Barra de carregamento estilo militar */
+.loader-bar {
+    width: 300px; 
+    height: 3px;
+    background: #222;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+}
+
+.loader-progress {
+    width: 0%; 
+    height: 100%;
+    background: #00ffcc; /* Verde Ciano Hacker */
+    animation: load 2.5s forwards ease-in-out;
+}
+
+/* Tipografia de terminal */
+.splash-text {
+    color: #00ffcc; 
+    font-family: 'Courier New', Courier, monospace;
+    margin-top: 20px; 
+    font-size: 14px;
+    letter-spacing: 3px;
+}
+
+/* Animações nativas */
+@keyframes pulse { 
+    0% { opacity: 0.7; } 
+    50% { opacity: 1; filter: drop-shadow(0 0 15px rgba(0, 255, 204, 0.5)); } 
+    100% { opacity: 0.7; } 
+}
+@keyframes load { 
+    0% { width: 0%; } 
+    100% { width: 100%; } 
+}
+</style>
 </head>
 <body>
+<div id="tactical-splash">
+    <img src="INI.png" alt="R2 Tactical OS Logo" class="splash-logo">
+    
+    <div class="loader-bar">
+        <div class="loader-progress"></div>
+    </div>
+    <p class="splash-text">🚀 INICIALIZANDO MOTORES QUÂNTICOS...</p>
+</div>
 <div class="scanline"></div>
 <div id="toast"></div>
 <div id="debug-hud" style="display:none"></div>
@@ -40,6 +108,7 @@
     <div class="header-right">
       <button type="button" id="clear-btn" title="Limpar chat">🗑</button>
       <button type="button" id="settings-btn" class="settings-btn" title="Configurações">⚙️</button>
+      <button type="button" class="btn-alpha-trigger">▲ ALPHA</button>
       <button type="button" id="battle-mode-btn" class="battle-mode-btn" title="Modo Batalha (voz)">🎬 MODO BATALHA</button>
       <div class="status-pill" id="status-pill">
         <div class="status-dot" id="status-dot"></div>
@@ -82,12 +151,18 @@
     </button>
 
     <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Trading Autônomo</div>
+    <button class="mod-btn" onclick="abrirBroker()">
+      <div class="icon">📈</div><span>Abrir Broker10</span>
+    </button>
+
+    <div class="sidebar-divider"></div>
     <div class="sidebar-label">Produção</div>
     <button class="mod-btn" onclick="openStudio()">
       <div class="icon">🎬</div><span>Estúdio de Cortes</span>
     </button>
     <!-- NOVO ATALHO: Silo TikTok -->
-    <button class="mod-btn" onclick="abrirCentralPostagem()">
+    <button class="mod-btn" onclick="abrirSiloTikTok()">
       <div class="icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2L12 6M12 2L9 5M12 2L15 5"/>
@@ -261,5 +336,319 @@
   </div>
 </div>
 
+<!-- ========== SILO TIKTOK MODAL ========== -->
+<div id="silo-backdrop" style="display: none;">
+  <div class="silo-container">
+    <div class="silo-header">
+      <div class="silo-title">TIKTOK COMMANDER V2.4</div>
+      <button class="silo-close" onclick="fecharSiloTikTok()">✕</button>
+    </div>
+    <div class="silo-body">
+      <!-- Sidebar upload -->
+      <div class="silo-sidebar">
+        <div class="upload-zone" id="drop-zone-silo" onclick="document.getElementById('file-input-silo').click()">
+          <span class="upload-icon">▶</span>
+          <p>SOLTAR VÍDEO AQUI</p>
+          <p style="opacity:0.5;margin-top:4px;font-size:10px;">MP4 · MOV · WEBM</p>
+        </div>
+        <input type="file" id="file-input-silo" accept="video/*" style="display:none">
+        <div id="file-name-display" class="field-group" style="display:none;">
+          <span class="field-label">Arquivo selecionado</span>
+          <div id="file-name-text" style="font-family:monospace;font-size:11px;color:#00ff9d;"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Título</label>
+          <input class="field-input" id="f-titulo" type="text" placeholder="Auto-gerado do arquivo...">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Descrição</label>
+          <textarea class="field-textarea" id="f-desc" placeholder="Auto-gerado do título..."></textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Hashtags</label>
+          <input class="field-input" id="f-tags" type="text" placeholder="Auto-gerado do arquivo...">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Horários de Pico</label>
+        </div>
+        <div class="peak-chips" id="peak-chips-silo">
+          <button class="chip" data-hora="09:00">09:00</button>
+          <button class="chip" data-hora="12:00">12:00</button>
+          <button class="chip" data-hora="18:00">18:00</button>
+          <button class="chip" data-hora="20:00">20:00</button>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Agendamento Personalizado</label>
+          <input class="field-input" id="f-agenda" type="datetime-local">
+        </div>
+        <div class="field-group">
+          <label class="field-label">🚀 ARSENAL (VÍDEOS PRONTOS)</label>
+          <div id="municao-list" style="max-height: 200px; overflow-y: auto; background: #0a1520; border: 1px solid #0d2d45; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 10px; color: #2d5a7a; text-align: center;">Buscando vídeos...</div>
+          </div>
+        </div>
+        <button class="btn-add-silo" onclick="adicionarFila()">+ ADICIONAR À FILA</button>
+      </div>
+
+      <!-- Fila de missões -->
+      <div class="silo-main">
+        <div class="fila-header">
+          <div class="fila-counter"><strong id="fila-count">0</strong> MISSÕES NA FILA</div>
+          <button class="btn-refresh" onclick="carregarFila()">↺ ATUALIZAR</button>
+        </div>
+        <div class="fila-list" id="fila-list">
+          <div class="empty-state">FILA VAZIA — AGUARDANDO MISSÕES</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Estilos do Silo TikTok (baseado no tiktok.html) */
+  #silo-backdrop {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(2,4,8,0.95); backdrop-filter: blur(8px);
+    z-index: 10000; display: none; justify-content: center; align-items: center;
+  }
+  .silo-container {
+    width: 90%; max-width: 1280px; height: 85%;
+    background: #070d14; border: 1px solid #0d2d45;
+    border-radius: 8px; display: flex; flex-direction: column;
+    overflow: hidden; box-shadow: 0 0 40px rgba(0,212,255,0.2);
+  }
+  .silo-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 24px; border-bottom: 1px solid #0d2d45;
+    background: linear-gradient(180deg, rgba(0,212,255,0.06), transparent);
+  }
+  .silo-title {
+    font-family: 'Orbitron', monospace; font-size: 18px;
+    color: #00d4ff; letter-spacing: 3px;
+  }
+  .silo-close {
+    background: none; border: none; color: #7ba8c4;
+    font-size: 24px; cursor: pointer; transition: 0.2s;
+  }
+  .silo-close:hover { color: #ff2d55; }
+  .silo-body {
+    display: flex; flex: 1; overflow: hidden;
+  }
+  .silo-sidebar {
+    width: 340px; border-right: 1px solid #0d2d45;
+    overflow-y: auto; padding: 16px 0;
+  }
+  .silo-main {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .upload-zone {
+    margin: 0 20px 20px; border: 1px dashed #0a6fa8;
+    border-radius: 4px; padding: 24px; text-align: center;
+    cursor: pointer; background: rgba(0,212,255,0.02);
+  }
+  .upload-zone:hover { border-color: #00d4ff; background: rgba(0,212,255,0.06); }
+  .field-group { padding: 0 20px 16px; }
+  .field-label {
+    font-family: monospace; font-size: 10px; color: #2d5a7a;
+    letter-spacing: 2px; display: block; margin-bottom: 6px;
+  }
+  .field-input, .field-textarea, .field-select {
+    width: 100%; background: #0a1520; border: 1px solid #0d2d45;
+    color: #e8f4ff; font-family: monospace; font-size: 12px;
+    padding: 8px 10px; border-radius: 3px;
+  }
+  .field-textarea { min-height: 64px; }
+  .peak-chips { display: flex; gap: 8px; padding: 0 20px 16px; flex-wrap: wrap; }
+  .chip {
+    background: transparent; border: 1px solid #0a6fa8;
+    color: #00d4ff; font-family: monospace; font-size: 11px;
+    padding: 4px 12px; cursor: pointer; border-radius: 2px;
+  }
+  .chip.active, .chip:hover { background: #00d4ff; color: #020408; }
+  .btn-add-silo {
+    margin: 8px 20px 20px; width: calc(100% - 40px);
+    padding: 12px; background: transparent; border: 1px solid #00d4ff;
+    color: #00d4ff; font-family: 'Orbitron', monospace; font-weight: bold;
+    letter-spacing: 3px; cursor: pointer;
+  }
+  .btn-add-silo:hover { background: rgba(0,212,255,0.1); box-shadow: 0 0 12px rgba(0,212,255,0.3); }
+  .fila-header {
+    display: flex; justify-content: space-between;
+    padding: 16px 24px; border-bottom: 1px solid #0d2d45;
+  }
+  .fila-counter strong { font-size: 22px; color: #00d4ff; margin-right: 6px; }
+  .btn-refresh {
+    background: none; border: 1px solid #0d2d45; color: #7ba8c4;
+    padding: 4px 12px; cursor: pointer;
+  }
+  .fila-list {
+    flex: 1; overflow-y: auto; padding: 16px; display: flex;
+    flex-direction: column; gap: 12px;
+  }
+  .video-card {
+    background: #0a1520; border: 1px solid #0d2d45; border-radius: 4px;
+    position: relative;
+  }
+  .video-card.status-disparando { border-color: #00d4ff; box-shadow: 0 0 12px rgba(0,212,255,0.2); }
+  .video-card.status-publicado { border-color: rgba(0,255,157,0.4); }
+  .video-card.status-erro { border-color: #ff2d55; }
+  .card-top { display: flex; }
+  .card-thumb {
+    width: 80px; min-height: 90px; background: #020408;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; border-right: 1px solid #0d2d45;
+  }
+  .card-body { flex: 1; padding: 12px; }
+  .card-titulo { font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-desc, .card-hashtags { font-size: 11px; color: #7ba8c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { display: flex; gap: 12px; margin-top: 6px; font-size: 10px; }
+  .status-pill {
+    float: right; padding: 2px 8px; font-size: 9px; border-radius: 2px;
+    font-family: monospace; background: rgba(0,212,255,0.1);
+  }
+  .card-actions {
+    padding: 8px 12px; border-top: 1px solid #0d2d45;
+    display: flex; gap: 8px;
+  }
+  .btn-post-now {
+    background: none; border: 1px solid #00d4ff; color: #00d4ff;
+    padding: 4px 12px; cursor: pointer;
+  }
+  .btn-del {
+    background: none; border: 1px solid #ff2d55; color: #ff2d55;
+    margin-left: auto; padding: 4px 12px; cursor: pointer;
+  }
+  .card-log { max-height: 0; overflow: hidden; transition: 0.2s; background: #00000030; }
+  .card-log.open { max-height: 200px; overflow-y: auto; padding: 8px; }
+  .log-line { font-size: 10px; font-family: monospace; border-bottom: 1px solid #0d2d4530; }
+  .empty-state { text-align: center; color: #2d5a7a; padding: 40px; }
+
+  /* ALPHA HUD STYLES */
+  .alpha-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10001; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .alpha-panel { width: 95%; max-width: 850px; background: #050a10; border: 1px solid #00d4ff; box-shadow: 0 0 30px rgba(0,212,255,0.15); display: flex; flex-direction: column; font-family: 'Share Tech Mono', monospace; border-radius: 4px; overflow: hidden; }
+  .alpha-header { padding: 12px 18px; background: linear-gradient(90deg, #00d4ff20, transparent); border-bottom: 1px solid #00d4ff40; display: flex; justify-content: space-between; align-items: center; }
+  .alpha-badge { background: #00d4ff; color: #000; padding: 2px 8px; font-weight: bold; font-size: 11px; border-radius: 2px; }
+  .alpha-title { color: #00d4ff; text-transform: uppercase; letter-spacing: 2px; font-size: 14px; margin-left: 10px; }
+  .alpha-version { color: #2d5a7a; font-size: 10px; margin-left: 10px; opacity: 0.7; }
+  .alpha-close-btn { background: none; border: none; color: #7ba8c4; cursor: pointer; font-size: 20px; transition: 0.2s; }
+  .alpha-close-btn:hover { color: #ff2d55; }
+  .alpha-body { display: flex; padding: 20px; gap: 20px; flex-wrap: wrap; }
+  .alpha-col { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
+  .alpha-section-label { font-size: 10px; color: #2d5a7a; letter-spacing: 2px; border-bottom: 1px solid #2d5a7a40; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+  .alpha-state-card { background: #081118; border: 1px solid #0d2d45; padding: 15px; border-left: 4px solid #00d4ff; position: relative; }
+  .alpha-state-name { font-size: 20px; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+  .alpha-state-action { color: #00d4ff; font-size: 12px; margin-bottom: 12px; }
+  .alpha-confidence-bar-wrap { height: 4px; background: #050a10; border-radius: 2px; overflow: hidden; margin-bottom: 5px; border: 1px solid #0d2d45; }
+  .alpha-confidence-bar { height: 100%; background: #00d4ff; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px #00d4ff; }
+  .alpha-confidence-label { font-size: 10px; color: #7ba8c4; text-align: right; }
+  .alpha-stat-num { font-size: 28px; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+  .alpha-stat-label { font-size: 11px; color: #2d5a7a; margin-left: 8px; }
+  .alpha-last-action { font-size: 12px; color: #00ff9d; background: #00ff9d0a; padding: 8px; border: 1px dashed #00ff9d30; font-family: monospace; }
+  .alpha-btn { background: rgba(0,212,255,0.05); border: 1px solid #00d4ff; color: #00d4ff; padding: 12px; cursor: pointer; text-align: left; transition: 0.2s; font-size: 12px; letter-spacing: 1px; }
+  .alpha-btn:hover { background: #00d4ff20; box-shadow: 0 0 15px rgba(0,212,255,0.2); }
+  .alpha-btn-autopilot.running { background: #ff2d5515; border-color: #ff2d55; color: #ff2d55; animation: pulse-red 2s infinite; }
+  .alpha-override-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .alpha-override-btn { background: #081118; border: 1px solid #0d2d45; color: #7ba8c4; padding: 8px; font-size: 11px; cursor: pointer; transition: 0.2s; }
+  .alpha-override-btn:hover { border-color: #00d4ff; color: #fff; background: #0d2d45; }
+  .alpha-screenshot-img { width: 100%; border: 1px solid #0d2d45; margin-top: 8px; filter: brightness(0.8) contrast(1.2); }
+  .alpha-terminal-wrap { padding: 0 20px 20px; }
+  .alpha-terminal { background: #020408; border: 1px solid #0d2d45; height: 140px; overflow-y: auto; padding: 12px; font-size: 11px; color: #7ba8c4; line-height: 1.5; border-radius: 2px; }
+  .alpha-log-line { margin-bottom: 4px; border-bottom: 1px solid #ffffff05; padding-bottom: 2px; }
+  .alpha-log-sys { color: #2d5a7a; }
+  .alpha-log-error { color: #ff2d55; font-weight: bold; }
+  .alpha-log-ok { color: #00ff9d; }
+  .alpha-log-warn { color: #ffcc00; }
+  .alpha-clear-log { background: none; border: none; color: #2d5a7a; cursor: pointer; text-decoration: underline; font-size: 9px; text-transform: lowercase; }
+  .btn-alpha-trigger { background: transparent; color: #00d4ff; border: 1px solid #00d4ff; padding: 4px 10px; border-radius: 3px; font-family: 'Share Tech Mono', monospace; cursor: pointer; margin-right: 12px; font-size: 11px; transition: 0.3s; }
+  .btn-alpha-trigger:hover { background: #00d4ff; color: #000; box-shadow: 0 0 15px #00d4ff60; }
+  @keyframes pulse-red { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+</style>
+
+<!-- MODAL ALPHA (NEURAL HUD) -->
+<div id="modal-alpha" class="alpha-overlay" style="display:none;">
+  <div class="alpha-panel">
+    <div class="alpha-header">
+      <div class="alpha-header-left">
+        <span class="alpha-badge">▲ ALPHA</span>
+        <span class="alpha-title">Neural-RPA Engine</span>
+        <span class="alpha-version">v1.0.0</span>
+      </div>
+      <div class="alpha-header-right">
+        <span id="alpha-pulse" class="alpha-pulse"></span>
+        <button class="alpha-close-btn" onclick="alphaPanel.close()">✕</button>
+      </div>
+    </div>
+    <div class="alpha-body">
+      <div class="alpha-col alpha-col-state">
+        <div class="alpha-section-label">ESTADO DA TELA</div>
+        <div class="alpha-state-card" id="alpha-state-card">
+          <div class="alpha-state-icon" id="alpha-state-icon">●</div>
+          <div class="alpha-state-name" id="alpha-state-name">IDLE</div>
+          <div class="alpha-state-action" id="alpha-state-action">Aguardando sessão...</div>
+          <div class="alpha-confidence-bar-wrap">
+            <div class="alpha-confidence-bar" id="alpha-confidence-bar" style="width:0%"></div>
+          </div>
+          <div class="alpha-confidence-label" id="alpha-confidence-label">Confiança: --</div>
+        </div>
+        <div class="alpha-section-label">CICLOS EXECUTADOS</div>
+        <div class="alpha-stat-row">
+          <span class="alpha-stat-num" id="alpha-cycle-count">0</span>
+          <span class="alpha-stat-label">ciclos Neural-RPA</span>
+        </div>
+        <div class="alpha-section-label">ÚLTIMA AÇÃO</div>
+        <div class="alpha-last-action" id="alpha-last-action">--</div>
+      </div>
+      <div class="alpha-col alpha-col-controls">
+        <div class="alpha-section-label">CONTROLE NEURAL</div>
+        <button class="alpha-btn alpha-btn-analyze" onclick="alphaPanel.analyze()">🔘 Analisar Agora</button>
+        <button class="alpha-btn alpha-btn-autopilot" id="btn-autopilot" onclick="alphaPanel.toggleAutopilot()">▶ Ativar Autopilot</button>
+        <button class="alpha-btn alpha-btn-screenshot" onclick="alphaPanel.screenshot()">◻ Capturar Frame</button>
+        <div class="alpha-section-label">OVERRIDE MANUAL</div>
+        <div class="alpha-override-grid">
+          <button class="alpha-override-btn" onclick="alphaPanel.override('CLICK_ACIMA')" style="color:#00ff9d; border-color:#00ff9d40; font-weight:bold;">📈 ACIMA</button>
+          <button class="alpha-override-btn" onclick="alphaPanel.override('CLICK_ABAIXO')" style="color:#ff2d55; border-color:#ff2d5540; font-weight:bold;">📉 ABAIXO</button>
+          
+          <button class="alpha-override-btn" onclick="alphaPanel.override('INJECT_GHOST_CSS')">🚫 Ghost CSS</button>
+          <button class="alpha-override-btn" onclick="alphaPanel.override('WAIT')">⏸ Pausar</button>
+        </div>
+        <div id="alpha-screenshot-wrap" style="display:none;">
+          <div class="alpha-section-label">FRAME CAPTURADO</div>
+          <img id="alpha-screenshot-img" class="alpha-screenshot-img" src="" alt="frame" />
+        </div>
+      </div>
+    </div>
+    <div class="alpha-terminal-wrap">
+      <div class="alpha-section-label">
+        LOG NEURAL
+        <button class="alpha-clear-log" onclick="alphaPanel.clearLog()">limpar</button>
+      </div>
+      <div class="alpha-terminal" id="alpha-terminal">
+        <div class="alpha-log-line alpha-log-sys">[ALPHA] Sistema inicializado. Aguardando sessão Projeto Manhattan.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Lógica de Dissipação (Padrão ES5 Rigoroso)
+  Ouve o carregamento da página e remove o ecrã tático suavemente.
+*/
+window.addEventListener('load', function() {
+    // Garante que o ecrã fica visível tempo suficiente para a animação
+    setTimeout(function() {
+        var splash = document.getElementById('tactical-splash');
+        if (splash) {
+            splash.style.opacity = '0'; // Inicia o desvanecimento
+            
+            // Remove o elemento do sistema após o desvanecimento
+            setTimeout(function() {
+                splash.style.display = 'none';
+            }, 800);
+        }
+    }, 2500); // 2.5 segundos de exibição tática
+});
+</script>
 </body>
 </html>
