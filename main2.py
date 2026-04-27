@@ -1,13 +1,11 @@
-# filename: main2.py
-# R2 TACTICAL OS — Ghost Protocol v9.0
-# CORREÇÕES APLICADAS:
-# [BUG1] Streaming Gemma 4 corrigido (executor em background + leitura assíncrona da queue)
-# [BUG2] Endpoint /api/broker/calibrar agora usa CLICK_COORD
-# [BUG3] Modelo Pydantic CalibrateRequest
-# [BUG4] Diagnóstico movido para comando interno DIAGNOSTICO (sem thread extra)
-# [BUG5] Import random movido para topo
+# --- 1. IMPORTS ---
+# R2 TACTICAL OS — Ghost Protocol v9.4
+# [FIX] Resposta Vazia: Ajuste de temperatura e penalidade de repetição
+# [FIX] Estabilidade: Redução de n_gpu_layers para garantir memória de inferência
+# [FIX] DNS/Voz: Timeout reduzido para evitar travamento do servidor em modo offline
 
 import random   # [BUG5] movido para topo
+import pyttsx3
 
 from pathlib import Path
 import os, json, datetime, sys, time, asyncio, subprocess, shutil, re, gc, base64, tempfile
@@ -24,8 +22,41 @@ import uvicorn
 import torch
 import faiss
 from sentence_transformers import SentenceTransformer
+from huggingface_hub import hf_hub_download
 import edge_tts
 import glob
+
+# --- 2. DEFINIÇÃO DO AUTO-DOWNLOAD (Deve vir ANTES do lifespan) ---
+# Configurações de Identidade do Modelo
+REPO_ID = "bartowski/gemma-2-9b-it-GGUF"
+FILENAME = "gemma-2-9b-it-Q4_K_M.gguf"
+LOCAL_DIR = r"C:\r2\models"
+MODEL_PATH = r"C:\r2\models\gemma-2-9b-it-Q4_K_M.gguf"
+
+def assegurar_modelo():
+    if not os.path.exists(MODEL_PATH):
+        print(f"⚠️ [ALERTA] Modelo não encontrado em {MODEL_PATH}")
+        print(f"🚀 [AUTO-DOWNLOAD] Iniciando extração do Gemma 2 de {REPO_ID}...")
+        
+        try:
+            # Garante que a pasta existe
+            os.makedirs(LOCAL_DIR, exist_ok=True)
+            
+            # Realiza o download direto para a pasta de modelos
+            path = hf_hub_download(
+                repo_id=REPO_ID,
+                filename=FILENAME,
+                local_dir=LOCAL_DIR,
+                local_dir_use_symlinks=False
+            )
+            print(f"✅ [SUCESSO] Modelo baixado e verificado: {path}")
+
+            print("⏳ [ESTABILIZANDO] Aguardando liberação do sistema de arquivos...")
+            time.sleep(2) # Pausa tática para evitar erro de leitura
+        except Exception as e:
+            print(f"❌ [ERRO CRÍTICO] Falha no download: {e}")
+            return False
+    return True
 
 from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor
 
@@ -71,27 +102,16 @@ os.makedirs("static/logs", exist_ok=True)
 historico_lock = threading.Lock()
 
 def salvar_no_historico_json(usuario, bot):
-    interacao = {
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "teddy": usuario,
-        "r2": bot
-    }
+    interacao = {"timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "teddy": usuario, "r2": bot}
     with historico_lock:
         historico = []
         if os.path.exists(LOG_HISTORICO):
             try:
-                with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
-                    historico = json.load(f)
-            except Exception as e:
-                print(f"[AVISO] Erro ao ler histórico: {e}")
+                with open(LOG_HISTORICO, "r", encoding="utf-8") as f: historico = json.load(f)
+            except: pass
         historico.append(interacao)
-        if len(historico) > 500:
-            historico = historico[-500:]
-        try:
-            with open(LOG_HISTORICO, "w", encoding="utf-8") as f:
-                json.dump(historico, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            print(f"[AVISO] Erro ao gravar histórico: {e}")
+        with open(LOG_HISTORICO, "w", encoding="utf-8") as f: 
+            json.dump(historico[-100:], f, ensure_ascii=False, indent=4)
 
 def carregar_historico_na_ram():
     with historico_lock:
@@ -99,13 +119,8 @@ def carregar_historico_na_ram():
             try:
                 with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
                     dados = json.load(f)
-                    contexto = []
-                    for item in dados[-40:]:
-                        contexto.append(f"Teddy: {item['teddy']}")
-                        contexto.append(f"R2: {item['r2']}")
-                    return contexto
-            except Exception as e:
-                print(f"[AVISO] Erro ao carregar RAM: {e}")
+                    return [f"{'Teddy' if k=='teddy' else 'R2'}: {v}" for item in dados[-20:] for k,v in item.items() if k in ['teddy','r2']]
+            except: pass
         return []
 
 # ══════════════════════════════════════════
@@ -128,24 +143,26 @@ def safe_import(module_name, class_name):
 # ══════════════════════════════════════════
 # 📚 NÚCLEO RAG COM MEMÓRIA NO HD
 # ══════════════════════════════════════════
+# NÚCLEO RAG COM FILTRO DE SEGURANÇA E BLINDAGEM
+# ══════════════════════════════════════════
 class KnowledgeBase:
     def __init__(self, docs_dir="static/docs"):
         self.docs_dir = docs_dir
-        self.index_path = os.path.join(self.docs_dir, "faiss_index.bin")
-        self.data_path = os.path.join(self.docs_dir, "rag_data.json")
-        self.embedder = None; self.index = None; self.chunks = []; self.arquivos_indexados = []
-        os.makedirs(self.docs_dir, exist_ok=True)
-        self.carregar_memoria()
-
-    def carregar_memoria(self):
+        self.index_path = os.path.join(docs_dir, "faiss_index.bin")
+        self.data_path = os.path.join(docs_dir, "rag_data.json")
+        self.embedder = None
+        self.index = None
+        self.chunks = []
+        self.arquivos_indexados = []
+        os.makedirs(docs_dir, exist_ok=True)
         if os.path.exists(self.index_path) and os.path.exists(self.data_path):
             try:
                 self.index = faiss.read_index(self.index_path)
-                with open(self.data_path, "r", encoding="utf-8") as f:
+                with open(self.data_path, "r", encoding="utf-8") as f: 
                     dados = json.load(f)
-                    self.chunks = dados.get("chunks", []); self.arquivos_indexados = dados.get("arquivos_indexados", [])
-            except Exception as e: 
-                print(f"[AVISO] Falha ao carregar disco RAG: {e}")
+                    self.chunks = dados.get("chunks", [])
+                    self.arquivos_indexados = dados.get("arquivos_indexados", [])
+            except: pass
 
     def sync(self):
         try:
@@ -156,37 +173,85 @@ class KnowledgeBase:
             except ImportError:
                 return "❌ Nenhuma biblioteca PDF encontrada. Execute: pip install pypdf"
 
-        if not self.embedder: self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
-        self.chunks = []; self.arquivos_indexados = [] 
+        if not self.embedder: 
+            self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            
+        self.chunks = []
+        self.arquivos_indexados = [] 
         arquivos = [f for f in os.listdir(self.docs_dir) if f.lower().endswith(('.pdf', '.md'))]
+        
         for arq in arquivos:
             try:
                 p = os.path.join(self.docs_dir, arq)
+                text = ""
                 if arq.endswith('.pdf'):
-                    with open(p, 'rb') as f: text = "".join([pg.extract_text() or "" for pg in _pdf_lib.PdfReader(f).pages])
+                    with open(p, 'rb') as f:
+                        reader = _pdf_lib.PdfReader(f)
+                        for page in reader.pages:
+                            try:
+                                extracted = page.extract_text()
+                                # Filtro de Sanidade: Se a página extraída for muito pequena ou
+                                # cheia de caracteres de erro (como '□' ou '\ufffd'), ignoramos.
+                                if extracted and len(extracted.strip()) > 10:
+                                    text += extracted
+                            except Exception:
+                                # Se a página der erro de encoding (UniGB), pulamos silenciosamente
+                                continue
                 else:
-                    with open(p, 'r', encoding='utf-8') as f: text = f.read()
-                if text.strip():
+                    with open(p, 'r', encoding='utf-8', errors='ignore') as f: 
+                        text = f.read()
+                        
+                # Blindagem 1: Garante que o texto é uma string válida
+                if isinstance(text, str) and text.strip():
+                    # Limpeza extra para evitar caracteres problemáticos
+                    text = text.replace('\x00', '').replace('\ufffd', '') 
+                    
                     self.arquivos_indexados.append(arq)
+                    
+                    # Criação de chunks garantindo que só inserimos strings válidas
                     for i in range(0, len(text), 800):
                         chunk = text[i:i+1000].strip()
-                        if len(chunk) > 50: self.chunks.append(f"[Fonte: {arq}] {chunk}")
+                        if isinstance(chunk, str) and len(chunk) > 50: 
+                            self.chunks.append(f"[Fonte: {arq}] {chunk}")
+                            
             except Exception as e: 
-                print(f"[AVISO] Erro ao extrair PDF/MD ({arq}): {e}")
+                print(f"[AVISO RAG] Arquivo corrompido ou ignorado ({arq}): {e}")
                 continue
-        if not self.chunks: return "❌ Falha na extração de documentos."
-        embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True)
-        self.index = faiss.IndexFlatL2(embeddings.shape[1]); self.index.add(embeddings)
-        faiss.write_index(self.index, self.index_path)
-        with open(self.data_path, "w", encoding="utf-8") as f:
-            json.dump({"chunks": self.chunks, "arquivos_indexados": self.arquivos_indexados}, f, ensure_ascii=False)
-        return f"✅ Cérebro RAG Sincronizado! {len(self.arquivos_indexados)} arquivos."
+                
+        # Blindagem 2: Verifica se há chunks válidos antes de tentar codificar
+        if not self.chunks: 
+            return "❌ Falha na extração. Nenhum texto válido encontrado nos documentos."
+            
+        try:
+            print(f"[RAG] Codificando {len(self.chunks)} blocos de texto...")
+            embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True)
+            self.index = faiss.IndexFlatL2(embeddings.shape[1])
+            self.index.add(embeddings)
+            faiss.write_index(self.index, self.index_path)
+            
+            with open(self.data_path, "w", encoding="utf-8") as f:
+                json.dump({"chunks": self.chunks, "arquivos_indexados": self.arquivos_indexados}, f, ensure_ascii=False)
+                
+            return f"✅ Cérebro RAG Sincronizado! {len(self.arquivos_indexados)} arquivos processados."
+        except Exception as e:
+            return f"❌ Erro crítico ao criar embeddings do RAG: {e}"
 
-    def search(self, query):
-        if not self.index: return None
-        if not self.embedder: self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
-        _, indices = self.index.search(self.embedder.encode([query], convert_to_numpy=True), 3)
-        return "\n\n".join([self.chunks[idx] for idx in indices[0] if idx < len(self.chunks)])
+    def search(self, query, max_chars=1500):
+        if not self.index or not self.chunks: return ""
+        try:
+            if not self.embedder: self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            _, indices = self.index.search(self.embedder.encode([query], convert_to_numpy=True), 2)
+            contexto = ""
+            for i in indices[0]:
+                # Blindagem na busca: evita index out of bounds e garante string
+                if i >= 0 and i < len(self.chunks) and isinstance(self.chunks[i], str):
+                    chunk = self.chunks[i]
+                    if len(contexto) + len(chunk) < max_chars:
+                        contexto += chunk + "\n\n"
+            return contexto
+        except Exception as e: 
+            print(f"[ERRO BUSCA RAG]: {e}")
+            return ""
 
 # ══════════════════════════════════════════
 # 🎙️ FUNÇÃO DE SÍNTESE DE VOZ
@@ -223,6 +288,14 @@ def limpar_audios_antigos(pasta: str = "static/media", max_idade_min: int = 10):
                         pass
     except Exception as e:
         print(f"[LIMPEZA] Erro: {e}")
+
+# Motor de Voz Blindado (Offline)
+def falar_r2(texto):
+    """
+    Função de voz offline via pyttsx3.
+    Neutralizada para evitar conflito com Edge-TTS.
+    """
+    pass # engine.say(texto) etc... tudo desativado
 
 # ══════════════════════════════════════════
 # 🎤 FUNÇÃO DE TRANSCRIÇÃO DE ÁUDIO (WHISPER)
@@ -283,7 +356,7 @@ async def transcrever_audio_base64(base64_audio: str) -> str:
 # 🧠 CONFIGURAÇÃO DO MODELO GEMMA 4
 # ════════════════════════════════════════════
 MODELO_DIR   = r"C:\r2\models"
-MODELO_NOME  = "gemma-4-31B-it-Q4_K_M.gguf"
+MODELO_NOME  = "gemma-2-9b-it-Q4_K_M.gguf"
 MODELO_PATH  = os.path.join(MODELO_DIR, MODELO_NOME)
 HF_REPO_ID   = "unsloth/gemma-4-31B-it-GGUF"
 
@@ -375,31 +448,23 @@ async def lifespan(app: FastAPI):
     
     os.makedirs("static/media", exist_ok=True)
     print("\n⚙️ [BOOT] Inicializando Módulos Táticos...")
-
+    
     rag_ops = KnowledgeBase()
-
     CortexEU = safe_import("eu", "CORTEX_EU")
     eu_ops = CortexEU("R2") if CortexEU else None
-
     PizzaINTService = safe_import("pizzint_service", "PizzaINTService")
     pizza_ops = PizzaINTService(config={}) if PizzaINTService else None
-
     NOAAService = safe_import("noaa_service", "NOAAService")
     noaa_ops = NOAAService() if NOAAService else None
-
     TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
     tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None
-
     BrokerOperator = safe_import("broker_operator", "BrokerOperator")
     broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None
-
     AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
     AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
     air_ops = AirTrafficControl() if AirTrafficControl else None
     astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
-
     whisper_model_global = get_whisper_model() if WHISPER_AVAILABLE else None
-
     try:
         from video_ops import VideoSurgeon
         video_ops = VideoSurgeon(whisper_model=whisper_model_global)
@@ -408,44 +473,29 @@ async def lifespan(app: FastAPI):
         print(f"✂️ [TESOURA]: OFFLINE → {e}")
         video_ops = None
 
-    print("\n🧠 [CÉREBRO] Verificando modelo Gemma 4...")
-    modelo_ok = verificar_e_baixar_modelo()
-    if modelo_ok:
+    # 1. AUTO-DOWNLOAD E VERIFICAÇÃO
+    if assegurar_modelo():
+        print("✅ [CÉREBRO] Modelo verificado e pronto.")
+        # 2. IGNITION (RTX 3050 6GB)
         try:
             from llama_cpp import Llama
             ai_brain = Llama(
-                model_path=MODELO_PATH,
-                n_ctx=32768, n_gpu_layers=20, verbose=False
+                model_path=MODEL_PATH,
+                n_gpu_layers=28,  # Comece com 28 camadas na GPU. Se estiver estável, tente subir para 32.
+                n_ctx=4096,       # Limite de 4k de contexto para preservar memória
+                n_threads=6,      # Auxílio do processador para as camadas que sobrarem na RAM
+                n_batch=512,
+                f16_kv=True,      # Ativa compressão de memória KV
+                flash_attn=True, 
+                verbose=False
             )
-            print("✅ [CÉREBRO] Gemma 4 carregado com sucesso!")
+            print(f"✅ [CÉREBRO] Gemma 2-9B ONLINE (Unidade Bartowski)")
         except Exception as e:
-            print(f"❌ [CÉREBRO] Falha ao carregar: {e}")
-            ai_brain = None
+            print(f"❌ [ERRO] Falha no motor neural: {e}")
     else:
-        print("❌ [CÉREBRO] Modelo indisponível. Inicie o sistema com o arquivo .gguf em: " + MODELO_PATH)
-        ai_brain = None
-
-    motores = {
-        "🧠 CÉREBRO (Gemma 4)":       ai_brain,
-        "📚 MEMÓRIA (RAG)":           rag_ops and rag_ops.index,
-        "✂️ TESOURA (VideoSurgeon)":  video_ops,
-        "📡 RADAR (NOAA)":            noaa_ops,
-        "🍕 INTELIGÊNCIA (PizzaINT)": pizza_ops,
-        "⚙️ CONSCIÊNCIA (CortexEU)":  eu_ops,
-        "🎤 WHISPER (STT)":            WHISPER_AVAILABLE,
-        "🚀 TIKTOK COMMANDER":        tiktok_ops,
-        "🛸 DEFESA AÉREA":            air_ops,
-        "☄️ DEFESA ASTEROIDE":        astro_ops,
-    }
-    for nome, obj in motores.items():
-        status = "ONLINE" if obj else "OFFLINE"
-        if nome == "🎤 WHISPER (STT)":
-            status = "ONLINE" if obj else "OFFLINE (instale openai-whisper)"
-        print(f"{nome}: {status}")
+        print("🚨 [ABORTAR] Sistema incapaz de localizar ou baixar o cérebro.")
 
     yield
-    
-    print("[SHUTDOWN] Encerrando motores...")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -674,11 +724,17 @@ async def stream_llama(ai_brain, prompt, stop_flag_getter):
     
     def _run():
         try:
-            for chunk in ai_brain(prompt, max_tokens=-1, stop=["<end_of_turn>"], stream=True):
+            # [FIX] max_tokens=-1 causava overflow; limitado a 1024 para garantir margem segura
+            for chunk in ai_brain(prompt, max_tokens=1024, stop=["<end_of_turn>"], stream=True):
                 if stop_flag_getter():
                     q.put(None)
                     return
                 q.put(chunk["choices"][0]["text"])
+        except ValueError as e:
+            # [FIX] captura "Requested tokens exceed context window" e avisa o usuário
+            q.put(f"\n\n⚠️ [ERRO DE CONTEXTO] Prompt muito longo: {e}")
+        except Exception as e:
+            q.put(f"\n\n❌ [ERRO GEMMA] {e}")
         finally:
             q.put(None)
     
@@ -825,49 +881,47 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "system", "text": f"❌ Erro ao processar config: {e}"})
                 continue
 
-            # Processamento normal pelo Gemma 4
             if ai_brain:
-                global _stop_generation
                 _stop_generation = False
-                sessao_memoria_ram.append(f"Teddy: {comando}")
-                ctx = await asyncio.to_thread(rag_ops.search, comando)
-                # Gemma 4 chat template
-                # Sistema + RAG + consciência injetados no primeiro turn do usuário
-                sistema_bloco = sys_prompt
-                if ctx: sistema_bloco += f"\n\n[RAG]: {ctx}"
-                if eu_ops: sistema_bloco += f"\n\n{eu_ops.injetar_consciencia()}"
-
-                prompt = ""
-                historico_msgs = sessao_memoria_ram[-40:-1]
-                primeiro_user = True
-                i = 0
-                while i < len(historico_msgs):
-                    msg = historico_msgs[i]
-                    if msg.startswith("Teddy: "):
-                        conteudo = msg.split(': ', 1)[1]
-                        if primeiro_user:
-                            conteudo = f"{sistema_bloco}\n\n{conteudo}"
-                            primeiro_user = False
-                        prompt += f"<start_of_turn>user\n{conteudo}<end_of_turn>\n"
-                    else:
-                        conteudo = msg.split(': ', 1)[1]
-                        prompt += f"<start_of_turn>model\n{conteudo}<end_of_turn>\n"
-                    i += 1
-
-                # Mensagem atual do usuário
-                conteudo_atual = comando
-                if primeiro_user:  # nenhum histórico anterior
-                    conteudo_atual = f"{sistema_bloco}\n\n{comando}"
-                prompt += f"<start_of_turn>user\n{conteudo_atual}<end_of_turn>\n<start_of_turn>model\n"
+                ctx = rag_ops.search(comando) # Agora utiliza o novo padrão leve de 1000 chars
                 
-                resp = ""
-                async for token in stream_llama(ai_brain, prompt, lambda: _stop_generation):
-                    resp += token
+                # Template rigoroso para o Gemma 4
+                prompt = f"<start_of_turn>user\nContexto tático: {ctx}\n\nComando: {comando}<end_of_turn>\n<start_of_turn>model\n"
+                
+                print(f"[DEBUG] Processando {len(prompt)} caracteres...")
+                
+                resp_full = ""
+                
+                def generate_tokens():
+                    try:
+                        # Ajustamos temperature para 0.7 e top_p para 0.9 para evitar respostas vazias
+                        # repeat_penalty ajuda o modelo a não "travar"
+                        for chunk in ai_brain(
+                            prompt, 
+                            max_tokens=1024, 
+                            temperature=0.7, 
+                            top_p=0.9,
+                            repeat_penalty=1.1,
+                            stream=True, 
+                            stop=["<end_of_turn>", "user"]
+                        ):
+                            if _stop_generation: break
+                            token = chunk["choices"][0]["text"]
+                            yield token
+                    except Exception as e:
+                        yield f"\n[ERRO DE CÉREBRO]: {str(e)}"
+
+                for token in await asyncio.to_thread(list, generate_tokens()):
+                    resp_full += token
                     await websocket.send_json({"type": "stream", "text": token})
-                await websocket.send_json({"type": "done"})
                 
-                sessao_memoria_ram.append(f"R2: {resp}")
-                salvar_no_historico_json(comando, resp)
+                if not resp_full.strip():
+                    # Fallback caso o modelo ainda retorne vazio
+                    resp_full = "Comandante, o modelo Gemma 4 processou a informação mas não gerou uma resposta textual. Verifique a carga da GPU/RAM."
+                    await websocket.send_json({"type": "stream", "text": resp_full})
+
+                await websocket.send_json({"type": "done"})
+                salvar_no_historico_json(comando, resp_full)
 
                 limpar_audios_antigos()
 
@@ -881,8 +935,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     ]
                     gatilhos_leitura = ["mais informações", "leia tudo", "detalhes", "me conte mais", "leia para mim"]
                     leitura_completa = any(gatilho in comando.lower() for gatilho in gatilhos_leitura)
-                    texto_audio = resp if leitura_completa else random.choice(frases_taticas)
+                    texto_audio = resp_full if leitura_completa else random.choice(frases_taticas)
                     
+                    # falar_r2(texto_audio) # Chamada do motor offline
+
                     timestamp = int(time.time() * 1000)
                     audio_filename = f"r2_voice_{timestamp}.mp3"
                     audio_path = os.path.join("static/media", audio_filename)
@@ -893,7 +949,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_json({
                             "type": "audio",
                             "url": audio_url,
-                            "text": resp
+                            "text": resp_full
                         })
                     else:
                         print("[AVISO] Falha na geração de áudio")

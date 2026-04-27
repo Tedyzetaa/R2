@@ -1,15 +1,23 @@
-flask
-python-telegram-bot
-requests
-beautifulsoup4
-python-dotenv
-openai
-matplotlib
-aiohttp
-aiosignal
-attrs
-frozenlist
-multidict
-yarl
-feedparser
-cloudscraper
+# --- NÚCLEO WEB E ASSÍNCRONO ---
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+websockets==12.0
+python-multipart==0.0.6
+
+# --- CÉREBRO NEURAL (LLM) ---
+# Nota: Certifique-se de que o llama-cpp-python foi compilado com suporte a CUDA
+llama-cpp-python==0.2.76
+huggingface-hub==0.23.0
+
+# --- CÓRTEX DE MEMÓRIA (RAG) ---
+sentence-transformers==2.7.0
+faiss-cpu==1.8.0
+pypdf==4.2.0
+torch==2.2.1
+
+# --- MÓDULOS DE VOZ E SISTEMA ---
+pyttsx3==2.90
+SpeechRecognition==3.10.1
+pyaudio==0.2.14
+aiohttp==3.9.3
+python-dotenv==1.0.1

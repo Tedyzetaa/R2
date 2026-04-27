@@ -1081,3 +1081,272 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); c
   box-shadow: 0 0 16px rgba(14,165,233,0.4);
   transform: scale(1.02);
 }
+
+/* ========== SPLIT LAYOUT – CHAT + CODE EDITOR ========== */
+.main-split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  gap: 1px;
+  background: var(--border);
+}
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  min-width: 0;
+}
+
+/* Painel do Editor Lateral */
+.code-panel {
+  width: 480px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease, padding 0.2s;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Estado recolhido (fechado) */
+.code-panel.closed {
+  width: 0 !important;
+  border-left: none;
+  padding: 0;
+  visibility: hidden;
+}
+
+/* Estado expandido (fullscreen) */
+.code-panel.expanded {
+  position: fixed;
+  top: 58px;
+  left: 0;
+  width: 100vw !important;
+  height: calc(100vh - 58px);
+  z-index: 1000;
+  border-left: none;
+  border-radius: 0;
+  background: #020b14;
+}
+
+.code-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(6, 18, 33, 0.98);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.code-panel-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--blue);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.code-panel-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.code-panel-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.code-panel-btn.exec {
+  background: rgba(16,185,129,0.1);
+  border-color: rgba(16,185,129,0.4);
+  color: var(--green);
+}
+.code-panel-btn.close:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+.code-panel-btn:hover {
+  background: var(--blue-dim);
+  border-color: var(--border-hi);
+  color: var(--text-hi);
+}
+
+.code-editor {
+  flex: 1;
+  background: #01070f;
+  border: none;
+  padding: 16px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-hi);
+  resize: none;
+  outline: none;
+  border-bottom: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+.code-editor:focus {
+  background: #030c16;
+}
+
+.code-output-area {
+  flex-shrink: 0;
+  max-height: 35%;
+  background: #02050a;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.code-output-label {
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  padding: 6px 12px;
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid var(--border);
+}
+.code-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  margin: 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: #a0f0c0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: transparent;
+}
+
+/* Responsivo */
+@media (max-width: 780px) {
+  .main-split {
+    flex-direction: column;
+  }
+  .code-panel {
+    width: 100%;
+    height: 50%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .code-panel.closed {
+    height: 0;
+    width: 100%;
+  }
+  .code-panel.expanded {
+    top: 58px;
+    height: calc(100vh - 58px);
+    width: 100%;
+  }
+  .code-editor {
+    min-height: 180px;
+  }
+}
+
+/* Botão Toggle Editor no header */
+.editor-toggle-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--blue);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: 0.2s;
+}
+.editor-toggle-btn:hover {
+  background: var(--blue-dim);
+  border-color: var(--border-hi);
+  box-shadow: 0 0 12px rgba(14,165,233,0.2);
+}
+
+/* Correção das Animações Flexbox */
+.main-split {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.chat-container {
+  flex: 1;
+  transition: flex 0.3s ease;
+  min-width: 0; /* Evita quebra de layout */
+}
+
+.code-panel {
+  width: 45%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.3s ease;
+  opacity: 1;
+}
+
+/* Estado Fechado: Em vez de display:none, zeramos a largura */
+.code-panel.closed {
+  width: 0;
+  opacity: 0;
+  border-left: none;
+  pointer-events: none;
+}
+
+/* Estilo das Abas de Arquivos e Botões de Revisão */
+.code-tabs {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  flex: 1;
+  padding-right: 10px;
+}
+
+.code-tab {
+  padding: 4px 12px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Share Tech Mono', monospace;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.code-tab.active {
+  background: var(--blue-dim);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.code-tab:hover {
+  border-color: var(--text-hi);
+}
+
+.icon-btn.success { color: var(--green); border-color: var(--green-dim); }
+.icon-btn.success:hover { background: var(--green-dim); }
+.icon-btn.danger { color: var(--red); border-color: rgba(239,68,68,0.2); }
+.icon-btn.danger:hover { background: rgba(239,68,68,0.1); }

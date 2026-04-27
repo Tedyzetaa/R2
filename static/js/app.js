@@ -1152,7 +1152,8 @@ function removerItem(id) {
 
 // Auto-refresh da fila a cada 8 segundos
 setInterval(carregarFila, 8000);
-// ========== PAINEL ALPHA (HUD NEURAL) - VERSÃO CORRIGIDA ==========
+
+// ========== PAINEL ALPHA (HUD NEURAL) ==========
 var alphaPanel = (function () {
     var _isOpen = false;
     var _pollTimer = null;
@@ -1211,10 +1212,6 @@ var alphaPanel = (function () {
         if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
     }
 
-    // Funções dummy para compatibilidade (autopilot é controlado pelo backend)
-    function _startAutopilotPoll() { /* não usado, mantido para evitar erro */ }
-    function _stopAutopilotPoll() { /* não usado */ }
-
     function open() {
         var modal = _el("modal-alpha");
         if (modal) modal.style.display = "flex";
@@ -1253,48 +1250,37 @@ var alphaPanel = (function () {
         if (!_autopilotOn) {
             _autopilotOn = true;
             if (btn) {
-                btn.innerHTML = '<span class="alpha-btn-icon">&#9646;&#9646;</span> Parar Autopilot';
+                btn.innerHTML = '<span class="alpha-btn-icon">▮▮</span> Parar Autopilot';
                 btn.className = "alpha-btn alpha-btn-autopilot running";
             }
-            _log("AUTOPILOT ATIVADO — modo Blitz (0.5s)...", "warn");
-            var xhrStart = new XMLHttpRequest();
-            xhrStart.open("POST", "/api/alpha/autopilot", true);
-            xhrStart.setRequestHeader("Content-Type", "application/json");
-            xhrStart.onreadystatechange = function() {
-                if (xhrStart.readyState === 4) {
-                    if (xhrStart.status === 200) {
-                        var data;
-                        try { data = JSON.parse(xhrStart.responseText); } catch(e) { data = {}; }
-                        _log("Autopilot confirmado: " + (data.msg || "ativo"), "ok");
+            _log("AUTOPILOT ATIVADO – aguardando conclusão...", "warn");
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/alpha/autopilot", true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    _autopilotOn = false;
+                    if (btn) {
+                        btn.innerHTML = '<span class="alpha-btn-icon">▶</span> Ativar Autopilot';
+                        btn.className = "alpha-btn alpha-btn-autopilot";
+                    }
+                    if (xhr.status === 200) {
+                        var data = JSON.parse(xhr.responseText);
+                        _log("Autopilot finalizado. Estado: " + data.state, data.state === "PUBLISH_SUCCESS" ? "ok" : "warn");
+                        _renderState(data);
                     } else {
-                        _log("Erro ao iniciar autopilot: " + xhrStart.status, "error");
-                        _autopilotOn = false;
-                        if (btn) {
-                            btn.innerHTML = '<span class="alpha-btn-icon">&#9658;</span> Ativar Autopilot';
-                            btn.className = "alpha-btn alpha-btn-autopilot";
-                        }
+                        _log("Falha no Autopilot", "error");
                     }
                 }
             };
-            xhrStart.send();
+            xhr.send();
         } else {
             _autopilotOn = false;
             if (btn) {
-                btn.innerHTML = '<span class="alpha-btn-icon">&#9658;</span> Ativar Autopilot';
+                btn.innerHTML = '<span class="alpha-btn-icon">▶</span> Ativar Autopilot';
                 btn.className = "alpha-btn alpha-btn-autopilot";
             }
-            _log("Enviando sinal de parada...", "warn");
-            var xhrStop = new XMLHttpRequest();
-            xhrStop.open("POST", "/api/broker/stop_autopilot", true);
-            xhrStop.setRequestHeader("Content-Type", "application/json");
-            xhrStop.onreadystatechange = function() {
-                if (xhrStop.readyState === 4 && xhrStop.status === 200) {
-                    var data;
-                    try { data = JSON.parse(xhrStop.responseText); } catch(e) { data = {}; }
-                    _log("Autopilot parado. Ciclos: " + (data.total_cycles || "--"), "warn");
-                }
-            };
-            xhrStop.send();
+            _log("Autopilot interrompido pelo operador.", "warn");
         }
     }
 
