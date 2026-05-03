@@ -1,438 +1,411 @@
-# --- 1. IMPORTS ---
-# R2 TACTICAL OS — Ghost Protocol v9.4
-# [FIX] Resposta Vazia: Ajuste de temperatura e penalidade de repetição
-# [FIX] Estabilidade: Redução de n_gpu_layers para garantir memória de inferência
-# [FIX] DNS/Voz: Timeout reduzido para evitar travamento do servidor em modo offline
-
-import random   # [BUG5] movido para topo
-import pyttsx3
-
-from pathlib import Path
-import os, json, datetime, sys, time, asyncio, subprocess, shutil, re, gc, base64, tempfile
+# filename: main2.py
+# ============================================================
+# CHANGELOG DE REFATORAÇÃO — R2 OS (revisão 2026-05-15)
+# ============================================================
+# - [BUG-M1-M2-M3] Importação de ActionExecutor, lifespan não bloqueante e upload resiliente.
+# - [MELHORIA-4-6-7] Semáforo de geração neural, proteção de WebSocket e histórico atômico.
+# R2 TACTICAL OS — Ghost Protocol v16
+# Arquitetura assíncrona, log streaming via WebSocket, lifespan gerenciado.
+import random
+import os
+import json
+import datetime
+import time
+import asyncio
+import subprocess
+import shutil
+import re
+import base64
+import tempfile
 import threading
+import signal
+from voz import falar # [FIXED: batalha-2.1]
+import logging
 from contextlib import asynccontextmanager
-from queue import Queue, Empty
-from fastapi import Request, FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Form
+from pathlib import Path
+from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Form
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
 import uvicorn
-import torch
-import faiss
-from sentence_transformers import SentenceTransformer
-from huggingface_hub import hf_hub_download
-import edge_tts
-import glob
-
-# --- 2. DEFINIÇÃO DO AUTO-DOWNLOAD (Deve vir ANTES do lifespan) ---
-# Configurações de Identidade do Modelo
-REPO_ID = "bartowski/gemma-2-9b-it-GGUF"
-FILENAME = "gemma-2-9b-it-Q4_K_M.gguf"
-LOCAL_DIR = r"C:\r2\models"
-MODEL_PATH = r"C:\r2\models\gemma-2-9b-it-Q4_K_M.gguf"
-
-def assegurar_modelo():
-    if not os.path.exists(MODEL_PATH):
-        print(f"⚠️ [ALERTA] Modelo não encontrado em {MODEL_PATH}")
-        print(f"🚀 [AUTO-DOWNLOAD] Iniciando extração do Gemma 2 de {REPO_ID}...")
-        
-        try:
-            # Garante que a pasta existe
-            os.makedirs(LOCAL_DIR, exist_ok=True)
-            
-            # Realiza o download direto para a pasta de modelos
-            path = hf_hub_download(
-                repo_id=REPO_ID,
-                filename=FILENAME,
-                local_dir=LOCAL_DIR,
-                local_dir_use_symlinks=False
-            )
-            print(f"✅ [SUCESSO] Modelo baixado e verificado: {path}")
-
-            print("⏳ [ESTABILIZANDO] Aguardando liberação do sistema de arquivos...")
-            time.sleep(2) # Pausa tática para evitar erro de leitura
-        except Exception as e:
-            print(f"❌ [ERRO CRÍTICO] Falha no download: {e}")
-            return False
-    return True
-
-from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor
-
-class AlphaActionRequest(BaseModel):
-    action: str
+import aiofiles
 
 class NavigateRequest(BaseModel):
-    url: str = "https://trade.broker10.com/traderoom"
+    url: str
 
-class CalibrateRequest(BaseModel):   # [BUG3] novo modelo
-    x: int
-    y: int
+# --- 1. CONFIGURAÇÃO DE LOGGING --- #
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("r2")
 
+# --- FILTRAR BIBLIOTECAS BARULHENTAS --- #
+logging.getLogger("PIL").setLevel(logging.WARNING)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("pytesseract").setLevel(logging.WARNING)
+logging.getLogger("asyncio").setLevel(logging.INFO)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    logger.warning("psutil não instalado. O encerramento de processos filhos pode não funcionar no Windows.")
+
+# whisper optional
 try:
     import whisper
     WHISPER_AVAILABLE = True
+    import torch
 except ImportError:
     WHISPER_AVAILABLE = False
-    print("[AVISO] Whisper não instalado. Mensagem de áudio desativada.")
+    logger.warning("Whisper não instalado. Mensagens de áudio desativadas.")
 
-# ══════════════════════════════════════════
-# CONFIGURAÇÃO DO WORKSPACE E AMBIENTE
-# ══════════════════════════════════════════
-WORKSPACE = Path(r"c:\r2")
-WORKSPACE.mkdir(parents=True, exist_ok=True)
-CONDA_ACTIVATE = r"C:\Users\Teddy\miniconda3\Scripts\activate.bat C:\Users\Teddy\miniconda3"
-CONDA_ENV = "r2"
+# --- 2. CONFIGURAÇÃO VIA ENVIRONMENT (pathlib) --- #
+R2_WORKSPACE = Path(os.environ.get("R2_WORKSPACE", str(Path.home() / "r2")))
+R2_MODEL_DIR = Path(os.environ.get("R2_MODEL_DIR", str(R2_WORKSPACE / "models")))
+R2_CONDA_ACTIVATE = os.environ.get("R2_CONDA_ACTIVATE", "")
+R2_CONDA_ENV = os.environ.get("R2_CONDA_ENV", "r2")
+R2_MODEL_FILENAME = "gemma-2-9b-it-Q4_K_M.gguf"
+R2_MODEL_PATH = R2_MODEL_DIR / R2_MODEL_FILENAME
+R2_HF_REPO_ID = "bartowski/gemma-2-9b-it-GGUF"
+R2_HF_FILENAME = "gemma-2-9b-it-Q4_K_M.gguf"
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+WORKSPACE = R2_WORKSPACE # type: ignore
+WORKSPACE.mkdir(parents=True, exist_ok=True) # type: ignore
+UPLOAD_DIR = Path("uploads") # type: ignore
+UPLOAD_DIR.mkdir(exist_ok=True) # type: ignore
 
-_stop_generation = False
+CONDA_ACTIVATE = R2_CONDA_ACTIVATE # type: ignore
+CONDA_ENV = R2_CONDA_ENV # type: ignore
 
-class CodePayload(BaseModel):
-    filename: str
-    content: str
+R2_SYSTEM_PROMPT = "Você é o R2, IA tática e Mestre Programador. REGRA: A primeira linha do código DEVE ser: # filename: nome.py" # type: ignore
 
-# ══════════════════════════════════════════
-# 💾 NÚCLEO DE MEMÓRIA (LOCK PROTEGIDO)
-# ══════════════════════════════════════════
-LOG_HISTORICO = "static/logs/historico_chat.json"
-os.makedirs("static/logs", exist_ok=True)
-historico_lock = threading.Lock()
+# --- 3. MODELO AUTO-DOWNLOAD --- #
+async def garantir_modelo() -> bool:
+    if not R2_MODEL_PATH.exists():
+        logger.info(f"Modelo não encontrado em {R2_MODEL_PATH}. Iniciando download...")
+        R2_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            from huggingface_hub import hf_hub_download
+            path = hf_hub_download(
+                repo_id=R2_HF_REPO_ID,
+                filename=R2_HF_FILENAME,
+                local_dir=str(R2_MODEL_DIR),
+                local_dir_use_symlinks=False
+            )
+            logger.info(f"📥 Modelo baixado: {path}") # type: ignore
+            await asyncio.sleep(2)
+            return True
+        except Exception as e:
+            logger.error(f"Falha no download: {e}")
+            return False
+    return True
+ 
+# --- 4. MÓDULO ALPHA E safe_import --- #
+from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor # type: ignore
 
-def salvar_no_historico_json(usuario, bot):
-    interacao = {"timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "teddy": usuario, "r2": bot}
-    with historico_lock:
-        historico = []
-        if os.path.exists(LOG_HISTORICO):
-            try:
-                with open(LOG_HISTORICO, "r", encoding="utf-8") as f: historico = json.load(f)
-            except: pass
-        historico.append(interacao)
-        with open(LOG_HISTORICO, "w", encoding="utf-8") as f: 
-            json.dump(historico[-100:], f, ensure_ascii=False, indent=4)
-
-def carregar_historico_na_ram():
-    with historico_lock:
-        if os.path.exists(LOG_HISTORICO):
-            try:
-                with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
-                    dados = json.load(f)
-                    return [f"{'Teddy' if k=='teddy' else 'R2'}: {v}" for item in dados[-20:] for k,v in item.items() if k in ['teddy','r2']]
-            except: pass
-        return []
-
-# ══════════════════════════════════════════
-# 📂 IMPORTAÇÕES TÁTICAS SEGURAS
-# ══════════════════════════════════════════
-def safe_import(module_name, class_name):
+def safe_import(module_name: str, class_name: str) -> Any:
     try:
         import importlib
         mod = importlib.import_module(f"features.{module_name}" if "features" not in module_name else module_name)
         return getattr(mod, class_name)
-    except Exception as e:
+    except Exception as ex:
         try:
-            import importlib
             mod = importlib.import_module(module_name)
             return getattr(mod, class_name)
-        except Exception as ex:
-            print(f"⚠️ Módulo {class_name} indisponível: {ex}")
+        except Exception as ex2:
+            logger.warning(f"Módulo {class_name} indisponível: {ex2}") # type: ignore
             return None
 
-# ══════════════════════════════════════════
-# 📚 NÚCLEO RAG COM MEMÓRIA NO HD
-# ══════════════════════════════════════════
-# NÚCLEO RAG COM FILTRO DE SEGURANÇA E BLINDAGEM
-# ══════════════════════════════════════════
-class KnowledgeBase:
-    def __init__(self, docs_dir="static/docs"):
-        self.docs_dir = docs_dir
-        self.index_path = os.path.join(docs_dir, "faiss_index.bin")
-        self.data_path = os.path.join(docs_dir, "rag_data.json")
-        self.embedder = None
-        self.index = None
-        self.chunks = []
-        self.arquivos_indexados = []
-        os.makedirs(docs_dir, exist_ok=True)
-        if os.path.exists(self.index_path) and os.path.exists(self.data_path):
+# --- 5. NÚCLEO DE MEMÓRIA (LOCK) --- #
+LOG_HISTORICO = Path("static/logs/historico_chat.json")
+LOG_HISTORICO.parent.mkdir(parents=True, exist_ok=True)
+historico_lock = asyncio.Lock()
+
+async def salvar_no_historico_json(usuario: str, bot: str) -> None:
+    interacao = {"timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "teddy": usuario, "r2": bot}
+    async with historico_lock:
+        historico = []
+        if LOG_HISTORICO.exists():
             try:
-                self.index = faiss.read_index(self.index_path)
-                with open(self.data_path, "r", encoding="utf-8") as f: 
+                with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
+                    historico = json.load(f)
+            except Exception:
+                pass
+        historico.append(interacao)
+        tmp_path = LOG_HISTORICO.with_suffix(".tmp")
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(historico[-100:], f, ensure_ascii=False, indent=4)
+            os.replace(tmp_path, LOG_HISTORICO)
+        except Exception:
+            pass
+
+async def carregar_historico_na_ram() -> List[str]: # type: ignore
+    async with historico_lock:
+        if LOG_HISTORICO.exists():
+            try:
+                with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
+                    dados = json.load(f)
+                    return [f"{'Teddy' if k=='teddy' else 'R2'}: {v}" for item in dados[-20:] for k,v in item.items() if k in ('teddy','r2')]
+            except Exception:
+                pass
+        return []
+
+# --- 6. RAG (KnowledgeBase) --- #
+class KnowledgeBase:
+    def __init__(self, docs_dir: str = "static/docs"):
+        self.docs_dir = Path(docs_dir)
+        self.index_path = self.docs_dir / "faiss_index.bin"
+        self.data_path = self.docs_dir / "rag_data.json"
+        self.embedder: Optional[Any] = None
+        self.index = None
+        self.chunks: List[str] = []
+        self.arquivos_indexados: List[str] = []
+        self._embedder_lock = threading.Lock()
+        self.docs_dir.mkdir(parents=True, exist_ok=True)
+        self._ignore_patterns = [".ghost", ".tmp", "~$"]
+        if self.index_path.exists() and self.data_path.exists():
+            try:
+                import faiss
+                self.index = faiss.read_index(str(self.index_path))
+                with open(self.data_path, "r", encoding="utf-8") as f:
                     dados = json.load(f)
                     self.chunks = dados.get("chunks", [])
                     self.arquivos_indexados = dados.get("arquivos_indexados", [])
-            except: pass
+            except Exception: # type: ignore
+                pass
 
-    def sync(self):
+    async def sync(self) -> str:
+        return await asyncio.to_thread(self._sync_sync)
+
+    def _sync_sync(self) -> str:
         try:
+            import faiss
             import pypdf as _pdf_lib
         except ImportError:
             try:
                 import PyPDF2 as _pdf_lib
             except ImportError:
                 return "❌ Nenhuma biblioteca PDF encontrada. Execute: pip install pypdf"
+        from sentence_transformers import SentenceTransformer
 
-        if not self.embedder: 
-            self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
-            
-        self.chunks = []
-        self.arquivos_indexados = [] 
-        arquivos = [f for f in os.listdir(self.docs_dir) if f.lower().endswith(('.pdf', '.md'))]
-        
+        if not self.embedder:
+            with self._embedder_lock:
+                if not self.embedder:
+                    self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+
+        self.chunks.clear()
+        self.arquivos_indexados.clear()
+        arquivos = [f for f in self.docs_dir.iterdir()
+                    if f.suffix.lower() in ('.pdf', '.md')
+                    and not any(p in f.name for p in self._ignore_patterns)]
+
         for arq in arquivos:
             try:
-                p = os.path.join(self.docs_dir, arq)
                 text = ""
-                if arq.endswith('.pdf'):
-                    with open(p, 'rb') as f:
+                if arq.suffix.lower() == '.pdf':
+                    with open(arq, 'rb') as f:
                         reader = _pdf_lib.PdfReader(f)
                         for page in reader.pages:
                             try:
                                 extracted = page.extract_text()
-                                # Filtro de Sanidade: Se a página extraída for muito pequena ou
-                                # cheia de caracteres de erro (como '□' ou '\ufffd'), ignoramos.
                                 if extracted and len(extracted.strip()) > 10:
                                     text += extracted
-                            except Exception:
-                                # Se a página der erro de encoding (UniGB), pulamos silenciosamente
+                            except Exception: # type: ignore
                                 continue
                 else:
-                    with open(p, 'r', encoding='utf-8', errors='ignore') as f: 
+                    with open(arq, 'r', encoding='utf-8', errors='ignore') as f:
                         text = f.read()
-                        
-                # Blindagem 1: Garante que o texto é uma string válida
+
                 if isinstance(text, str) and text.strip():
-                    # Limpeza extra para evitar caracteres problemáticos
-                    text = text.replace('\x00', '').replace('\ufffd', '') 
-                    
-                    self.arquivos_indexados.append(arq)
-                    
-                    # Criação de chunks garantindo que só inserimos strings válidas
+                    text = text.replace('\x00', '').replace('\ufffd', '') # type: ignore
+                    self.arquivos_indexados.append(arq.name)
                     for i in range(0, len(text), 800):
                         chunk = text[i:i+1000].strip()
-                        if isinstance(chunk, str) and len(chunk) > 50: 
-                            self.chunks.append(f"[Fonte: {arq}] {chunk}")
-                            
-            except Exception as e: 
-                print(f"[AVISO RAG] Arquivo corrompido ou ignorado ({arq}): {e}")
+                        if isinstance(chunk, str) and len(chunk) > 50:
+                            self.chunks.append(f"[Fonte: {arq.name}] {chunk}")
+            except Exception as e:
+                logger.warning(f"Erro no arquivo {arq.name}: {e}") # type: ignore
                 continue
-                
-        # Blindagem 2: Verifica se há chunks válidos antes de tentar codificar
-        if not self.chunks: 
-            return "❌ Falha na extração. Nenhum texto válido encontrado nos documentos."
-            
+
+        if not self.chunks:
+            return "❌ Falha na extração. Nenhum texto válido encontrado."
+
         try:
-            print(f"[RAG] Codificando {len(self.chunks)} blocos de texto...")
+            logger.info(f"RAG: codificando {len(self.chunks)} blocos...") # type: ignore
             embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True)
             self.index = faiss.IndexFlatL2(embeddings.shape[1])
             self.index.add(embeddings)
-            faiss.write_index(self.index, self.index_path)
-            
+            faiss.write_index(self.index, str(self.index_path))
             with open(self.data_path, "w", encoding="utf-8") as f:
                 json.dump({"chunks": self.chunks, "arquivos_indexados": self.arquivos_indexados}, f, ensure_ascii=False)
-                
             return f"✅ Cérebro RAG Sincronizado! {len(self.arquivos_indexados)} arquivos processados."
         except Exception as e:
-            return f"❌ Erro crítico ao criar embeddings do RAG: {e}"
+            return f"❌ Erro crítico ao criar embeddings: {e}"
 
-    def search(self, query, max_chars=1500):
-        if not self.index or not self.chunks: return ""
+    async def search(self, query: str, max_chars: int = 1500) -> str: # type: ignore
+        return await asyncio.to_thread(self._search_sync, query, max_chars)
+
+    def _search_sync(self, query: str, max_chars: int) -> str:
+        if not self.index or not self.chunks:
+            return ""
         try:
-            if not self.embedder: self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            from sentence_transformers import SentenceTransformer
+            if not self.embedder:
+                with self._embedder_lock:
+                    if not self.embedder:
+                        self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
             _, indices = self.index.search(self.embedder.encode([query], convert_to_numpy=True), 2)
             contexto = ""
             for i in indices[0]:
-                # Blindagem na busca: evita index out of bounds e garante string
-                if i >= 0 and i < len(self.chunks) and isinstance(self.chunks[i], str):
+                if 0 <= i < len(self.chunks) and isinstance(self.chunks[i], str):
                     chunk = self.chunks[i]
                     if len(contexto) + len(chunk) < max_chars:
                         contexto += chunk + "\n\n"
             return contexto
-        except Exception as e: 
-            print(f"[ERRO BUSCA RAG]: {e}")
+        except Exception as e:
+            logger.error(f"Erro na busca RAG: {e}") # type: ignore
             return ""
 
-# ══════════════════════════════════════════
-# 🎙️ FUNÇÃO DE SÍNTESE DE VOZ
-# ══════════════════════════════════════════
-def mapear_voz_para_edge(voz_usuario: str) -> str:
-    mapa = {
-        "Antonio":  "pt-BR-AntonioNeural",
-        "Francisca": "pt-BR-FranciscaNeural",
-        "Thalita":  "pt-BR-ThalitaNeural"
-    }
-    return mapa.get(voz_usuario, "pt-BR-ThalitaNeural")
+# --- 7. MÓDULO DE VOZ (EdgeTTSEngine) --- #
+class VoiceEngine:
+    @staticmethod
+    def mapear_voz_para_edge(voz_usuario: str) -> str:
+        mapa = {
+            "Antonio":  "pt-BR-AntonioNeural",
+            "Francisca": "pt-BR-FranciscaNeural",
+            "Thalita":  "pt-BR-ThalitaNeural"
+        }
+        return mapa.get(voz_usuario, "pt-BR-ThalitaNeural")
 
-async def gerar_voz_r2(texto: str, filepath: str, voz: str = "Thalita") -> bool:
-    try:
-        voice_code = mapear_voz_para_edge(voz)
-        communicate = edge_tts.Communicate(texto, voice_code)
-        await communicate.save(filepath)
-        return True
-    except Exception as e:
-        print(f"[ERRO VOZ] {e}")
-        return False
-
-def limpar_audios_antigos(pasta: str = "static/media", max_idade_min: int = 10):
-    try:
-        agora = time.time()
-        for nome in os.listdir(pasta):
-            if nome.startswith("r2_voice_") and nome.endswith(".mp3"):
-                caminho = os.path.join(pasta, nome)
-                idade_min = (agora - os.path.getmtime(caminho)) / 60
-                if idade_min > max_idade_min:
-                    try:
-                        os.unlink(caminho)
-                    except Exception:
-                        pass
-    except Exception as e:
-        print(f"[LIMPEZA] Erro: {e}")
-
-# Motor de Voz Blindado (Offline)
-def falar_r2(texto):
-    """
-    Função de voz offline via pyttsx3.
-    Neutralizada para evitar conflito com Edge-TTS.
-    """
-    pass # engine.say(texto) etc... tudo desativado
-
-# ══════════════════════════════════════════
-# 🎤 FUNÇÃO DE TRANSCRIÇÃO DE ÁUDIO (WHISPER)
-# ══════════════════════════════════════════
-_modelo_whisper = None
-
-def get_whisper_model():
-    global _modelo_whisper
-    if not WHISPER_AVAILABLE:
-        return None
-    if _modelo_whisper is None:
+    @staticmethod
+    async def gerar_voz_r2(texto: str, filepath: Path, voz: str = "Thalita") -> bool: # type: ignore
         try:
-            print("[WHISPER] Carregando modelo base...")
-            _modelo_whisper = whisper.load_model("base")
-            print("[WHISPER] Modelo pronto.")
+            import edge_tts
+            voice_code = VoiceEngine.mapear_voz_para_edge(voz)
+            communicate = edge_tts.Communicate(texto, voice_code)
+            await communicate.save(str(filepath))
+            return True
         except Exception as e:
-            print(f"[WHISPER] Erro ao carregar: {e}")
-            return None
-    return _modelo_whisper
+            logger.error(f"Erro ao gerar voz: {e}") # type: ignore
+            return False
 
-async def transcrever_audio_base64(base64_audio: str) -> str:
-    if not WHISPER_AVAILABLE:
-        return "[ERRO] Whisper não está instalado no servidor."
-    model = get_whisper_model()
-    if model is None:
-        return "[ERRO] Modelo Whisper não disponível."
-    
-    try:
-        audio_bytes = base64.b64decode(base64_audio)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_webm:
-            tmp_webm.write(audio_bytes)
-            tmp_webm_path = tmp_webm.name
+    @staticmethod
+    async def transcrever_audio_base64(base64_audio: str) -> str:
+        if not WHISPER_AVAILABLE:
+            return "[ERRO] Whisper não instalado."
+        model = await asyncio.to_thread(get_whisper_model)
+        if model is None: # type: ignore
+            return "[ERRO] Whisper não disponível."
+        try:
+            audio_bytes = base64.b64decode(base64_audio)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_webm:
+                tmp_webm.write(audio_bytes)
+                tmp_webm_path = Path(tmp_webm.name)
 
-        tmp_wav_path = tmp_webm_path.replace(".webm", "_conv.wav")
-        cmd_conv = (
-            f'ffmpeg -y -i "{tmp_webm_path}" '
-            f'-acodec pcm_s16le -ar 16000 -ac 1 "{tmp_wav_path}"'
-        )
-        subprocess.run(cmd_conv, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            tmp_wav_path = tmp_webm_path.with_suffix(".wav")
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-i", str(tmp_webm_path),
+                "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", str(tmp_wav_path),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            await proc.wait()
 
-        caminho_para_whisper = tmp_wav_path if os.path.exists(tmp_wav_path) else tmp_webm_path
-        result = await asyncio.to_thread(model.transcribe, caminho_para_whisper, language="pt")
-        texto = result["text"].strip()
-        
-        for p in [tmp_webm_path, tmp_wav_path]:
-            try:
-                if os.path.exists(p):
-                    os.unlink(p)
-            except Exception:
-                pass
-        
-        return texto if texto else "[Áudio sem fala detectada]"
-    except Exception as e:
-        print(f"[WHISPER] Erro na transcrição: {e}")
-        return f"[ERRO] Falha ao transcrever áudio: {str(e)}"
+            caminho_para_whisper = tmp_wav_path if tmp_wav_path.exists() else tmp_webm_path
+            result = await asyncio.to_thread(model.transcribe, str(caminho_para_whisper), language="pt")
+            texto = result["text"].strip()
+            for p in (tmp_webm_path, tmp_wav_path):
+                try:
+                    if p.exists(): # type: ignore
+                        p.unlink()
+                except Exception:
+                    pass
+            return texto if texto else "[Áudio sem fala detectada]"
+        except Exception as e:
+            logger.error(f"Erro na transcrição: {e}") # type: ignore
+            return f"[ERRO] Falha ao transcrever: {str(e)}"
 
-# ════════════════════════════════════════════
-# 🧠 CONFIGURAÇÃO DO MODELO GEMMA 4
-# ════════════════════════════════════════════
-MODELO_DIR   = r"C:\r2\models"
-MODELO_NOME  = "gemma-2-9b-it-Q4_K_M.gguf"
-MODELO_PATH  = os.path.join(MODELO_DIR, MODELO_NOME)
-HF_REPO_ID   = "unsloth/gemma-4-31B-it-GGUF"
+# --- 8. MÓDULO NEURAL (Gemma 2) --- #
+class NeuralEngine:
+    def __init__(self):
+        self.model = None
+        self._stop_event = threading.Event()
+        self._generation_sem = threading.Semaphore(1)
 
-def _encontrar_gguf_q4(repo_id):
-    """Lista o repo HF e retorna o filename do melhor candidato GGUF."""
-    try:
-        from huggingface_hub import list_repo_files
-        arquivos = list(list_repo_files(repo_id))
-        for prioridade in ["Q4_K_M", "Q4_K_S", "Q4_0", "Q8_0"]:
-            candidatos = [f for f in arquivos if prioridade in f and f.endswith(".gguf") and "/" not in f]
-            if candidatos:
-                return candidatos[0]
-        raiz = [f for f in arquivos if f.endswith(".gguf") and "/" not in f]
-        return raiz[0] if raiz else None
-    except Exception as e:
-        print(f"[DOWNLOAD] Erro ao listar repo: {e}")
-        return None
+    async def load(self) -> bool:
+        if not await garantir_modelo():
+            return False
+        try:
+            from llama_cpp import Llama # type: ignore
+            self.model = Llama(
+                model_path=str(R2_MODEL_PATH),
+                n_gpu_layers=28,
+                n_ctx=4096,
+                n_threads=6,
+                n_batch=512,
+                f16_kv=True,
+                flash_attn=True,
+                verbose=False
+            )
+            logger.info("🧠 Cérebro Gemma 2-9B ONLINE")
+            return True # type: ignore
+        except Exception as e:
+            logger.error(f"Falha no motor neural: {e}")
+            return False
 
-def verificar_e_baixar_modelo():
-    """
-    Verifica se o modelo Gemma 4 existe localmente.
-    Se nao existir, baixa automaticamente do Hugging Face.
-    Retorna True se o modelo estiver pronto.
-    """
-    if os.path.exists(MODELO_PATH):
-        tamanho_gb = os.path.getsize(MODELO_PATH) / (1024 ** 3)
-        print(f"\u2705 [MODELO] Gemma 4 encontrado \u2192 {MODELO_PATH} ({tamanho_gb:.1f} GB)")
-        return True
+    def stop_generation(self):
+        self._stop_event.set()
 
-    print(f"\u26a0\ufe0f  [MODELO] Arquivo nao encontrado: {MODELO_PATH}")
-    print(f"\U0001f310 [DOWNLOAD] Buscando modelo em: https://huggingface.co/{HF_REPO_ID}")
+    def clear_stop(self):
+        self._stop_event.clear()
 
-    try:
-        from huggingface_hub import hf_hub_download
-    except ImportError:
-        print("\u274c [DOWNLOAD] huggingface_hub nao instalado. Execute: pip install huggingface_hub")
-        return False
+    async def generate_stream(self, prompt: str) -> AsyncGenerator[str, None]:
+        self.clear_stop()
+        q = asyncio.Queue()
 
-    os.makedirs(MODELO_DIR, exist_ok=True)
+        def _run():
+            with self._generation_sem:
+                try:
+                    for chunk in self.model(
+                        prompt,
+                        max_tokens=1024,
+                        temperature=0.7,
+                        top_p=0.9,
+                        repeat_penalty=1.1,
+                        stream=True,
+                        stop=["<end_of_turn>"]
+                    ):
+                        if self._stop_event.is_set():
+                            break # type: ignore
+                        q.put_nowait(chunk["choices"][0]["text"])
+                except Exception as e:
+                    q.put_nowait(f"\n[ERRO] {str(e)}")
+                finally:
+                    q.put_nowait(None)
 
-    arquivo_remoto = _encontrar_gguf_q4(HF_REPO_ID)
-    if not arquivo_remoto:
-        print("\u274c [DOWNLOAD] Nenhum arquivo GGUF encontrado no repositorio.")
-        print(f"   Acesse manualmente: https://huggingface.co/{HF_REPO_ID}")
-        return False
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
 
-    print(f"\U0001f4e5 [DOWNLOAD] Arquivo selecionado: {arquivo_remoto}")
-    print("\u23f3 [DOWNLOAD] Iniciando download (~20 GB para Q4_K_M). Aguarde...")
+        while True:
+            token = await q.get()
+            if token is None:
+                break
+            yield token
 
-    try:
-        caminho_baixado = hf_hub_download(
-            repo_id=HF_REPO_ID,
-            filename=arquivo_remoto,
-            local_dir=MODELO_DIR,
-            local_dir_use_symlinks=False,
-        )
-        destino = MODELO_PATH
-        if os.path.abspath(caminho_baixado) != os.path.abspath(destino):
-            shutil.move(caminho_baixado, destino)
-        tamanho_gb = os.path.getsize(destino) / (1024 ** 3)
-        print(f"\u2705 [DOWNLOAD] Concluido! Salvo em: {destino} ({tamanho_gb:.1f} GB)")
-        return True
-    except KeyboardInterrupt:
-        print("\n\u26a0\ufe0f  [DOWNLOAD] Cancelado. Sera retomado na proxima execucao.")
-        return False
-    except Exception as e:
-        print(f"\u274c [DOWNLOAD] Falha: {e}")
-        print(f"   Baixe manualmente: https://huggingface.co/{HF_REPO_ID}")
-        print(f"   Salve o arquivo em: {MODELO_PATH}")
-        return False
+neural = NeuralEngine() # type: ignore
 
-# ══════════════════════════════════════════
-# 🌐 SERVIDOR FASTAPI
-# ══════════════════════════════════════════
-ai_brain = None
-rag_ops = None
+# --- 9. FASTAPI APP & LIFESPAN --- #
+rag_ops: Optional[KnowledgeBase] = None # type: ignore
+ai_brain = neural
+_stop_event = neural._stop_event
+
 eu_ops = None
 pizza_ops = None
 noaa_ops = None
@@ -442,58 +415,40 @@ air_ops = None
 tiktok_ops = None
 broker_ops = None
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ai_brain, rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops, broker_ops
-    
-    os.makedirs("static/media", exist_ok=True)
-    print("\n⚙️ [BOOT] Inicializando Módulos Táticos...")
-    
-    rag_ops = KnowledgeBase()
-    CortexEU = safe_import("eu", "CORTEX_EU")
-    eu_ops = CortexEU("R2") if CortexEU else None
-    PizzaINTService = safe_import("pizzint_service", "PizzaINTService")
-    pizza_ops = PizzaINTService(config={}) if PizzaINTService else None
-    NOAAService = safe_import("noaa_service", "NOAAService")
-    noaa_ops = NOAAService() if NOAAService else None
-    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
-    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None
-    BrokerOperator = safe_import("broker_operator", "BrokerOperator")
-    broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None
-    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
-    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
-    air_ops = AirTrafficControl() if AirTrafficControl else None
-    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
-    whisper_model_global = get_whisper_model() if WHISPER_AVAILABLE else None
+    global rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops, broker_ops
+
+    Path("static/media").mkdir(parents=True, exist_ok=True) # type: ignore
+    logger.info("⚡ Inicializando módulos táticos...") # type: ignore
+
+    rag_ops = KnowledgeBase() # type: ignore
+    CortexEU = safe_import("eu", "CORTEX_EU") # type: ignore
+    eu_ops = CortexEU("R2") if CortexEU else None # type: ignore
+    PizzaINTService = safe_import("pizzint_service", "PizzaINTService") # type: ignore
+    pizza_ops = PizzaINTService(config={}) if PizzaINTService else None # type: ignore
+    NOAAService = safe_import("noaa_service", "NOAAService") # type: ignore
+    noaa_ops = NOAAService() if NOAAService else None # type: ignore
+    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander") # type: ignore
+    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None # type: ignore
+    BrokerOperator = safe_import("broker_operator", "BrokerOperator") # type: ignore
+    broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None # type: ignore
+    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl") # type: ignore
+    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem") # type: ignore
+    air_ops = AirTrafficControl() if AirTrafficControl else None # type: ignore
+    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None # type: ignore
+    whisper_model_global = await asyncio.to_thread(get_whisper_model) if WHISPER_AVAILABLE else None # type: ignore
     try:
         from video_ops import VideoSurgeon
         video_ops = VideoSurgeon(whisper_model=whisper_model_global)
-        print("✂️ [TESOURA]: ONLINE")
+        logger.info("✂️ Tesoura Neural: ONLINE")
     except Exception as e:
-        print(f"✂️ [TESOURA]: OFFLINE → {e}")
+        logger.warning(f"Tesoura Neural: OFFLINE → {e}")
         video_ops = None
 
-    # 1. AUTO-DOWNLOAD E VERIFICAÇÃO
-    if assegurar_modelo():
-        print("✅ [CÉREBRO] Modelo verificado e pronto.")
-        # 2. IGNITION (RTX 3050 6GB)
-        try:
-            from llama_cpp import Llama
-            ai_brain = Llama(
-                model_path=MODEL_PATH,
-                n_gpu_layers=28,  # Comece com 28 camadas na GPU. Se estiver estável, tente subir para 32.
-                n_ctx=4096,       # Limite de 4k de contexto para preservar memória
-                n_threads=6,      # Auxílio do processador para as camadas que sobrarem na RAM
-                n_batch=512,
-                f16_kv=True,      # Ativa compressão de memória KV
-                flash_attn=True, 
-                verbose=False
-            )
-            print(f"✅ [CÉREBRO] Gemma 2-9B ONLINE (Unidade Bartowski)")
-        except Exception as e:
-            print(f"❌ [ERRO] Falha no motor neural: {e}")
-    else:
-        print("🚨 [ABORTAR] Sistema incapaz de localizar ou baixar o cérebro.")
+    if not await neural.load(): # type: ignore
+        logger.error("Sistema incapaz de localizar ou baixar o cérebro.")
 
     yield
 
@@ -504,53 +459,85 @@ app.add_middleware(
     allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ══════════════════════════════════════════
-# 📡 ENDPOINTS REST (mantidos)
-# ══════════════════════════════════════════
+# --- 10. ENDPOINTS REST --- #
+class CodePayload(BaseModel):
+    filename: str
+    content: str
+
+class CalibrateRequest(BaseModel):
+    x: int
+    y: int
+
+class AlphaActionRequest(BaseModel):
+    action: str
 
 @app.post("/api/open_vscode")
-async def open_vscode(payload: CodePayload):
-    filepath = WORKSPACE / payload.filename
-    try:
-        with open(filepath, "w", encoding="utf-8") as f: f.write(payload.content)
+async def open_vscode(payload: CodePayload): # type: ignore
+    safe_name = Path(payload.filename).name # type: ignore
+    filepath = WORKSPACE / safe_name # type: ignore
+    try: # type: ignore
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(payload.content)
         subprocess.Popen(["code", str(filepath)], shell=True)
         return {"ok": True}
     except Exception:
         return {"ok": False}
 
 @app.post("/api/execute_code")
-async def execute_code(payload: CodePayload):
-    filepath = WORKSPACE / payload.filename
-    try:
-        with open(filepath, "w", encoding="utf-8") as f: f.write(payload.content)
-        cmd = fr'cmd.exe /c "call {CONDA_ACTIVATE} && conda activate {CONDA_ENV} && python "{filepath}""'
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        out, err = process.communicate()
-        return {"ok": True, "output": out + (f"\n--- ERRO ---\n{err}" if err else "")}
+async def execute_code(payload: CodePayload): # type: ignore
+    safe_name = Path(payload.filename).name # type: ignore
+    filepath = WORKSPACE / safe_name # type: ignore
+    try: # type: ignore
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(payload.content)
+        cmd = f'cmd.exe /c "call {CONDA_ACTIVATE} && conda activate {CONDA_ENV} && python "{filepath}""' # type: ignore
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+        proc = await asyncio.create_subprocess_shell(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            creationflags=creationflags
+        )
+        try:
+            out_bytes, err_bytes = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+        except asyncio.TimeoutError:
+            if os.name == 'nt':
+                os.kill(proc.pid, signal.CTRL_BREAK_EVENT)
+            else:
+                proc.kill()
+            await proc.wait()
+            return {"ok": False, "error": "Tempo limite excedido (30s). Operação abortada."}
+        out = out_bytes.decode('utf-8', errors='replace')
+        err = err_bytes.decode('utf-8', errors='replace')
+        output = out + (f"\n--- ERRO ---\n{err}" if err else "")
+        return {"ok": True, "output": output}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+@app.post("/api/save_and_run")
+async def save_and_run(payload: CodePayload):
+    return await execute_code(payload) # type: ignore
+
 @app.post("/api/stop")
 async def stop_generation():
-    global _stop_generation
-    _stop_generation = True
+    neural.stop_generation() # type: ignore
     return {"ok": True, "message": "Sinal de parada enviado."}
 
 @app.post("/api/upload_arquivos")
 async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
-    os.makedirs("static/docs", exist_ok=True)
+    docs_dir = Path("static/docs") # type: ignore
+    docs_dir.mkdir(parents=True, exist_ok=True) # type: ignore
     salvos = []
     erros = []
-    for arq in arquivos:
+    for arq in arquivos: # type: ignore
         nome_seguro = re.sub(r'[^\w\-\.]', '_', arq.filename or "arquivo")
-        destino = os.path.join("static/docs", nome_seguro)
+        destino = docs_dir / nome_seguro
         try:
-            conteudo = await arq.read()
-            with open(destino, "wb") as f:
-                f.write(conteudo)
+            contents = await arq.read()
+            async with aiofiles.open(destino, 'wb') as f:
+                await f.write(contents)
             salvos.append(nome_seguro)
         except Exception as e:
             erros.append(f"{arq.filename}: {str(e)}")
@@ -559,76 +546,94 @@ async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
     return {"ok": False, "error": "Nenhum arquivo salvo.", "erros": erros}
 
 @app.get("/api/tiktok/cortes")
-async def listar_cortes():
-    pasta = "static/media/cortes_virais"
-    if not os.path.exists(pasta):
-        os.makedirs(pasta, exist_ok=True)
+async def listar_cortes(): # type: ignore
+    pasta = Path("static/media/cortes_virais") # type: ignore
+    if not pasta.exists(): # type: ignore
+        pasta.mkdir(parents=True, exist_ok=True) # type: ignore
         return []
-    mp4s = glob.glob(os.path.join(pasta, "*.mp4"))
-    resultado = [{"name": os.path.basename(mp4), "path": mp4.replace("\\", "/")} for mp4 in mp4s]
-    return resultado
+    mp4s = list(pasta.glob("*.mp4")) # type: ignore
+    return [{"name": mp4.name, "path": str(mp4.as_posix())} for mp4 in mp4s] # type: ignore
 
-# ══════════════════════════════════════════
-# 🔧 ROTAS ALPHA CORRIGIDAS
-# ══════════════════════════════════════════
-
+# --- 11. ALPHA E BROKER ROUTES --- #
 @app.get("/api/alpha/status")
-def alpha_status():
-    return alpha_engine.get_status()
+async def alpha_status():
+    status_raw = alpha_engine.get_status()
+    # Garante que o status no HUD inclua o placar em tempo real
+    score_info = f"{alpha_engine.manager.wins}W - {alpha_engine.manager.losses}L"
+    if "last_state" in status_raw:
+        status_raw["last_state"] = f"{status_raw['last_state'].split('|')[0].strip()} | {score_info}"
+    return status_raw
 
 @app.post("/api/broker/start")
-def start_broker():
+async def start_broker():
     if not broker_ops:
-        raise HTTPException(status_code=503, detail="Módulo BrokerOperator offline.")
+        raise HTTPException(status_code=503, detail="BrokerOperator offline.")
     return broker_ops.iniciar_sessao()
 
 @app.post("/api/broker/stop_autopilot")
-def stop_broker_autopilot():
+async def stop_broker_autopilot():
     if not broker_ops:
-        raise HTTPException(status_code=503, detail="Módulo BrokerOperator offline.")
+        raise HTTPException(status_code=503, detail="BrokerOperator offline.")
     return broker_ops.execute_safe("AUTOPILOT_STOP")
 
 @app.post("/api/broker/navigate")
-def broker_navigate(body: NavigateRequest):
-    if not broker_ops or not broker_ops._is_running:
+async def broker_navigate(body: NavigateRequest):
+    logger.info(f"🌐 Recebida requisição para navegar: {body.url}")
+    if not broker_ops or not getattr(broker_ops, '_is_running', False):
         raise HTTPException(status_code=503, detail="Sessão Broker10 inativa.")
     return broker_ops.execute_safe("NAVIGATE", args={"url": body.url})
 
 @app.post("/api/broker/calibrar")
-def calibrar(body: CalibrateRequest):   # [BUG3] usa modelo Pydantic
-    if not broker_ops or not broker_ops._is_running:
+async def calibrar(body: CalibrateRequest):
+    if not broker_ops or not getattr(broker_ops, '_is_running', False):
         raise HTTPException(status_code=503, detail="Broker inativo")
-    # [BUG2] agora envia comando CLICK_COORD
     return broker_ops.execute_safe("CLICK_COORD", args={"x": body.x, "y": body.y})
 
 @app.get("/api/broker/diagnostico")
-def diagnostico():
-    if not broker_ops or not broker_ops._is_running:
+async def diagnostico():
+    if not broker_ops or not getattr(broker_ops, '_is_running', False):
         return {"erro": "Broker inativo"}
-    # [BUG4] diagnóstico movido para thread do navegador via comando interno
     return broker_ops.execute_safe("DIAGNOSTICO")
 
+@app.get("/api/risk/status")
+async def risk_status():
+    return {
+        "daily_pnl": alpha_engine.risk._daily_pnl,
+        "daily_limit": alpha_engine.risk.daily_loss_limit,
+        "daily_target": alpha_engine.risk.daily_profit_target,
+        "consecutive_losses": alpha_engine.risk._consecutive_losses,
+        "position_multiplier": alpha_engine.risk.get_position_size_multiplier(),
+        "stopped": alpha_engine.risk.is_daily_stopped()
+    }
+
+@app.get("/api/market/structure")
+async def market_structure():
+    return {
+        "trend": alpha_engine.classifier.market.market_structure.get_trend_description(),
+        "breakout_ready": alpha_engine.classifier.market.breakout_detector.is_valid_breakout_signal("CALL")  # exemplo
+    }
+
 @app.post("/api/alpha/analyze")
-def alpha_analyze():
-    if broker_ops and broker_ops._is_running:
+async def alpha_analyze():
+    if broker_ops and getattr(broker_ops, '_is_running', False):
         return broker_ops.execute_safe("ANALYZE")
     if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
         alpha_engine.attach(tiktok_ops._page)
         return alpha_engine.perceive_and_act()
-    raise HTTPException(status_code=503, detail="Nenhuma sessão tática (Broker ou TikTok) aberta.")
+    raise HTTPException(status_code=503, detail="Nenhuma sessão tática aberta.")
 
 @app.post("/api/alpha/autopilot")
-def alpha_autopilot():
-    if broker_ops and broker_ops._is_running:
+async def alpha_autopilot():
+    if broker_ops and getattr(broker_ops, '_is_running', False):
         return broker_ops.execute_safe("AUTOPILOT_START")
     if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
         alpha_engine.attach(tiktok_ops._page)
-        return alpha_engine.run_until_success(max_cycles=9999, delay_between=0.5)
+        return {"ok": True, "msg": "autopilot_solicitado"}
     raise HTTPException(status_code=503, detail="Nenhuma sessão tática aberta.")
 
 @app.post("/api/alpha/override")
-def alpha_override(body: AlphaActionRequest):
-    if broker_ops and broker_ops._is_running:
+async def alpha_override(body: AlphaActionRequest):
+    if broker_ops and getattr(broker_ops, '_is_running', False):
         return broker_ops.execute_safe("OVERRIDE", args={"action": body.action})
     page = None
     if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
@@ -640,8 +645,8 @@ def alpha_override(body: AlphaActionRequest):
     return {"override_action": body.action, "result": executor.execute(fake_result)}
 
 @app.get("/api/alpha/screenshot")
-def alpha_screenshot():
-    if broker_ops and broker_ops._is_running:
+async def alpha_screenshot():
+    if broker_ops and getattr(broker_ops, '_is_running', False):
         return broker_ops.execute_safe("SCREENSHOT")
     page = None
     if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
@@ -655,320 +660,317 @@ def alpha_screenshot():
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-# ══════════════════════════════════════════
-# 📡 ROTAS TIKTOK (mantidas)
-# ══════════════════════════════════════════
-
+# --- 12. TIKTOK ENDPOINTS ---
 @app.get("/api/tiktok/fila")
-def get_fila():
+async def get_fila():
     return {"ok": True, "fila": tiktok_ops.get_fila() if tiktok_ops else []}
 
 @app.post("/api/tiktok/add")
 async def add_video(
-    video: UploadFile = File(...),
-    titulo: Optional[str]    = Form(None),
+    video: Optional[UploadFile] = File(None),
+    video_path_arsenal: Optional[str] = Form(None),
+    titulo: Optional[str] = Form(None),
     descricao: Optional[str] = Form(None),
-    hashtags: Optional[str]  = Form(None),
+    hashtags: Optional[str] = Form(None),
     agendar_para: Optional[str] = Form(None),
 ):
-    if not tiktok_ops:
-        raise HTTPException(status_code=503, detail="Módulo TikTok Commander offline")
-    dest = os.path.join(UPLOAD_DIR, video.filename)
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(video.file, f)
-    item = tiktok_ops.adicionar(
-        video_path   = os.path.abspath(dest),
-        titulo       = titulo,
-        descricao    = descricao,
-        hashtags     = hashtags,
-        agendar_para = agendar_para,
+    if not tiktok_ops: # type: ignore
+        raise HTTPException(status_code=503, detail="TikTok Commander offline") # type: ignore
+    if video: # type: ignore
+        dest = UPLOAD_DIR / video.filename # type: ignore
+        async with aiofiles.open(dest, 'wb') as f:
+            while chunk := await video.read(8192):
+                await f.write(chunk)
+        video_path = str(dest.resolve())
+    elif video_path_arsenal:
+        video_path = video_path_arsenal
+    else:
+        raise HTTPException(status_code=400, detail="Nenhum vídeo fornecido")
+    item = tiktok_ops.adicionar( # type: ignore
+        video_path=video_path,
+        titulo=titulo,
+        descricao=descricao,
+        hashtags=hashtags,
+        agendar_para=agendar_para,
     )
     return {"ok": True, "item": item}
 
 @app.post("/api/tiktok/post_now/{item_id}")
-def post_now(item_id: str):
-    if not tiktok_ops:
-        raise HTTPException(status_code=503, detail="Módulo TikTok Commander offline")
-    resultado = tiktok_ops.disparar_agora(item_id)
+async def post_now(item_id: str):
+    if not tiktok_ops: # type: ignore
+        raise HTTPException(status_code=503, detail="TikTok Commander offline") # type: ignore
+    resultado = tiktok_ops.disparar_agora(item_id) # type: ignore
     if not resultado["ok"]:
-        raise HTTPException(status_code=400, detail=resultado["erro"])
+        raise HTTPException(status_code=400, detail=resultado["erro"]) # type: ignore
     return resultado
 
 @app.delete("/api/tiktok/remover/{item_id}")
-def remover(item_id: str):
-    removido = tiktok_ops.remover(item_id) if tiktok_ops else False
+async def remover(item_id: str):
+    removido = tiktok_ops.remover(item_id) if tiktok_ops else False # type: ignore
     if not removido:
-        raise HTTPException(status_code=404, detail="Item não encontrado.")
+        raise HTTPException(status_code=404, detail="Item não encontrado.") # type: ignore
     return {"ok": True}
 
 @app.get("/api/tiktok/status/{item_id}")
-def status(item_id: str):
-    fila = tiktok_ops.get_fila() if tiktok_ops else []
+async def status(item_id: str):
+    fila = tiktok_ops.get_fila() if tiktok_ops else [] # type: ignore
     item = next((i for i in fila if i["id"] == item_id), None)
     if not item:
-        raise HTTPException(status_code=404, detail="Item não encontrado.")
+        raise HTTPException(status_code=404, detail="Item não encontrado.") # type: ignore
     return {"ok": True, "item": item}
 
 @app.get("/", response_class=HTMLResponse)
-async def serve_gui(): 
+async def serve_gui():
     return FileResponse("static/index.html")
 
-# ══════════════════════════════════════════
-# 🧠 WEBSOCKET (MOTOR R2)
-# ══════════════════════════════════════════
+# --- 13. WEBSOCKET (com log streaming para Alpha) --- #
+async def limpar_audios_antigos_async(pasta: str = "static/media", max_idade_min: int = 10):
+    return await asyncio.to_thread(limpar_audios_antigos, pasta, max_idade_min)
 
-# [BUG1] Streaming Gemma 4 corrigido
-async def stream_llama(ai_brain, prompt, stop_flag_getter):
-    """Roda Gemma 4 em thread separada e yields tokens via queue síncrona."""
-    q = Queue()
-    
-    def _run():
+def limpar_audios_antigos(pasta: str = "static/media", max_idade_min: int = 10) -> None:
+    try:
+        agora = time.time()
+        media_dir = Path(pasta)
+        for nome in media_dir.glob("r2_voice_*.mp3"):
+            idade_min = (agora - nome.stat().st_mtime) / 60
+            if idade_min > max_idade_min:
+                nome.unlink()
+    except Exception as e:
+        logger.warning(f"Limpeza de áudios: {e}") # type: ignore
+
+_modelo_whisper = None
+def get_whisper_model() -> Any:
+    global _modelo_whisper
+    if not WHISPER_AVAILABLE:
+        return None
+    if _modelo_whisper is None:
         try:
-            # [FIX] max_tokens=-1 causava overflow; limitado a 1024 para garantir margem segura
-            for chunk in ai_brain(prompt, max_tokens=1024, stop=["<end_of_turn>"], stream=True):
-                if stop_flag_getter():
-                    q.put(None)
-                    return
-                q.put(chunk["choices"][0]["text"])
-        except ValueError as e:
-            # [FIX] captura "Requested tokens exceed context window" e avisa o usuário
-            q.put(f"\n\n⚠️ [ERRO DE CONTEXTO] Prompt muito longo: {e}")
-        except Exception as e:
-            q.put(f"\n\n❌ [ERRO GEMMA] {e}")
-        finally:
-            q.put(None)
-    
-    loop = asyncio.get_running_loop()
-    # Dispara a thread em background sem bloquear
-    loop.run_in_executor(None, _run)
-    
-    while True:
-        try:
-            token = await asyncio.to_thread(q.get, timeout=30)
-            if token is None:
-                break
-            yield token
-        except Empty:
-            break
+            logger.info("Carregando Whisper...")
+            _modelo_whisper = whisper.load_model("base")
+        except Exception as e: # type: ignore
+            logger.error(f"Erro Whisper: {e}")
+            return None
+    return _modelo_whisper
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    global _stop_generation
     await websocket.accept()
-    sessao_memoria_ram = carregar_historico_na_ram()
-    sys_prompt = "Você é o R2, IA tática e Mestre Programador. REGRA: A primeira linha do código DEVE ser: # filename: nome.py"
     voz_atual = "Thalita"
-    
+    historico_session = await carregar_historico_na_ram() # type: ignore
+    sem = asyncio.Semaphore(1) # type: ignore
+
+    # MELHORIA #3: passa o loop atual explicitamente
+    loop = asyncio.get_running_loop()
+
+    # Fila para transmissão tática de logs via WebSocket
+    log_queue = asyncio.Queue()
+    async def send_logs_task():
+        try:
+            while True:
+                msg = await log_queue.get()
+                await websocket.send_json(msg)
+        except Exception:
+            pass
+    task_stream = asyncio.create_task(send_logs_task())
+
+    class QueueLogHandler(logging.Handler):
+        def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
+            super().__init__()
+            self.queue = queue
+            self.loop = loop
+        def emit(self, record: logging.LogRecord) -> None:
+            log_entry = self.format(record)
+            # call_soon_threadsafe é o ideal para disparar o log da thread do motor para o loop da web
+            self.loop.call_soon_threadsafe(self.queue.put_nowait, {"type": "alpha_log", "text": log_entry})
+ 
+    log_handler = QueueLogHandler(log_queue, loop)
+    log_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s', '%H:%M:%S'))
+    logger.addHandler(log_handler)
+    alpha_logger = logging.getLogger("ModuloAlpha")
+    alpha_logger.addHandler(log_handler)
+
+    logger.info("📡 WebSocket log handler ativado. Logs em tempo real.")
+
     try:
         while True:
             raw = await websocket.receive_text()
-            
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
                 data = None
-            
+
+            comando = ""
             if data and isinstance(data, dict):
                 if data.get("type") == "audio_input":
                     base64_audio = data.get("data", "")
                     if data.get("voice"):
-                        voz_atual = data["voice"]
+                        voz_atual = data["voice"] # type: ignore
                     if not base64_audio:
-                        await websocket.send_json({"type": "system", "text": "❌ Áudio vazio recebido."})
+                        await websocket.send_json({"type": "system", "text": "❌ Áudio vazio."})
                         continue
-                    
-                    await websocket.send_json({"type": "system", "text": "🎤 Transcrevendo áudio..."})
-                    texto_transcrito = await transcrever_audio_base64(base64_audio)
-                    
+                    await websocket.send_json({"type": "system", "text": "🎤 Transcrevendo..."})
+                    texto_transcrito = await VoiceEngine.transcrever_audio_base64(base64_audio)
                     if texto_transcrito.startswith("[ERRO]"):
                         await websocket.send_json({"type": "system", "text": texto_transcrito})
                         continue
-                    
                     await websocket.send_json({"type": "system", "text": f"🎙️ Você disse: \"{texto_transcrito}\""})
                     comando = texto_transcrito
-
                 elif data.get("type") == "command":
-                    comando = data.get("text", "")
+                    comando = data.get("text", "") # type: ignore
                     if data.get("voice"):
                         voz_atual = data["voice"]
                 else:
                     comando = raw
             else:
                 comando = raw
-            
+
             cmd_l = comando.lower().strip()
-            
-            # Comandos do sistema (idênticos ao original)
+
+            # Comandos especiais (mantidos, versão simplificada)
             if cmd_l.startswith("/cmd "):
                 sub = cmd_l.replace("/cmd ", "")
-                if sub == "pizza" and pizza_ops:
-                    await websocket.send_json({"type": "system", "text": pizza_ops.gerar_html_painel(await asyncio.to_thread(pizza_ops.get_status))})
-                elif sub == "solar" and noaa_ops:
-                    await websocket.send_json({"type": "system", "text": noaa_ops.gerar_html_painel(await asyncio.to_thread(noaa_ops.get_full_intel))})
-                elif sub == "radar":
-                    if air_ops:
-                        filename, qtd, msg = await asyncio.to_thread(air_ops.radar_scan, "Ivinhema")
-                        await websocket.send_json({"type": "system", "text": f"{msg}<br><img src='/{filename}' style='max-width:100%; border-radius:8px;'>"})
+                if sub == "pizza" and pizza_ops: # type: ignore
+                    await websocket.send_json({"type": "system", "text": pizza_ops.gerar_html_painel(await asyncio.to_thread(pizza_ops.get_status))}) # type: ignore
+                elif sub == "solar" and noaa_ops: # type: ignore
+                    await websocket.send_json({"type": "system", "text": noaa_ops.gerar_html_painel(await asyncio.to_thread(noaa_ops.get_full_intel))}) # type: ignore
+                elif sub == "radar": # type: ignore
+                    if air_ops: # type: ignore
+                        filename, qtd, msg = await asyncio.to_thread(air_ops.radar_scan, "Ivinhema") # type: ignore
+                        await websocket.send_json({"type": "system", "text": f"{msg}<br><img src='/{filename}' style='max-width:100%;'>"}) # type: ignore
                     else:
-                        await websocket.send_json({"type": "system", "text": "📡 Módulo de Radar não está disponível."})
-                elif sub == "astro":
-                    if astro_ops:
-                        texto, astro_id, astro_nome = await asyncio.to_thread(astro_ops.get_asteroid_report)
-                        await websocket.send_json({"type": "system", "text": texto})
+                        await websocket.send_json({"type": "system", "text": "📡 Módulo de Radar offline."})
+                elif sub == "astro": # type: ignore
+                    if astro_ops: # type: ignore
+                        texto, astro_id, astro_nome = await asyncio.to_thread(astro_ops.get_asteroid_report) # type: ignore
+                        await websocket.send_json({"type": "system", "text": texto}) # type: ignore
                     else:
-                        await websocket.send_json({"type": "system", "text": "☄️ Módulo de Defesa Planetária não está disponível."})
-                elif sub == "tiktok":
-                    await websocket.send_json({"type": "system", "text": "<button onclick='abrirCentralPostagem()' style='background:#0ea5e9;color:white;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:bold;margin-top:10px;'>📱 Abrir Central de Lançamento</button>"})
+                        await websocket.send_json({"type": "system", "text": "☄️ Defesa Planetária offline."})
+                elif sub == "tiktok": # type: ignore
+                    await websocket.send_json({"type": "system", "text": "<button onclick='abrirCentralPostagem()' class='alpha-btn'>📱 Abrir Central</button>"})
                 else:
-                    await websocket.send_json({"type": "system", "text": f"⚠️ Comando /cmd {sub} não reconhecido."})
+                    await websocket.send_json({"type": "system", "text": f"⚠️ Comando /cmd {sub} desconhecido."})
                 continue
-                
             if cmd_l == "/doc sync":
-                await websocket.send_json({"type": "system", "text": await asyncio.to_thread(rag_ops.sync)})
+                await websocket.send_json({"type": "system", "text": await rag_ops.sync() if rag_ops else "❌ RAG offline."}) # type: ignore
                 continue
-
             if cmd_l == "/doc list":
-                arquivos = rag_ops.arquivos_indexados
+                arquivos = rag_ops.arquivos_indexados if rag_ops else [] # type: ignore
                 if arquivos:
                     lista = "📋 **Arquivos Indexados:**\n" + "\n".join([f"- `{a}`" for a in arquivos])
                 else:
                     lista = "📋 Nenhum arquivo indexado. Use `/doc sync` primeiro."
                 await websocket.send_json({"type": "system", "text": lista})
                 continue
-
-            if cmd_l.startswith("/vid viral "):
+            if cmd_l.startswith("/ler "): # type: ignore
+                nome_arquivo = comando[5:].strip()
+                if nome_arquivo:
+                    await websocket.send_json({"type": "system", "text": f"📄 Lendo arquivo `{nome_arquivo}`..."})
+                    await websocket.send_json({"type": "system", "text": f"Arquivo {nome_arquivo} não encontrado na base."})
+                else:
+                    await websocket.send_json({"type": "system", "text": "⚠️ Use `/ler <nome_do_arquivo>`."})
+                continue
+            if cmd_l.startswith("/vid viral "): # type: ignore
                 video_alvo = comando.replace("/vid viral ", "").strip()
-                await websocket.send_json({"type": "system", "text": f"⏳ Tesoura Neural V4: Analisando {video_alvo}..."})
-                
-                if video_ops and ai_brain:
-                    res = await asyncio.to_thread(video_ops.processar_video_viral, video_alvo, ai_brain)
+                await websocket.send_json({"type": "system", "text": f"⏳ Analisando {video_alvo}..."})
+                if video_ops and neural.model:
+                    res = await asyncio.to_thread(video_ops.processar_video_viral, video_alvo, neural.model)
                     if isinstance(res, list):
-                        msg = "✅ **Cortes Virais Extraídos com Sucesso:**\n"
+                        msg = "✅ **Cortes Virais:**\n"
                         for r in res:
-                            nome = os.path.basename(r)
-                            url = r.replace("\\", "/")
-                            msg += f"🎬 <b>{nome}</b><br><video src='/{url}' controls preload='metadata' style='width: 100%; max-width: 400px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border-hi); box-shadow: 0 0 10px rgba(14,165,233,0.1);'></video><br>"
+                            nome = Path(r).name
+                            url = Path(r).as_posix()
+                            msg += f"🎬 <b>{nome}</b><br><video src='/{url}' controls preload='metadata' style='width:100%; max-width:400px;'></video><br>"
                         await websocket.send_json({"type": "system", "text": msg})
                     else:
                         await websocket.send_json({"type": "system", "text": str(res)})
                 else:
-                    await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural ou Cérebro Gemma 4 offline."})
+                    await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural offline."})
                 continue
-
-            if cmd_l.startswith("/vid extract "):
+            if cmd_l.startswith("/vid extract "): # type: ignore
                 raw_config = comando[len("/vid extract "):].strip()
-                await websocket.send_json({"type": "system", "text": "⏳ Tesoura Neural: Processando configurações de extração..."})
                 try:
                     config = json.loads(raw_config)
                     video_url = config.get("url", "")
                     if not video_url:
-                        await websocket.send_json({"type": "system", "text": "❌ URL do vídeo não fornecida."})
+                        await websocket.send_json({"type": "system", "text": "❌ URL não fornecida."}) # type: ignore
                         continue
-                    if video_ops and ai_brain:
-                        res = await asyncio.to_thread(video_ops.processar_video_viral, video_url, ai_brain)
+                    if video_ops and neural.model:
+                        res = await asyncio.to_thread(video_ops.processar_video_viral, video_url, neural.model)
                         if isinstance(res, list):
                             msg = "✅ **Extração concluída:**\n"
                             for r in res:
-                                url = r.replace("\\", "/")
-                                nome = os.path.basename(r)
-                                msg += f"🎬 <b>{nome}</b><br><video src='/{url}' controls preload='metadata' style='width: 100%; max-width: 400px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border-hi); box-shadow: 0 0 10px rgba(14,165,233,0.1);'></video><br>"
+                                url = Path(r).as_posix()
+                                nome = Path(r).name
+                                msg += f"🎬 <b>{nome}</b><br><video src='/{url}' controls preload='metadata' style='width:100%; max-width:400px;'></video><br>"
+                            await websocket.send_json({"type": "system", "text": msg})
                         else:
-                            msg = str(res)
-                        await websocket.send_json({"type": "system", "text": msg})
+                            await websocket.send_json({"type": "system", "text": str(res)})
                     else:
-                        await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural ou Cérebro Gemma 4 offline."})
+                        await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural offline."})
                 except Exception as e:
-                    await websocket.send_json({"type": "system", "text": f"❌ Erro ao processar config: {e}"})
+                    await websocket.send_json({"type": "system", "text": f"❌ Erro: {e}"})
                 continue
+ 
+            # Processamento IA com rate limiting
+            async with sem:
+                if neural.model: # type: ignore
+                    ctx = await rag_ops.search(comando) if rag_ops else "" # type: ignore
+                    historico_str = "\n".join(historico_session[-10:]) if historico_session else ""
+                    prompt = f"<start_of_turn>system\n{R2_SYSTEM_PROMPT}<end_of_turn>\n"
+                    if historico_str: # type: ignore
+                        prompt += f"<start_of_turn>user\nHistórico recente:\n{historico_str}<end_of_turn>\n<start_of_turn>assistant\nCompreendido.<end_of_turn>\n"
+                    prompt += f"<start_of_turn>user\nContexto tático: {ctx}\n\nComando: {comando}<end_of_turn>\n<start_of_turn>model\n"
 
-            if ai_brain:
-                _stop_generation = False
-                ctx = rag_ops.search(comando) # Agora utiliza o novo padrão leve de 1000 chars
-                
-                # Template rigoroso para o Gemma 4
-                prompt = f"<start_of_turn>user\nContexto tático: {ctx}\n\nComando: {comando}<end_of_turn>\n<start_of_turn>model\n"
-                
-                print(f"[DEBUG] Processando {len(prompt)} caracteres...")
-                
-                resp_full = ""
-                
-                def generate_tokens():
-                    try:
-                        # Ajustamos temperature para 0.7 e top_p para 0.9 para evitar respostas vazias
-                        # repeat_penalty ajuda o modelo a não "travar"
-                        for chunk in ai_brain(
-                            prompt, 
-                            max_tokens=1024, 
-                            temperature=0.7, 
-                            top_p=0.9,
-                            repeat_penalty=1.1,
-                            stream=True, 
-                            stop=["<end_of_turn>", "user"]
-                        ):
-                            if _stop_generation: break
-                            token = chunk["choices"][0]["text"]
-                            yield token
-                    except Exception as e:
-                        yield f"\n[ERRO DE CÉREBRO]: {str(e)}"
+                    resp_full = ""
+                    async for token in neural.generate_stream(prompt):
+                        resp_full += token
+                        await websocket.send_json({"type": "stream", "text": token})
 
-                for token in await asyncio.to_thread(list, generate_tokens()):
-                    resp_full += token
-                    await websocket.send_json({"type": "stream", "text": token})
-                
-                if not resp_full.strip():
-                    # Fallback caso o modelo ainda retorne vazio
-                    resp_full = "Comandante, o modelo Gemma 4 processou a informação mas não gerou uma resposta textual. Verifique a carga da GPU/RAM."
-                    await websocket.send_json({"type": "stream", "text": resp_full})
+                    if not resp_full.strip():
+                        resp_full = "Comandante, o modelo processou mas não gerou resposta. Verifique a GPU/RAM."
 
-                await websocket.send_json({"type": "done"})
-                salvar_no_historico_json(comando, resp_full)
+                    await websocket.send_json({"type": "done"})
+                    await salvar_no_historico_json(comando, resp_full) # type: ignore
+                    historico_session.append(f"Teddy: {comando}") # type: ignore
+                    historico_session.append(f"R2: {resp_full}") # type: ignore
+                    if len(historico_session) > 20: # type: ignore
+                        historico_session = historico_session[-20:]
 
-                limpar_audios_antigos()
+                    asyncio.create_task(limpar_audios_antigos_async())
 
-                try:
-                    frases_taticas = [
-                        "Afirmativo, senhor. Dados na tela.",
-                        "Operação concluída, senhor. Resultados no console.",
-                        "Pronto. Exibindo as informações solicitadas.",
-                        "Busca finalizada. Verifique o painel principal.",
-                        "Comando processado. Interface atualizada, senhor."
-                    ]
-                    gatilhos_leitura = ["mais informações", "leia tudo", "detalhes", "me conte mais", "leia para mim"]
-                    leitura_completa = any(gatilho in comando.lower() for gatilho in gatilhos_leitura)
-                    texto_audio = resp_full if leitura_completa else random.choice(frases_taticas)
-                    
-                    # falar_r2(texto_audio) # Chamada do motor offline
+                    # [RESTAURADO] Pipeline de voz com sincronização do soundwave [FIXED: batalha-2.3]
+                    def _on_speaking_start():
+                        loop.call_soon_threadsafe(
+                            asyncio.ensure_future,
+                            websocket.send_json({"type": "speaking_start"})
+                        )
 
-                    timestamp = int(time.time() * 1000)
-                    audio_filename = f"r2_voice_{timestamp}.mp3"
-                    audio_path = os.path.join("static/media", audio_filename)
-                    
-                    sucesso = await gerar_voz_r2(texto_audio, audio_path, voz_atual)
-                    if sucesso:
-                        audio_url = f"/static/media/{audio_filename}"
-                        await websocket.send_json({
-                            "type": "audio",
-                            "url": audio_url,
-                            "text": resp_full
-                        })
-                    else:
-                        print("[AVISO] Falha na geração de áudio")
-                except Exception as e:
-                    print(f"[ERRO] Áudio pós-resposta: {e}")
-                    
+                    def _on_speaking_end():
+                        loop.call_soon_threadsafe(
+                            asyncio.ensure_future,
+                            websocket.send_json({"type": "speaking_end"})
+                        )
+
+                    falar(resp_full, on_start=_on_speaking_start, on_end=_on_speaking_end)
+                else:
+                    await websocket.send_json({"type": "system", "text": "⚠️ Modelo neural offline."})
+                    await websocket.send_json({"type": "done"})
     except WebSocketDisconnect:
         pass
+    finally:
+        if task_stream:
+            task_stream.cancel()
+        logger.removeHandler(log_handler)
+        alpha_logger.removeHandler(log_handler)
 
+# --- 14. MAIN ---
 if __name__ == "__main__":
     import webview
-
     def run_server():
         uvicorn.run(app, host="127.0.0.1", port=8000, log_level="error")
-
-    print("🚀 [BOOT] Ligando turbinas do servidor em segundo plano...")
+    logger.info("Iniciando servidor...")
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
-
-    print("🖥️ [BOOT] Desenhando Interface Nativa...")
+    logger.info("Abrindo interface nativa...")
     webview.create_window('R2 · Ghost Protocol', 'http://127.0.0.1:8000', width=1280, height=800)
     webview.start()

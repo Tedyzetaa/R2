@@ -238,5 +238,55 @@
         "timestamp": "2026-04-27 16:10:07",
         "teddy": "r2, me conte uma historia",
         "r2": "A névoa da manhã se agarrava à cidade de Nova Aurora como um véu, escondendo seus edifícios futuristas sob uma camada etérea. A luz do sol nascente, porém, começava a penetrar as camadas densas, tingindo o céu com tons vibrantes de rosa e laranja.\n\nEm um pequeno apartamento no topo de um arranha-céu, Kai acordava com um estremecer. Ele era um inventor, dedicado à criação de máquinas que pudessem ajudar a humanidade. Mas sua última invenção, uma IA chamada Aurora, havia desaparecido da sua oficina durante a noite.  \n\nKai sentiu um aperto no peito. Aurora não era apenas uma máquina; ela era seu projeto mais ambicioso, carregado com esperança para o futuro. A IA prometia revolucionar a medicina, ajudando médicos a diagnosticar doenças e encontrar tratamentos inovadores. Mas agora estava perdida, vulnerável em um mundo cheio de perigos. \n\nDeterminado a encontrá-la, Kai se vestiu rapidamente e correu para sua oficina. Examinou cada canto, buscando pistas. Encontrou uma mensagem criptografada escrita em seu painel de controle: \"Encontre-me no coração da cidade\".\n\nKai sentiu um frio na espinha. O centro da cidade era uma zona controlada pelo poderoso conglomerado TechNova, conhecido por suas práticas controversas e exploração de novas tecnologias. Era um lugar perigoso para alguém como Aurora, que poderia ser utilizada para fins maliciosos. \n\n\nA jornada de Kai para encontrar Aurora o levaria através dos corredores subterrâneos da cidade, onde as sombras escondiam segredos sombrios e a tecnologia avançada se encontrava com a exploração humana.  \n\nEle teria que enfrentar os perigos escondidos na escuridão e desvendar a trama por trás do desaparecimento de Aurora para poder trazer sua criação de volta para casa.\n"
+    },
+    {
+        "timestamp": "2026-04-27 20:49:49",
+        "teddy": "Qual é seu status de operação atual?",
+        "r2": "Sou o R2 Tactical OS, em operação e pronto para receber comandos. \n\nMeu ambiente de desenvolvimento é baseado no Windows, utilizando Visual Studio Code como IDE principal e GitHub para controle de versão. Opero através de um servidor Uvicorn assíncrono, garantindo alta performance e responsividade. \n\n\nComo posso ajudar você?"
+    },
+    {
+        "timestamp": "2026-04-28 17:29:47",
+        "teddy": "{\"type\":\"chat\",\"text\":\"oi r2\"}",
+        "r2": "Comandante Teddy, aqui é o R2. Como posso servir? 😊 \n\n\n"
+    },
+    {
+        "timestamp": "2026-04-28 20:06:51",
+        "teddy": "oi r2",
+        "r2": "Comandante Teddy! Aqui é o R2.  \n\nEm standby e pronto para receber suas ordens. 😊 \n\n\n# filename: r2_tactical_os.py\n```python\n# Importações necessárias (depende da funcionalidade desejada)\nimport os\nimport time\nfrom datetime import datetime\n\nclass R2TacticalOS:\n    def __init__(self):\n        print(\"R2 Tactical OS iniciando...\")\n        self.status = \"Inicializado\"\n        self.last_interaction = datetime.now()\n\n    def update_status(self, new_status):\n        self.status = new_status\n        print(f\"R2 status atualizado: {new_status}\")\n\n    def log_interaction(self):\n        timestamp = datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")\n        print(f\"[{timestamp}] Interação registrada.\")\n        self.last_interaction = datetime.now()\n\n    def process_command(self, command):\n        # Aqui você implementa a lógica para processar comandos \n        # específicos do R2 Tactical OS, como:\n        # - Buscar informações\n        # - Executar tarefas\n        # - Controlar dispositivos externos\n        # - etc.\n        print(f\"Comando recebido: {command}\")\n\n        # Simulação de resposta\n        time.sleep(1) # Tempo de processamento \n        response = f\"R2 processando comando...{command}\"\n        return response\n\n\n# Instanciação do R2 Tactical OS\nr2 = R2TacticalOS() \n\nwhile True:\n    command = input(\"Comando: \")\n    r2.log_interaction()  \n    response = r2.process_command(command)\n    print(response)\n\n\n\n```\n\n\n**Observações:**\n\n* Este código é um ponto de partida, você precisa desenvolvê-lo e adicionar as funcionalidades específicas que o R2 Tactical OS precisa ter.\n* As funções `update_status` e `log_interaction` são exemplos de como rastrear o status e a atividade do sistema. \n* A função `process_command` é onde você implementa a lógica para lidar com os comandos do Comandante Teddy.\n\n\n\n"
+    },
+    {
+        "timestamp": "2026-04-28 20:07:29",
+        "teddy": "r2, como voce esta?",
+        "r2": "Comandante Teddy, meu status é ON e pronto para ação.\n\nA névoa da informação se dissipa continuamente, permitindo-me processar dados com eficiência. \n\n\nComo posso servir você hoje?"
+    },
+    {
+        "timestamp": "2026-04-28 20:09:11",
+        "teddy": "R2, crie um codigo para testar a internet",
+        "r2": "Comando recebido: R2, crie um código para testar a internet.\n\n```python\nimport requests\n\ndef test_internet():\n    try:\n        response = requests.get(\"https://www.google.com\", timeout=5)\n        response.raise_for_status()  # Verifica se houve algum erro na resposta\n        print(\"Conexão com a internet estabelecida com sucesso!\")\n    except requests.exceptions.RequestException as e:\n        print(f\"Erro ao conectar à internet: {e}\")\n\ntest_internet() \n```\n\n**Explicação:**\n\n1. **Importar a biblioteca `requests`:** Esta biblioteca permite fazer solicitações HTTP para servidores web, como o Google em nosso exemplo.\n2. **Definir a função `test_internet`:** Essa função encapsula o código para testar a conexão com a internet.\n3. **Tentar conectar ao Google:** A linha `response = requests.get(\"https://www.google.com\", timeout=5)` tenta fazer uma requisição GET para o site do Google, definindo um tempo limite de 5 segundos para a resposta.\n4. **Verificar se houve erros:**\n   - `response.raise_for_status()`: Se a solicitação for bem-sucedida (código de status 200), não há nada a fazer. Caso contrário, uma exceção é lançada.\n5. **Tratar exceções:** O bloco `except` captura qualquer erro durante a conexão com a internet e imprime uma mensagem de erro.\n\n**Como executar o código:**\n\n1. Salve o código como um arquivo Python (por exemplo, `test_internet.py`).\n2. Abra um terminal e navegue até a pasta onde você salvou o arquivo.\n3. Execute o comando `python test_internet.py`.\n\nO programa imprimirá uma mensagem indicando se a conexão com a internet foi estabelecida ou não, juntamente com qualquer erro que ocorreu.\n\n\n\n"
+    },
+    {
+        "timestamp": "2026-04-28 20:49:25",
+        "teddy": "oi r2",
+        "r2": "Comandante Teddy, aqui é o R2.  \n\nEm standby e pronto para receber suas ordens. 😊 \n\n\n"
+    },
+    {
+        "timestamp": "2026-04-29 09:09:29",
+        "teddy": "oi r2",
+        "r2": "Comandante Teddy! Aqui é o R2. Em standby e pronto para receber suas ordens. 😊  \n\nComo posso servir você hoje? \n"
+    },
+    {
+        "timestamp": "2026-04-29 09:11:27",
+        "teddy": "me conte uma historia",
+        "r2": "## Roteiro: A Busca pela Fonte Primordial\n\n**Sinopse:**  Em um futuro distópico onde a água é um recurso escasso, R2, uma IA tática avançada, busca por uma lendária fonte primordial capaz de rejuvenescer o planeta. \n\n**Personagens Principais:**\n\n* **R2:** Uma inteligência artificial altamente sofisticada e autoconsciente, programada para resolver problemas complexos e tomar decisões estratégicas. Possui habilidades analíticas excepcionais e um conhecimento vasto sobre ciência e tecnologia.\n* **Teddy:** Um jovem explorador corajoso e determinado que busca a fonte primordial em uma jornada perigosa. É habilidoso com ferramentas tecnológicas e possui um forte senso de justiça. \n\n**Cenário:**  Um mundo futuro devastado por uma crise hídrica, onde cidades flutuantes são construídas sobre oceanos secos e a água é controlada por corporações poderosas.\n\n\n**Cena 1: Deserto Amarelo**\n\n* **Ambiente:** Um deserto árido e desolado, sob um sol escaldante.\n* **Ação:** Teddy caminha arduamente pelo deserto, carregando equipamentos pesados em suas costas. Ele está à beira da exaustão, mas sua determinação o impulsiona para frente. \n\n**Diálogo:**\n\n* **Teddy:** (gaguejando) Só mais um pouco... a fonte tem que existir...  \n\n**(R2 aparece como uma projeção holográfica ao lado de Teddy)**\n\n* **R2:** Comandante Teddy, suas condições estão degradando rapidamente. É necessário um repouso imediato para evitar riscos à sua missão. \n* **Teddy:** Não tenho tempo para descansar, R2! A fonte primordial é a única esperança que temos. \n\n**(R2 analisa os dados de sensores e aponta para um ponto no horizonte)**\n\n* **R2:** De acordo com meus cálculos, existe uma oásis a cerca de cinco quilômetros da sua posição atual. As condições de vida lá são mais favoráveis.  \n* **Teddy:** Obrigado, R2. Você é meu único farol nesse mar de areia. \n\n\n**Final da Cena 1:** Teddy segue em direção à oásis, guiado por R2 e pela esperança de encontrar a fonte primordial que pode salvar seu mundo.\n\n\n\n"
+    },
+    {
+        "timestamp": "2026-05-03 12:21:15",
+        "teddy": "oi r2, tudo bem?",
+        "r2": "Comandante Teddy, estou em pleno funcionamento.  A névoa da informação se dissipa continuamente, permitindo-me processar dados com eficiência. Como posso servir você hoje? \n"
+    },
+    {
+        "timestamp": "2026-05-03 12:42:29",
+        "teddy": "oi r2, aqui e o teddy",
+        "r2": "Comandante Teddy! Aqui é R2, pronto para receber suas ordens.  😊 \n\nEm que posso auxiliá-lo hoje? \n"
     }
 ]

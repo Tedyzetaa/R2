@@ -1,503 +1,201 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-<title>R2 · Ghost Protocol</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/tokyo-night-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-<link rel="stylesheet" href="/static/css/style.css">
-<script src="/static/js/app.js" defer></script>
-<style>
-/* Estética Tática e Sombria */
-#tactical-splash {
-    position: fixed;
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%;
-    background-color: #080808;
-    z-index: 99999;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    transition: opacity 0.8s ease-out;
-}
-.splash-logo {
-    width: 250px;
-    margin-bottom: 40px;
-    animation: pulse 2s infinite;
-}
-.loader-bar {
-    width: 300px; 
-    height: 3px;
-    background: #222;
-    overflow: hidden;
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
-}
-.loader-progress {
-    width: 0%; 
-    height: 100%;
-    background: #00ffcc;
-    animation: load 2.5s forwards ease-in-out;
-}
-.splash-text {
-    color: #00ffcc; 
-    font-family: 'Courier New', Courier, monospace;
-    margin-top: 20px; 
-    font-size: 14px;
-    letter-spacing: 3px;
-}
-@keyframes pulse { 
-    0% { opacity: 0.7; } 
-    50% { opacity: 1; filter: drop-shadow(0 0 15px rgba(0, 255, 204, 0.5)); } 
-    100% { opacity: 0.7; } 
-}
-@keyframes load { 
-    0% { width: 0%; } 
-    100% { width: 100%; } 
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>R2 · The Matrix OS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Fira+Code:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
-<div id="tactical-splash">
-    <img src="INI.png" alt="R2 Tactical OS Logo" class="splash-logo">
-    <div class="loader-bar">
-        <div class="loader-progress"></div>
-    </div>
-    <p class="splash-text">🚀 INICIALIZANDO MOTORES QUÂNTICOS...</p>
-</div>
-<div class="scanline"></div>
-<div id="toast"></div>
-<div id="debug-hud" style="display:none"></div>
+    <canvas id="matrix-canvas"></canvas>
+    <div class="matrix-bg"></div>
+    <div class="scanline"></div>
 
-<div id="app">
-
-  <!-- HEADER -->
-  <header id="header">
-    <div class="header-left">
-      <button type="button" id="menu-btn" aria-label="Menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <line x1="3" y1="6"  x2="21" y2="6"/>
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-      </button>
-      <div class="logo">
-        <div class="logo-icon">R2</div>
-        <div class="logo-text">
-          <span class="logo-title">Ghost Protocol</span>
-          <span class="logo-sub">Tactical OS · v5.0</span>
+    <div id="tactical-splash">
+        <div class="splash-content">
+            <h1 class="glitch">GHOST PROTOCOL</h1>
+            <p>SISTEMA OPERATIVO TÁTICO R2</p>
+            <div class="loader-bar"><div class="loader-progress"></div></div>
+            <p class="blink">INICIALIZANDO...</p>
         </div>
-      </div>
-    </div>
-    <div class="header-right">
-      <button type="button" id="toggle-editor-btn" class="editor-toggle-btn" title="Editor de Código">💻</button>
-      <button type="button" id="clear-btn" title="Limpar chat">🗑</button>
-      <button type="button" id="settings-btn" class="settings-btn" title="Configurações">⚙️</button>
-      <button type="button" id="battle-mode-btn" class="battle-mode-btn" title="Modo Batalha (voz)">🎬 MODO BATALHA</button>
-      <div class="status-pill" id="status-pill">
-        <div class="status-dot" id="status-dot"></div>
-        <span id="status-text">ONLINE</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- OVERLAY -->
-  <div id="overlay" role="presentation"></div>
-
-  <!-- SIDEBAR -->
-  <nav id="sidebar">
-    <div class="sidebar-header">
-      <span class="sidebar-brand">R2 · Menu</span>
-      <button type="button" class="sidebar-close">✕</button>
     </div>
 
-    <div class="sidebar-label">Documentos</div>
-    <button class="mod-btn" onclick="execCmd('/doc sync','📚 Sincronizando matriz de conhecimento...')">
-      <div class="icon">📚</div><span>Sincronizar PDFs</span>
-    </button>
-    <button class="mod-btn" onclick="execCmd('/doc list','📋 Verificando inventário...')">
-      <div class="icon">📋</div><span>Listar Arquivos</span>
-    </button>
-
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-label">Inteligência Tática</div>
-    <button class="mod-btn" onclick="execCmd('/cmd radar','📡 Ativando radar de voos...')">
-      <div class="icon">📡</div><span>Radar de Voos</span>
-    </button>
-    <button class="mod-btn" onclick="execCmd('/cmd astro','☄️ Consultando banco da NASA...')">
-      <div class="icon">☄️</div><span>Defesa Planetária</span>
-    </button>
-    <button class="mod-btn" onclick="execCmd('/cmd pizza','🍕 Checando monitor PizzINT...')">
-      <div class="icon">🍕</div><span>Monitor PizzINT</span>
-    </button>
-    <button class="mod-btn" onclick="execCmd('/cmd solar','☀️ Consultando dados solares...')">
-      <div class="icon">☀️</div><span>Clima Espacial</span>
-    </button>
-
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-label">Trading Autônomo</div>
-    <button class="mod-btn" onclick="abrirBroker()">
-      <div class="icon">📈</div><span>Abrir Broker10</span>
-    </button>
-    <a href="#" onclick="alphaPanel.toggle(); closeSidebar(); return false;" class="menu-item">
-        <span class="menu-icon">🌐</span> Abrir Broker 10 (Alpha)
-    </a>
-
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-label">Produção</div>
-    <button class="mod-btn" onclick="openStudio()">
-      <div class="icon">🎬</div><span>Estúdio de Cortes</span>
-    </button>
-    <button class="mod-btn" onclick="abrirSiloTikTok()">
-      <div class="icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2L12 6M12 2L9 5M12 2L15 5"/>
-          <path d="M5 14L9 10L12 12L15 10L19 14"/>
-          <path d="M12 12V20"/>
-          <path d="M8 20H16"/>
-        </svg>
-      </div>
-      <span>Silo TikTok</span>
-    </button>
-  </nav>
-
-  <!-- MAIN SPLIT LAYOUT: CHAT + CODE EDITOR -->
-  <div class="main-split" id="main-split">
-    <!-- Área do Chat (esquerda) -->
-    <div class="chat-area" id="chat-area">
-      <div id="chat-wrapper">
-        <div id="chat">
-          <div class="boot-msg" id="boot-screen">
-            <div class="boot-logo">R2</div>
-            <div class="boot-tagline">Ghost Protocol · Sistema Tático Online</div>
-            <div class="boot-grid">
-              <div class="boot-card" onclick="quickPrompt('Qual é seu status de operação atual?')">Status do sistema</div>
-              <div class="boot-card" onclick="quickPrompt('Liste os módulos táticos disponíveis.')">Módulos ativos</div>
-              <div class="boot-card" onclick="quickPrompt('O que você pode fazer por mim?')">Capacidades</div>
-              <div class="boot-card" onclick="execCmd('/cmd radar','📡 Ativando radar...')">Escanear radar</div>
-              <div class="boot-card" onclick="execCmd('/cmd astro','☄️ Consultando NASA...')">Asteroides</div>
-              <div class="boot-card" onclick="openStudio()">Estúdio de vídeo</div>
+    <div id="app">
+        <header id="header">
+            <div class="header-left">
+                <button id="menu-btn" class="btn-icon">☰</button>
+                <div class="logo">
+                    <div class="logo-icon">R2</div>
+                    <div class="logo-text">
+                        <span class="logo-title">ZION MAINFRAME</span>
+                        <span class="logo-sub">Tactical OS · v6.0</span>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <footer id="input-wrapper">
-        <div id="input-row">
-          <button type="button" id="upload-btn" title="Anexar arquivo (ou Arraste para a tela)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-            </svg>
-          </button>
-          <input type="file" id="file-input" style="display:none" multiple>
-          <button type="button" id="mic-msg-btn" class="mic-btn" title="Gravar áudio (clique para iniciar/parar)">🎤</button>
-          <textarea
-            id="msgBox"
-            rows="1"
-            placeholder="Digite sua ordem, Comandante..."
-            oninput="autoResize(this)"
-            onkeydown="handleKey(event)"
-          ></textarea>
-          <button type="button" id="send-btn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"/>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-            <span>Enviar</span>
-          </button>
-        </div>
-        <div class="input-hint">Enter · enviar &nbsp;|&nbsp; Shift+Enter · nova linha &nbsp;|&nbsp; 🎤 Clique e grave</div>
-      </footer>
-    </div>
-
-    <!-- Painel do Editor Lateral (direita) -->
-    <div class="code-panel closed" id="code-panel">
-      <div class="code-header">
-        
-        <div class="code-tabs" id="file-list-tabs">
-          <div class="code-tab active">scratchpad.py</div>
-        </div>
-
-        <div class="code-actions">
-          <button class="icon-btn" onclick="analisarCodigoTatico()" title="Explicar Código">🔍 Analisar</button>
-          <button class="icon-btn" onclick="iniciarRefatoracao()" title="Procurar Bugs e Otimizar">🐛 Refatorar</button>
-          
-          <div id="diff-controls" style="display: none; margin-left: 5px; border-left: 1px solid var(--border); padding-left: 5px;">
-              <button class="icon-btn success" onclick="aceitarRefatoracao()" title="Manter Alterações">✅ Aceitar</button>
-              <button class="icon-btn danger" onclick="rejeitarRefatoracao()" title="Descartar">❌ Rejeitar</button>
-          </div>
-
-          <button class="icon-btn" id="copyCodeBtn" title="Copiar">📋</button>
-          <button class="icon-btn danger" id="closeCodeBtn" title="Fechar Editor">✕</button>
-        </div>
-      </div>
-      
-      <div class="code-editor-wrap">
-        <textarea id="code-editor" class="code-editor" spellcheck="false" placeholder="// Aguardando dados da missão..."></textarea>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- VIDEO STUDIO MODAL -->
-<div id="studio-backdrop" onclick="closeStudioOnBack(event)">
-  <div id="video-studio">
-    <div class="studio-header">
-      <div class="studio-title">
-        Estúdio de Cortes
-        <span class="studio-badge">TESOURA NEURAL</span>
-      </div>
-      <button class="close-studio" onclick="closeStudio()">✕</button>
-    </div>
-    <div class="studio-body">
-      <div class="preview-box">
-        <div id="preview-subtitle">JORNADA<br>DO HERÓI!</div>
-      </div>
-      <div class="controls-panel">
-        <div class="ctrl-group full">
-          <label class="ctrl-label">URL do YouTube</label>
-          <input type="text" id="vid-url" class="ctrl-input" placeholder="https://youtube.com/watch?v=...">
-        </div>
-        <div class="ctrl-row">
-          <div class="ctrl-group">
-            <label class="ctrl-label">Legendas</label>
-            <div class="toggle-row">
-              <input type="checkbox" id="sub-active" checked>
-              <span>Ativar Legendas</span>
+            <div class="header-center">
+                <div class="hud-status">
+                    <div class="status-item" aria-live="polite">
+                        <span class="status-label">ALPHA:</span>
+                        <span id="alpha-status" class="status-value offline">OFFLINE</span>
+                    </div>
+                    <div class="status-item" aria-live="polite">
+                        <span class="status-label">BROKER:</span>
+                        <span id="broker-status" class="status-value offline">OFFLINE</span>
+                    </div>
+                    <div class="status-item" aria-live="polite">
+                        <span class="status-label">TIKTOK:</span>
+                        <span id="tiktok-status" class="status-value offline">OFFLINE</span>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div class="ctrl-group">
-            <label class="ctrl-label">Posição Automática</label>
-            <div class="toggle-row">
-              <input type="checkbox" id="sub-pos-auto" checked
-                onchange="document.getElementById('sub-pos').disabled=this.checked">
-              <span>IA decide posição</span>
+            <div class="header-right">
+                <button id="toggle-editor-btn" class="editor-toggle-btn" title="Terminal de Código">💻</button>
+                <button id="clear-btn" class="settings-btn" title="Limpar chat" onclick="clearChat()">🗑</button>
+                <button id="settings-btn" class="settings-btn" title="Configurações">⚙️</button>
+                <button id="battle-mode-btn" class="battle-mode-btn" onclick="toggleModoBatalha()">🎬 MODO BATALHA</button>
+                <div class="status-pill" id="status-pill">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">CONECTANDO...</span>
+                </div>
+                <div class="hud-time"><span id="system-time">00:00:00</span></div>
             </div>
-          </div>
-        </div>
-        <div class="ctrl-row">
-          <div class="ctrl-group">
-            <label class="ctrl-label">Cor da Legenda</label>
-            <input type="color" id="sub-color" class="ctrl-input" value="#ffffff" oninput="updatePreview()">
-          </div>
-          <div class="ctrl-group">
-            <label class="ctrl-label">Tamanho: <span id="size-val">13px</span></label>
-            <input type="range" id="sub-size" class="ctrl-input" min="10" max="22" value="13"
-              oninput="updatePreview(); document.getElementById('size-val').textContent=this.value+'px'">
-          </div>
-        </div>
-        <div class="ctrl-row">
-          <div class="ctrl-group">
-            <label class="ctrl-label">Posição Y: <span id="pos-val">18%</span></label>
-            <input type="range" id="sub-pos" class="ctrl-input" min="5" max="95" value="18" disabled
-              oninput="updatePreview(); document.getElementById('pos-val').textContent=this.value+'%'">
-          </div>
-          <div class="ctrl-group">
-            <label class="ctrl-label">Estilo Visual</label>
-            <select id="sub-style" class="ctrl-input" onchange="updatePreview()">
-              <option value="outline">Borda Preta Grossa</option>
-              <option value="shadow">Sombra Suave</option>
-              <option value="box">Fundo Transparente</option>
-              <option value="yellow">Destaque Amarelo</option>
-            </select>
-          </div>
-        </div>
-        <button class="action-btn" onclick="startVideoExtraction()">🚀 Iniciar Extração Tática</button>
-      </div>
-    </div>
-  </div>
-</div>
+        </header>
 
-<!-- MODO BATALHA -->
-<div id="battle-mode-screen" style="display: none;">
-  <div class="battle-container">
-    <div class="soundwave-container" id="soundwave-container"></div>
-    <button id="safe-mode-btn" class="safe-mode-btn">MODO SAFE</button>
-    <div class="battle-hint">🎤 Aguardando "Hey R2" ou "R2" ...</div>
-  </div>
-</div>
+        <div id="overlay" role="presentation"></div>
 
-<!-- MODAL DE CONFIGURAÇÕES -->
-<div id="settings-modal" class="settings-modal" style="display: none;">
-  <div class="settings-backdrop" onclick="closeSettingsModal()"></div>
-  <div class="settings-container">
-    <div class="settings-header">
-      <span class="settings-title">⚙️ CONFIGURAÇÕES TÁTICAS</span>
-      <button class="settings-close" onclick="closeSettingsModal()">✕</button>
-    </div>
-    <div class="settings-body">
-      <div class="setting-group">
-        <label class="setting-label">🎙️ VOZ DO R2</label>
-        <select id="voice-select" class="setting-select">
-          <option value="Antonio">Antonio (Masculino)</option>
-          <option value="Francisca">Francisca (Feminino)</option>
-          <option value="Thalita" selected>Thalita (Feminino)</option>
-        </select>
-        <div class="setting-hint">Voz utilizada no Modo Batalha e respostas faladas</div>
-      </div>
-      <div class="setting-group">
-        <label class="setting-label">🧠 DRIVER DE PROCESSAMENTO</label>
-        <select id="driver-select" class="setting-select">
-          <option value="Padrão">Padrão (Balanceado)</option>
-          <option value="Turbo">Turbo (Prioridade GPU)</option>
-          <option value="Stealth">Stealth (Baixo Consumo)</option>
-        </select>
-        <div class="setting-hint">Modo de execução do motor (influencia performance e consumo)</div>
-      </div>
-    </div>
-    <div class="settings-footer">
-      <button class="settings-save" onclick="saveSettings()">💾 SALVAR E APLICAR</button>
-    </div>
-  </div>
-</div>
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-brand">R2 · ROOT</span>
+                <button class="sidebar-close">✕</button>
+            </div>
+            <div class="sidebar-label">Arquivos Residuais</div>
+            <button class="mod-btn" onclick="execCmd('/doc sync','📚 Sincronizando matriz...'); closeSidebar();">
+                <div class="icon">📚</div><span>Sincronizar Nodes</span>
+            </button>
+            <button class="mod-btn" onclick="execCmd('/doc list','📋 Verificando inventário...'); closeSidebar();">
+                <div class="icon">📋</div><span>Listar Arquivos</span>
+            </button>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-label">Sensores & Radares</div>
+            <button class="mod-btn" onclick="execCmd('/cmd radar','📡 Ativando radar...'); closeSidebar();">
+                <div class="icon">📡</div><span>Radar de Voos</span>
+            </button>
+            <button class="mod-btn" onclick="execCmd('/cmd astro','☄️ Consultando NASA...'); closeSidebar();">
+                <div class="icon">☄️</div><span>Defesa Planetária</span>
+            </button>
+            <button class="mod-btn" onclick="execCmd('/cmd pizza','🍕 Monitor PizzINT...'); closeSidebar();">
+                <div class="icon">🍕</div><span>Monitor PizzINT</span>
+            </button>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-label">Produção</div>
+            <button class="mod-btn" onclick="openStudio(); closeSidebar();">
+                <div class="icon">🎬</div><span>Estúdio de Cortes</span>
+            </button>
+            <button class="mod-btn" onclick="abrirSiloTikTok(); closeSidebar();">
+                <div class="icon">📱</div><span>Silo TikTok</span>
+            </button>
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-label">Operacional</div>
+            <button class="mod-btn" onclick="abrirBroker(); closeSidebar();">
+                <div class="icon">📈</div><span>Terminal Broker10</span>
+            </button>
+            <button class="mod-btn" onclick="alphaPanel.open(); closeSidebar();">
+                <div class="icon">🧠</div><span>Painel Alpha</span>
+            </button>
+        </nav>
 
-<!-- SILO TIKTOK MODAL -->
-<div id="silo-backdrop" style="display: none;">
-  <div class="silo-container">
-    <div class="silo-header">
-      <div class="silo-title">TIKTOK COMMANDER V2.4</div>
-      <button class="silo-close" onclick="fecharSiloTikTok()">✕</button>
+        <div class="main-split" id="main-split">
+            <div class="chat-area">
+                <div id="chat-wrapper">
+                    <div id="chat">
+                        <div class="boot-msg" id="boot-screen">
+                            <div class="boot-logo">R2</div>
+                            <div class="boot-tagline">Sistemas online, Commandant Teddy. Aguardando ordens.</div>
+                            <div class="boot-grid">
+                                <div class="boot-card" onclick="quickPrompt('Qual é seu status de operação atual?')">Status do Sistema</div>
+                                <div class="boot-card" onclick="quickPrompt('Liste os módulos táticos disponíveis.')">Módulos Ativos</div>
+                                <div class="boot-card" onclick="quickPrompt('Gere um script em Python.')">Testar Código</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <footer id="input-wrapper">
+                    <div id="input-row">
+                        <button id="upload-btn" class="mic-btn" title="Injetar arquivo" onclick="document.getElementById('file-input').click()">📎</button>
+                        <input type="file" id="file-input" style="display:none" multiple>
+                        <button id="mic-msg-btn" class="mic-btn" title="Comunicação de Voz">🎤</button>
+                        <textarea id="msgBox" rows="1" placeholder="> Inserir comando na interface..." oninput="autoResize(this)"></textarea>
+                        <button id="send-btn" class="btn-send">EXECUTAR</button>
+                    </div>
+                    <div class="input-hint">Enter: Enviar | Shift+Enter: Nova Linha | ROOT ACCESS GRANTED</div>
+                </footer>
+            </div>
+            <div class="code-panel closed" id="code-panel">
+                <div class="code-header">
+                    <div class="code-tabs" id="file-list-tabs"><div class="code-tab active">scratchpad.py</div></div>
+                    <div class="code-actions">
+                        <button class="icon-btn" id="analisar-btn" onclick="analisarCodigoTatico()">🔍 Analisar</button>
+                        <button class="icon-btn" id="refatorar-btn" onclick="iniciarRefatoracao()">🐛 Refatorar</button>
+                        <div id="diff-controls" style="display:none;"><button class="icon-btn success" onclick="aceitarRefatoracao()">✅ Aceitar</button><button class="icon-btn danger" onclick="rejeitarRefatoracao()">❌ Rejeitar</button></div>
+                        <button class="icon-btn" id="copyCodeBtn">📋 Copiar</button>
+                        <button class="icon-btn" id="code-execute-btn">▶ Executar</button>
+                        <button class="icon-btn" id="code-expand-btn">⛶</button>
+                        <button class="icon-btn danger" id="closeCodeBtn">✕</button>
+                    </div>
+                </div>
+                <div class="code-editor-wrap">
+                    <textarea id="code-editor" class="code-editor" spellcheck="false" placeholder="// ROOT_SHELL_ACTIVE"></textarea>
+                    <div id="code-output" class="exec-terminal" style="display:block; margin-top:8px;"></div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="silo-body">
-      <div class="silo-sidebar">
-        <div class="upload-zone" id="drop-zone-silo" onclick="document.getElementById('file-input-silo').click()">
-          <span class="upload-icon">▶</span>
-          <p>SOLTAR VÍDEO AQUI</p>
-          <p style="opacity:0.5;margin-top:4px;font-size:10px;">MP4 · MOV · WEBM</p>
-        </div>
-        <input type="file" id="file-input-silo" accept="video/*" style="display:none">
-        <div id="file-name-display" class="field-group" style="display:none;">
-          <span class="field-label">Arquivo selecionado</span>
-          <div id="file-name-text" style="font-family:monospace;font-size:11px;color:#00ff9d;"></div>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Título</label>
-          <input class="field-input" id="f-titulo" type="text" placeholder="Auto-gerado do arquivo...">
-        </div>
-        <div class="field-group">
-          <label class="field-label">Descrição</label>
-          <textarea class="field-textarea" id="f-desc" placeholder="Auto-gerado do título..."></textarea>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Hashtags</label>
-          <input class="field-input" id="f-tags" type="text" placeholder="Auto-gerado do arquivo...">
-        </div>
-        <div class="field-group">
-          <label class="field-label">Horários de Pico</label>
-        </div>
-        <div class="peak-chips" id="peak-chips-silo">
-          <button class="chip" data-hora="09:00">09:00</button>
-          <button class="chip" data-hora="12:00">12:00</button>
-          <button class="chip" data-hora="18:00">18:00</button>
-          <button class="chip" data-hora="20:00">20:00</button>
-        </div>
-        <div class="field-group">
-          <label class="field-label">Agendamento Personalizado</label>
-          <input class="field-input" id="f-agenda" type="datetime-local">
-        </div>
-        <div class="field-group">
-          <label class="field-label">🚀 ARSENAL (VÍDEOS PRONTOS)</label>
-          <div id="municao-list" style="max-height: 200px; overflow-y: auto; background: #0a1520; border: 1px solid #0d2d45; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
-            <div style="font-size: 10px; color: #2d5a7a; text-align: center;">Buscando vídeos...</div>
-          </div>
-        </div>
-        <button class="btn-add-silo" onclick="adicionarFila()">+ ADICIONAR À FILA</button>
-      </div>
-      <div class="silo-main">
-        <div class="fila-header">
-          <div class="fila-counter"><strong id="fila-count">0</strong> MISSÕES NA FILA</div>
-          <button class="btn-refresh" onclick="carregarFila()">↺ ATUALIZAR</button>
-        </div>
-        <div class="fila-list" id="fila-list">
-          <div class="empty-state">FILA VAZIA — AGUARDANDO MISSÕES</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- MODAL ALPHA -->
-<div id="modal-alpha" class="alpha-overlay" style="display:none;">
-  <div class="alpha-panel">
-    <div class="alpha-header">
-      <div class="alpha-header-left">
-        <span class="alpha-badge">▲ ALPHA</span>
-        <span class="alpha-title">Neural-RPA Engine</span>
-        <span class="alpha-version">v1.0.0</span>
-      </div>
-      <div class="alpha-header-right">
-        <span id="alpha-pulse" class="alpha-pulse"></span>
-        <button class="alpha-close-btn" onclick="alphaPanel.close()">✕</button>
-      </div>
+    <!-- Modais -->
+    <div id="settings-modal" class="settings-modal" style="display:none;">
+        <div class="settings-backdrop" onclick="closeSettingsModal()"></div>
+        <div class="settings-container">
+            <div class="settings-header"><span>⚙️ SYSTEM OVERRIDE</span><button onclick="closeSettingsModal()">✕</button></div>
+            <div class="settings-body">
+                <div class="setting-group"><label class="setting-label">🎙️ SÍNTESE DE VOZ</label><select id="voice-select" class="setting-select"><option value="Antonio">Construto Alpha</option><option value="Francisca">Construto Beta</option><option value="Thalita" selected>Operadora Oracle</option></select></div>
+            </div>
+            <div class="settings-footer"><button class="settings-save" onclick="saveSettings()">INJETAR PARÂMETROS</button></div>
+        </div>
     </div>
-    <div class="alpha-body">
-      <div class="alpha-col alpha-col-state">
-        <div class="alpha-section-label">ESTADO DA TELA</div>
-        <div class="alpha-state-card" id="alpha-state-card">
-          <div class="alpha-state-icon" id="alpha-state-icon">●</div>
-          <div class="alpha-state-name" id="alpha-state-name">IDLE</div>
-          <div class="alpha-state-action" id="alpha-state-action">Aguardando sessão...</div>
-          <div class="alpha-confidence-bar-wrap">
-            <div class="alpha-confidence-bar" id="alpha-confidence-bar" style="width:0%"></div>
-          </div>
-          <div class="alpha-confidence-label" id="alpha-confidence-label">Confiança: --</div>
-        </div>
-        <div class="alpha-section-label">CICLOS EXECUTADOS</div>
-        <div class="alpha-stat-row">
-          <span class="alpha-stat-num" id="alpha-cycle-count">0</span>
-          <span class="alpha-stat-label">ciclos Neural-RPA</span>
-        </div>
-        <div class="alpha-section-label">ÚLTIMA AÇÃO</div>
-        <div class="alpha-last-action" id="alpha-last-action">--</div>
-      </div>
-      <div class="alpha-col alpha-col-controls">
-        <div class="alpha-section-label">CONTROLE NEURAL</div>
-        <button class="alpha-btn alpha-btn-analyze" onclick="alphaPanel.analyze()">🔘 Analisar Agora</button>
-        <button class="alpha-btn alpha-btn-autopilot" id="btn-autopilot" onclick="alphaPanel.toggleAutopilot()">▶ Ativar Autopilot</button>
-        <button class="alpha-btn alpha-btn-screenshot" onclick="alphaPanel.screenshot()">◻ Capturar Frame</button>
-        <div class="alpha-section-label">OVERRIDE MANUAL</div>
-        <div class="alpha-override-grid">
-          <button class="alpha-override-btn" onclick="alphaPanel.override('CLICK_ACIMA')" style="color:#00ff9d; border-color:#00ff9d40; font-weight:bold;">📈 ACIMA</button>
-          <button class="alpha-override-btn" onclick="alphaPanel.override('CLICK_ABAIXO')" style="color:#ff2d55; border-color:#ff2d5540; font-weight:bold;">📉 ABAIXO</button>
-          <button class="alpha-override-btn" onclick="alphaPanel.override('INJECT_GHOST_CSS')">🚫 Ghost CSS</button>
-          <button class="alpha-override-btn" onclick="alphaPanel.override('WAIT')">⏸ Pausar</button>
-        </div>
-        <div id="alpha-screenshot-wrap" style="display:none;">
-          <div class="alpha-section-label">FRAME CAPTURADO</div>
-          <img id="alpha-screenshot-img" class="alpha-screenshot-img" src="" alt="frame" />
-        </div>
-      </div>
-    </div>
-    <div class="alpha-terminal-wrap">
-      <div class="alpha-section-label">
-        LOG NEURAL
-        <button class="alpha-clear-log" onclick="alphaPanel.clearLog()">limpar</button>
-      </div>
-      <div class="alpha-terminal" id="alpha-terminal">
-        <div class="alpha-log-line alpha-log-sys">[ALPHA] Sistema inicializado. Aguardando sessão Projeto Manhattan.</div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<script>
-window.addEventListener('load', function() {
-    setTimeout(function() {
-        var splash = document.getElementById('tactical-splash');
-        if (splash) {
-            splash.style.opacity = '0';
-            setTimeout(function() {
-                splash.style.display = 'none';
-            }, 800);
-        }
-    }, 2500);
-});
-</script>
+    <div id="studio-backdrop" style="display:none;">
+        <div class="studio-container"><h3>🎬 Estúdio de Cortes</h3><input type="text" id="vid-url" placeholder="URL do vídeo"><button onclick="startVideoExtraction()">Extrair Cortes</button><button onclick="closeStudio()">Fechar</button></div>
+    </div>
+
+    <div id="silo-backdrop" style="display:none;">
+        <div class="silo-container"><div style="display:flex; justify-content:space-between;"><h3>📱 Silo TikTok</h3><button onclick="fecharSiloTikTok()">✕</button></div>
+        <div><h4>1. Selecionar Vídeo</h4><div id="drop-zone-silo" style="border:1px dashed var(--matrix-main); padding:15px; text-align:center;">Arraste ou <input type="file" id="file-input-silo" accept="video/mp4"></div><div id="file-name-display" style="display:none;">📁 <span id="file-name-text"></span></div>
+        <h4>2. Agenda</h4><input type="datetime-local" id="f-agenda"><div id="peak-chips-silo"><span class="chip" data-hora="07:00">🌅 Manhã</span><span class="chip" data-hora="12:00">☀️ Pico</span><span class="chip" data-hora="18:00">🌆 Tarde</span><span class="chip" data-hora="21:00">🌙 Noite</span></div>
+        <h4>3. Metadados</h4><input id="f-titulo" placeholder="Título"><textarea id="f-desc" placeholder="Descrição"></textarea><input id="f-tags" placeholder="#hashtags"><button onclick="adicionarFila()">Adicionar à Fila</button></div>
+        <hr><div><h4>📋 Fila (<span id="fila-count">0</span>)</h4><div id="fila-list" style="max-height:300px; overflow-y:auto;"></div></div>
+        <div><h4>🎬 Arsenal</h4><div id="municao-list" style="max-height:200px; overflow-y:auto;"></div></div></div>
+    </div>
+
+    <div id="modal-alpha" class="settings-modal" style="display:none;">
+        <div class="settings-backdrop" onclick="alphaPanel.close()"></div>
+        <div class="settings-container" style="width:700px; max-height:90vh; overflow-y:auto;">
+            <div class="settings-header"><span>🧠 PAINEL ALPHA - HUD NEURAL</span><button onclick="alphaPanel.close()">✕</button></div>
+            <div><div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;"><button class="alpha-btn" onclick="alphaPanel.analyze()">🔍 ANALISAR</button><button id="btn-autopilot" class="alpha-btn alpha-btn-autopilot" onclick="alphaPanel.toggleAutopilot()"><span class="alpha-btn-icon">▶</span> Ativar Autopilot</button><button class="alpha-btn" onclick="alphaPanel.screenshot()">📸 SCREENSHOT</button><button class="alpha-btn" onclick="alphaPanel.clearLog()">🗑 LIMPAR LOG</button></div>
+            <div style="border:1px solid var(--matrix-main); padding:10px;"><div>ESTADO: <strong id="alpha-state-name">---</strong></div><div>AÇÃO: <strong id="alpha-state-action">---</strong></div><div>CICLOS: <span id="alpha-cycle-count">0</span></div><div class="alpha-confidence-bar-container"><div id="alpha-confidence-bar" class="alpha-confidence-bar" style="width:0%"></div></div><div id="alpha-confidence-label">Confiança: 0%</div></div>
+            <div id="alpha-screenshot-wrap" style="display:none;"><img id="alpha-screenshot-img" style="max-width:100%; border:1px solid var(--matrix-main);"></div>
+            <div><strong>TERMINAL</strong></div><div id="alpha-terminal" style="height:200px; overflow-y:auto; background:#000; border:1px solid var(--matrix-main); padding:8px;"></div></div>
+        </div>
+    </div>
+
+    <div id="battle-mode-screen" style="display:none;">
+        <div class="battle-container"><div class="soundwave-container" id="soundwave-container"></div><button id="safe-mode-btn" class="safe-mode-btn">MODO TEXTO</button><div class="battle-hint">🎤 Aguardando sinal de áudio...</div></div>
+    </div>
+
+    <div id="toast"></div>
 </body>
 </html>

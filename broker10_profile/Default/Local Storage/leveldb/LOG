@@ -1,3 +1,27 @@
-2026/04/25-20:10:52.336 68dc Reusing MANIFEST C:\R2\broker10_profile\Default\Local Storage\leveldb/MANIFEST-000001
-2026/04/25-20:10:52.343 68dc Recovering log #33
-2026/04/25-20:10:52.344 68dc Reusing old log C:\R2\broker10_profile\Default\Local Storage\leveldb/000033.log 
+2026/05/01-22:30:23.870 3c38 Reusing MANIFEST c:\R2\broker10_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/05/01-22:30:23.878 3c38 Recovering log #68
+2026/05/01-22:30:23.880 3c38 Reusing old log c:\R2\broker10_profile\Default\Local Storage\leveldb/000068.log 
+2026/05/01-23:38:26.576 6c5c Level-0 table #73: started
+2026/05/01-23:38:26.579 6c5c Level-0 table #73: 13889 bytes OK
+2026/05/01-23:38:26.581 6c5c Delete type=0 #68
+2026/05/02-02:14:26.577 6c5c Level-0 table #75: started
+2026/05/02-02:14:26.581 6c5c Level-0 table #75: 14104 bytes OK
+2026/05/02-02:14:26.583 6c5c Delete type=0 #72
+2026/05/02-04:50:26.574 6c5c Level-0 table #77: started
+2026/05/02-04:50:26.579 6c5c Level-0 table #77: 14114 bytes OK
+2026/05/02-04:50:26.581 6c5c Delete type=0 #74
+2026/05/02-07:26:26.583 6c5c Level-0 table #79: started
+2026/05/02-07:26:26.587 6c5c Level-0 table #79: 14089 bytes OK
+2026/05/02-07:26:26.588 6c5c Delete type=0 #76
+2026/05/02-07:26:26.589 6c5c Compacting 4@0 + 1@1 files
+2026/05/02-07:26:26.593 6c5c Generated table #80@0: 17 keys, 6001 bytes
+2026/05/02-07:26:26.593 6c5c Compacted 4@0 + 1@1 files => 6001 bytes
+2026/05/02-07:26:26.594 6c5c compacted to: files[ 0 1 0 0 0 0 0 ]
+2026/05/02-07:26:26.594 6c5c Delete type=2 #70
+2026/05/02-07:26:26.594 6c5c Delete type=2 #73
+2026/05/02-07:26:26.594 6c5c Delete type=2 #75
+2026/05/02-07:26:26.594 6c5c Delete type=2 #77
+2026/05/02-07:26:26.594 6c5c Delete type=2 #79
+2026/05/02-10:02:26.582 6c5c Level-0 table #82: started
+2026/05/02-10:02:26.586 6c5c Level-0 table #82: 14125 bytes OK
+2026/05/02-10:02:26.587 6c5c Delete type=0 #78

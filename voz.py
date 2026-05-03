@@ -4,6 +4,7 @@ import asyncio
 import edge_tts
 import pyttsx3
 import threading
+import re # [FIXED: batalha-1.2]
 
 # 1. TENTA INICIAR O MIXER DE AUDIO (ONLINE)
 try:
@@ -24,7 +25,18 @@ try:
 except:
     engine_offline = None
 
-AUDIO_FILE = "fala_r2.mp3"
+# [FIXED: batalha-1.1]
+AUDIO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fala_r2.mp3")
+
+def limpar_para_fala(texto: str) -> str: # [FIXED: batalha-1.2]
+    """Remove markdown e símbolos antes da síntese de voz."""
+    # Substitui blocos de código por aviso falado
+    texto = re.sub(r'```[\s\S]*?```', 'bloco de código omitido.', texto)
+    # Remove símbolos de formatação inline
+    texto = re.sub(r'[*_`#~>]', '', texto)
+    # Colapsa espaços múltiplos
+    texto = re.sub(r'\s+', ' ', texto).strip()
+    return texto
 
 async def _gerar_audio_online(texto):
     """Gera o arquivo de áudio usando a Microsoft"""
@@ -51,20 +63,35 @@ def falar_offline(texto):
         except:
             pass
 
-def falar(texto):
-    if not texto: return
+def falar(texto, on_start=None, on_end=None): # [FIXED: batalha-1.3]
+    """
+    Sintetiza e toca o texto em voz alta.
+    on_start: callable chamado imediatamente antes de tocar o áudio.
+    on_end:   callable chamado imediatamente após o áudio terminar.
+    """
+    if not texto:
+        return
+    texto = limpar_para_fala(texto) # [FIXED: batalha-1.2]
 
     def _thread_voz():
         try:
-            # Tenta Online
+            # Tenta online (Microsoft Neural)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(_gerar_audio_online(texto))
             loop.close()
+            if on_start: # [FIXED: batalha-1.3]
+                on_start()
             _tocar_audio_online()
-        except:
-            # Falhou? Usa o Offline sem reclamar no terminal
+            if on_end: # [FIXED: batalha-1.3]
+                on_end()
+        except Exception:
+            # Fallback offline (pyttsx3)
+            if on_start: # [FIXED: batalha-1.3]
+                on_start()
             falar_offline(texto)
+            if on_end: # [FIXED: batalha-1.3]
+                on_end()
 
     threading.Thread(target=_thread_voz, daemon=True).start()
 

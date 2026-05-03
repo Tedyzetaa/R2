@@ -1,3 +1,4 @@
+
 # filename: broker_operator.py
 import os
 import threading
@@ -6,6 +7,8 @@ import base64
 import time
 import queue
 import concurrent.futures
+import json
+from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 from alpha_module import InferenceResult, ScreenState, ActionExecutor
@@ -13,7 +16,7 @@ from alpha_module import InferenceResult, ScreenState, ActionExecutor
 logger = logging.getLogger("BrokerOperator")
 
 class BrokerOperator:
-    MAX_CONSECUTIVE_ERRORS = 5
+    MAX_CONSECUTIVE_ERRORS = 2
 
     def __init__(self, alpha_engine):
         self.profile_dir = os.path.abspath("broker10_profile")
@@ -25,7 +28,7 @@ class BrokerOperator:
         self._cmd_queue = queue.Queue()
         self._results = {}
 
-        self.autopilot_delay = 0.5
+        self.autopilot_delay = 60
         self._autopilot_running = False
         self._autopilot_cycle_count = 0
         self._last_autopilot_result = None
@@ -35,6 +38,7 @@ class BrokerOperator:
 
         self._session_lock = threading.Lock()
         self._stop_event = threading.Event()
+        self._at_work = False  # Trava de segurança
 
     def iniciar_sessao(self):
         if self._is_running: 
@@ -222,3 +226,43 @@ class BrokerOperator:
         if state_str in {"LOGIN_REQUIRED", "RATE_LIMIT"}:
             logger.critical(f"Trava de segurança acionada pelo estado: {state_str}")
             self._autopilot_running = False
+
+    def save_transaction_log(self, data):
+        """
+        Salva os detalhes da operação em um arquivo JSON para auditoria.
+        """
+        log_file = "trade_history.json"
+        
+        # Prepara a entrada do log com timestamp preciso
+        log_entry = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
+            "sinal_origem": data.get("sinal_visual"), # OCR (CALL/PUT)
+            "confirmacao_math": data.get("estrategia"), # JustWin/GenInd
+            "direcao_disparada": data.get("direcao"),
+            "precos": {
+                "entrada": data.get("entry_price"),
+                "saida_capturada": data.get("exit_price")
+            },
+            "financeiro": {
+                "saldo_antes": data.get("balance_before"),
+                "saldo_depois": data.get("balance_after"),
+                "valor_investido": data.get("amount")
+            },
+            "resultado_final": data.get("status"), # WIN/LOSS/TIE
+            "id_instancia": os.getpid() # Ajuda a identificar se há processos duplicados
+        }
+
+        try:
+            # Carrega o histórico existente ou cria um novo
+            if os.path.exists(log_file):
+                with open(log_file, 'r+', encoding='utf-8') as f:
+                    history = json.load(f)
+                    history.append(log_entry)
+                    f.seek(0)
+                    json.dump(history, f, indent=4, ensure_ascii=False)
+            else:
+                with open(log_file, 'w', encoding='utf-8') as f:
+                    json.dump([log_entry], f, indent=4, ensure_ascii=False)
+                    
+        except Exception as e:
+            logger.error(f"⚠️ Erro ao salvar log JSON: {e}")
