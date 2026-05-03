@@ -1,52 +1,87 @@
-# ==========================================
-# R2 TACTICAL OS - PERÍMETRO DE SEGURANÇA
-# ==========================================
+# ============================================================
+# R2 — Ghost Protocol · .gitignore
+# ============================================================
 
-# 1. Credenciais e Chaves de Acesso (NÍVEL SECRETO)
-.env
-.env.local
-*.pem
-*.key
+# --- Perfis de browser (Chromium / Playwright) ---
+broker10_profile/
+tiktok_profile/
+*_profile/
 
+# --- Cookies e credenciais ---
+*.txt
+!requirements.txt
+!estrutura.txt
+!atualizacao.txt
+*.json
+!config.json
+!environment.yml
+*_cookies*
+*.env
+.env*
+!.env.example
 
-# 2. Pesos Neurais e Matrizes (Arquivos Massivos)
-# Impede o upload dos cérebros (LLaMA, Juggernaut, CLIP)
+# --- Modelos de IA (pesados demais) ---
 models/
-visual_models/
 *.gguf
-*.safetensors
-*.pt
 *.bin
+*.pt
+*.safetensors
 
-# 3. Lixo Tático e Operações da Tesoura Neural
-# Ignora os vídeos crus baixados e os cortes gerados
-temp_video/
-static/media/
+# --- Áudio e vídeo gerados ---
+*.mp3
 *.mp4
-*.m4a
+*.wav
 *.webm
-*.part
-*.ytdl
+static/media/
+temp_files/
+temp_video/
 
-# 4. Cofre de Memória Dinâmica
-# Ignora o registro de conversas para manter a privacidade das ordens
-static/docs/Cofre_Memoria_R2.md
+# --- Logs e debug ---
+*.log
+packets_debug.txt
+static/logs/
+logs/
 
-# 5. Motores de Compilação do Python
+# --- Cache Python ---
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
 
-# 6. Ambientes Virtuais (Conda/Venv)
-venv/
-env/
-.conda/
-.venv/
-miniconda3/
+# --- RAG / FAISS index (gerado em runtime) ---
+static/docs/faiss_index.bin
+static/docs/rag_data.json
 
-# 7. Rastros do Sistema Operacional (Windows/Mac)
+# --- Uploads de usuário ---
+uploads/
+
+# --- Backups automáticos ---
+backup/
+backup_*/
+*.bak
+
+# --- Arquivos temporários e debug ---
+*.tmp
+*.temp
+maior_area
+alpha_debug.png
+INI.png
+radar_scan.png
+fala_r2.mp3
+teste_voz.mp3
+tts_*.mp3
+
+# --- VS Code / IDE ---
+.vs/
+.vscode/
+*.suo
+*.user
+
+# --- Windows ---
 Thumbs.db
-desktop.ini
-.DS_Store
+Desktop.ini
