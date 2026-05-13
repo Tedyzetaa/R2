@@ -1,3 +1,6 @@
-2026/05/01-22:27:49.758 592c Reusing MANIFEST C:\R2\broker10_profile\Default\Local Storage\leveldb/MANIFEST-000001
-2026/05/01-22:27:49.762 592c Recovering log #68
-2026/05/01-22:27:49.766 592c Reusing old log C:\R2\broker10_profile\Default\Local Storage\leveldb/000068.log 
+2026/05/08-12:37:59.521 15b8 Reusing MANIFEST C:\R2\broker10_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/05/08-12:37:59.526 15b8 Recovering log #81
+2026/05/08-12:37:59.528 15b8 Reusing old log C:\R2\broker10_profile\Default\Local Storage\leveldb/000081.log 
+2026/05/08-13:21:12.072 15b8 Level-0 table #85: started
+2026/05/08-13:21:12.074 15b8 Level-0 table #85: 14076 bytes OK
+2026/05/08-13:21:12.076 15b8 Delete type=0 #81

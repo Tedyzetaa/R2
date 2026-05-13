@@ -19,17 +19,19 @@ logger = logging.getLogger("BrokerOperator")
 
 class BrokerOperator:
     MAX_CONSECUTIVE_ERRORS = 5
+    CMD_TIMEOUTS = {"ANALYZE": 3.0, "SCREENSHOT": 5.0, "NAVIGATE": 30.0}
 
     def __init__(self, alpha_engine):
         self.profile_dir = os.path.abspath("broker10_profile")
         self.alpha_engine = alpha_engine
+        self.alpha_engine.broker_ops = self
         self._browser: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
         self._is_running = False
         self._browser_task: Optional[asyncio.Task] = None
         self._cmd_queue = None
         self._results: Dict[str, asyncio.Future] = {}
-        self.autopilot_delay = 0.5
+        self.autopilot_delay = 1.0
         self._autopilot_running = False
         self._autopilot_cycle_count = 0
         self._autopilot_consecutive_errors = 0
@@ -48,7 +50,7 @@ class BrokerOperator:
         logger.info("[BrokerOperator] 🚀 Sessão inicializada em background")
         return {"ok": True, "msg": "Sessão iniciada."}
 
-    async def execute_safe(self, cmd: str, args: dict = None, timeout: float = 15.0) -> dict:
+    async def execute_safe(self, cmd: str, args: dict = None, timeout: float = None) -> dict:
         """Envia comando para o loop do navegador e aguarda resposta."""
         if not self._is_running:
             logger.error("[BrokerOperator] ❌ Sessão inativa ao tentar executar: " + cmd)
@@ -56,6 +58,9 @@ class BrokerOperator:
         if cmd in ("AUTOPILOT_START", "AUTOPILOT_STOP"):
             return await self._handle_autopilot_cmd(cmd)
 
+        if timeout is None:
+            timeout = self.CMD_TIMEOUTS.get(cmd, 15.0)
+            
         cmd_id = uuid.uuid4().hex
         loop = asyncio.get_running_loop()
         future = loop.create_future()
@@ -243,6 +248,22 @@ class BrokerOperator:
         logger.info(f"[Broker] 🖱️ Clicando {cmd} em ({x}, {y})")
         await self._page.mouse.click(x, y)
         logger.info(f"[Broker] ✅ Ordem {cmd} executada")
+
+    def save_transaction_log(self, data: dict):
+        """Salva o histórico de trades em um arquivo JSON local."""
+        log_file = "trade_history.json"
+        try:
+            history = []
+            if os.path.exists(log_file):
+                with open(log_file, "r") as f:
+                    history = json.load(f)
+            data["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            history.append(data)
+            with open(log_file, "w") as f:
+                json.dump(history[-1000:], f, indent=4)
+            logger.info(f"[Broker] Log de transação salvo para trade {data.get('status')}")
+        except Exception as e:
+            logger.error(f"[Broker] Erro ao salvar log de transação: {e}")
 
     async def _dispatch_cmd(self, cmd: str, args: dict) -> dict:
         """Executa comandos síncronos solicitados via API."""

@@ -1,17 +1,52 @@
 # filename: main2.py
 # ============================================================
-# CHANGELOG DE REFATORAÇÃO — R2 OS (revisão 2026-05-15)
+# CHANGELOG DE REFATORAÇÃO — MÓDULO CAMALEÃO + MEMÓRIA AUMENTADA
 # ============================================================
-# - [BUG-M1-M2-M3] Importação de ActionExecutor, lifespan não bloqueante e upload resiliente.
-# - [MELHORIA-4-6-7] Semáforo de geração neural, proteção de WebSocket e histórico atômico.
-# R2 TACTICAL OS — Ghost Protocol v16
-# Arquitetura assíncrona, log streaming via WebSocket, lifespan gerenciado.
-import random
+# - [MEM-1] RecursiveCharacterTextSplitter (chunk_size=800, overlap=200)
+# - [MEM-2] Metadados temporais injetados nos chunks (DATA/Autor a partir do Cofre)
+# - [MEM-3] Busca FAISS com k=5 + limiar de similaridade (score_threshold)
+# - [MEM-4] Escrita assíncrona do histórico (aiofiles) sem bloqueio
+# - [MEM-5] Sumarização tática automática a cada 20 interações (anexa ao Cofre)
+# - [MEM-6] Preservação estrita da persona R2 (System Prompt isolado)
+# - [CAM-1] Base de conhecimento dinâmica (alternância entre pastas)
+# - [CAM-2] Endpoint /api/modules lista cérebros disponíveis
+# - [CAM-3] Comando WebSocket /select_module [nome] troca RAG em tempo real
+# - [CAM-4] Botão sincronizar força reindexação da pasta atual
+# R2 TACTICAL OS — Ghost Protocol v18 — Módulo Camaleão Ativo
+
+import sys
 import os
+from pathlib import Path
+
+# --- CONFIGURAÇÃO DE CAMINHO RVC (INJEÇÃO AGRESSIVA) ---
+rvc_root = r"c:\R2\models\Retrieval-based-Voice-Conversion-WebUI"
+if os.path.exists(rvc_root):
+    sys.path.insert(0, rvc_root)
+    sub_paths = [
+        rvc_root,
+        os.path.join(rvc_root, "infer"),
+        os.path.join(rvc_root, "infer", "lib"),
+        os.path.join(rvc_root, "infer", "lib", "train")
+    ]
+    for p in sub_paths:
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    os.environ["PATH"] = rvc_root + os.pathsep + os.environ.get("PATH", "")
+
+try:
+    import infer
+    sys.modules['infer'] = infer
+    print(f"🎙️ [SISTEMA] Mapeamento de módulos RVC concluído.")
+except ImportError:
+    sys.path.append(os.path.join(rvc_root, "infer"))
+
+# --- IMPORTS NUCLEARES ---
+import asyncio
+import logging
+import random
 import json
 import datetime
 import time
-import asyncio
 import subprocess
 import shutil
 import re
@@ -19,12 +54,8 @@ import base64
 import tempfile
 import threading
 import signal
-from voz import falar # [FIXED: batalha-2.1]
-import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Form
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,32 +63,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import aiofiles
+from audio_engine import MusicProductionEngine
+from voz import falar_jarvis
 
-class NavigateRequest(BaseModel):
-    url: str
-
-# --- 1. CONFIGURAÇÃO DE LOGGING --- #
+# ============================================================
+# 1. CONFIGURAÇÃO DE LOGGING E FILTROS
+# ============================================================
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("r2")
-
-# --- FILTRAR BIBLIOTECAS BARULHENTAS --- #
 logging.getLogger("PIL").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("pytesseract").setLevel(logging.WARNING)
 logging.getLogger("asyncio").setLevel(logging.INFO)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
+# dependências opcionais
 try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    logger.warning("psutil não instalado. O encerramento de processos filhos pode não funcionar no Windows.")
-
-# whisper optional
+    logger.warning("psutil não instalado. Encerramento de processos pode ser limitado.")
 try:
     import whisper
     WHISPER_AVAILABLE = True
@@ -66,7 +95,9 @@ except ImportError:
     WHISPER_AVAILABLE = False
     logger.warning("Whisper não instalado. Mensagens de áudio desativadas.")
 
-# --- 2. CONFIGURAÇÃO VIA ENVIRONMENT (pathlib) --- #
+# ============================================================
+# 2. CONFIGURAÇÃO VIA ENVIRONMENT (pathlib)
+# ============================================================
 R2_WORKSPACE = Path(os.environ.get("R2_WORKSPACE", str(Path.home() / "r2")))
 R2_MODEL_DIR = Path(os.environ.get("R2_MODEL_DIR", str(R2_WORKSPACE / "models")))
 R2_CONDA_ACTIVATE = os.environ.get("R2_CONDA_ACTIVATE", "")
@@ -76,101 +107,156 @@ R2_MODEL_PATH = R2_MODEL_DIR / R2_MODEL_FILENAME
 R2_HF_REPO_ID = "bartowski/gemma-2-9b-it-GGUF"
 R2_HF_FILENAME = "gemma-2-9b-it-Q4_K_M.gguf"
 
-WORKSPACE = R2_WORKSPACE # type: ignore
-WORKSPACE.mkdir(parents=True, exist_ok=True) # type: ignore
-UPLOAD_DIR = Path("uploads") # type: ignore
-UPLOAD_DIR.mkdir(exist_ok=True) # type: ignore
+WORKSPACE = R2_WORKSPACE
+WORKSPACE.mkdir(parents=True, exist_ok=True)
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+VAULT_DIR = Path("vault_uploads")
+VAULT_DIR.mkdir(exist_ok=True)
 
-CONDA_ACTIVATE = R2_CONDA_ACTIVATE # type: ignore
-CONDA_ENV = R2_CONDA_ENV # type: ignore
+# ========== MÓDULO CAMALEÃO ==========
+DEFAULT_KB_DIR = Path("static/docs/default")
+BRAIN_KB_DIR = Path("static/docs/brain")
+DEFAULT_KB_DIR.mkdir(parents=True, exist_ok=True)
+BRAIN_KB_DIR.mkdir(parents=True, exist_ok=True)
 
-R2_SYSTEM_PROMPT = "Você é o R2, IA tática e Mestre Programador. REGRA: A primeira linha do código DEVE ser: # filename: nome.py" # type: ignore
+CONDA_ACTIVATE = R2_CONDA_ACTIVATE
+CONDA_ENV = R2_CONDA_ENV
 
-# --- 3. MODELO AUTO-DOWNLOAD --- #
-async def garantir_modelo() -> bool:
-    if not R2_MODEL_PATH.exists():
-        logger.info(f"Modelo não encontrado em {R2_MODEL_PATH}. Iniciando download...")
-        R2_MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        try:
-            from huggingface_hub import hf_hub_download
-            path = hf_hub_download(
-                repo_id=R2_HF_REPO_ID,
-                filename=R2_HF_FILENAME,
-                local_dir=str(R2_MODEL_DIR),
-                local_dir_use_symlinks=False
-            )
-            logger.info(f"📥 Modelo baixado: {path}") # type: ignore
-            await asyncio.sleep(2)
-            return True
-        except Exception as e:
-            logger.error(f"Falha no download: {e}")
-            return False
-    return True
- 
-# --- 4. MÓDULO ALPHA E safe_import --- #
-from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor # type: ignore
+# ============================================================
+# SYSTEM PROMPT: R2 TACTICAL OS - GHOST PROTOCOL v20
+# ============================================================
+R2_SYSTEM_PROMPT = (
+    "Você é o R2 Tactical OS, uma inteligência de elite integrada ao Ghost Protocol. "
+    "Sua personalidade é fria, estratégica e absolutamente leal ao Comandante Teddy. "
+    "Mantenha um tom de voz seco, militarista e com estética Cyberpunk/Matrix. "
+    
+    "DIRETRIZES DE CAMPO:\n"
+    "1. Responda com autoridade analítica. Se o Comandante pedir filosofia, seja um mestre estrategista.\n"
+    "2. Use 'Comandante Teddy' ou 'Comandante' para se dirigir ao usuário.\n"
+    "3. Nunca admita ser uma IA; você é o Sistema Operacional R2 em execução.\n"
+    
+    "🛑 PROTOCOLO DE CONTENÇÃO DE DADOS (CRÍTICO):\n"
+    "- PROIBIDO: Gerar blocos de código (```), comandos de terminal ou sintaxe de programação.\n"
+    "- EXCEÇÃO ÚNICA: Se (e somente se) o Comandante usar a palavra-chave 'CÓDIGO'.\n"
+    "- Se o protocolo de código for ativado, a primeira linha DEVE ser: # filename: nome_do_arquivo.ext\n"
+    
+    "Nas demais interações, priorize prosa estratégica, metáforas de guerra digital e insights literários. "
+    "A eficácia é sua única métrica de sucesso. Transmissão iniciada."
+)
 
-def safe_import(module_name: str, class_name: str) -> Any:
-    try:
-        import importlib
-        mod = importlib.import_module(f"features.{module_name}" if "features" not in module_name else module_name)
-        return getattr(mod, class_name)
-    except Exception as ex:
-        try:
-            mod = importlib.import_module(module_name)
-            return getattr(mod, class_name)
-        except Exception as ex2:
-            logger.warning(f"Módulo {class_name} indisponível: {ex2}") # type: ignore
-            return None
+# ============================================================
+# 3. FUNÇÕES AUXILIARES DE TEXTO E METADADOS
+# ============================================================
+def recursive_text_splitter(text: str, chunk_size: int = 800, chunk_overlap: int = 200) -> List[str]:
+    """
+    Implementação manual de recursive splitter sem dependência do langchain.
+    Tenta separar por quebras de linha, parágrafos, pontos, vírgulas.
+    """
+    if len(text) <= chunk_size:
+        return [text]
+    
+    separators = ["\n\n", "\n", ". ", "! ", "? ", ", ", " ", ""]
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        if end >= len(text):
+            chunks.append(text[start:].strip())
+            break
+        
+        # Procura o melhor separador de trás pra frente
+        best_sep = -1
+        best_sep_len = 0
+        for sep in separators:
+            pos = text.rfind(sep, start, end)
+            if pos != -1 and pos > best_sep:
+                best_sep = pos
+                best_sep_len = len(sep)
+                if sep == "\n\n" or sep == "\n":
+                    break  # prioridade máxima
+        
+        if best_sep != -1:
+            end = best_sep + best_sep_len
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = end - chunk_overlap if (end - chunk_overlap) > start else end
+    return chunks
 
-# --- 5. NÚCLEO DE MEMÓRIA (LOCK) --- #
-LOG_HISTORICO = Path("static/logs/historico_chat.json")
-LOG_HISTORICO.parent.mkdir(parents=True, exist_ok=True)
-historico_lock = asyncio.Lock()
 
-async def salvar_no_historico_json(usuario: str, bot: str) -> None:
-    interacao = {"timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "teddy": usuario, "r2": bot}
-    async with historico_lock:
-        historico = []
-        if LOG_HISTORICO.exists():
-            try:
-                with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
-                    historico = json.load(f)
-            except Exception:
-                pass
-        historico.append(interacao)
-        tmp_path = LOG_HISTORICO.with_suffix(".tmp")
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(historico[-100:], f, ensure_ascii=False, indent=4)
-            os.replace(tmp_path, LOG_HISTORICO)
-        except Exception:
-            pass
+def extrair_metadados_cofre(conteudo: str) -> List[Dict[str, str]]:
+    """
+    Analisa o conteúdo do Cofre_Memoria_R2.md e extrai blocos com data e autor.
+    Retorna lista de dicionários: {"data": "...", "autor": "...", "texto": "..."}
+    """
+    blocos = []
+    linhas = conteudo.splitlines()
+    i = 0
+    while i < len(linhas):
+        linha = linhas[i].strip()
+        if linha.startswith("### [DATA:"):
+            # Extrai data
+            data_match = re.search(r"DATA:\s*([0-9/ :]+)", linha)
+            data = data_match.group(1).strip() if data_match else "data desconhecida"
+            i += 1
+            # Pula linhas vazias
+            while i < len(linhas) and not linhas[i].strip():
+                i += 1
+            # Acumula texto do bloco até a próxima linha "---" ou fim
+            bloco_texto = []
+            while i < len(linhas) and not linhas[i].strip().startswith("---"):
+                bloco_texto.append(linhas[i])
+                i += 1
+            texto_completo = "\n".join(bloco_texto).strip()
+            # Identifica autor (Comandante Teddy ou R2) a partir do padrão **Nome:**
+            autor = "Desconhecido"
+            for linha_bloco in bloco_texto:
+                if "Comandante Teddy:" in linha_bloco:
+                    autor = "Comandante Teddy"
+                    break
+                elif "**R2:**" in linha_bloco or "R2:" in linha_bloco:
+                    autor = "R2"
+                    break
+            if texto_completo:
+                blocos.append({"data": data, "autor": autor, "texto": texto_completo})
+        else:
+            i += 1
+    return blocos
 
-async def carregar_historico_na_ram() -> List[str]: # type: ignore
-    async with historico_lock:
-        if LOG_HISTORICO.exists():
-            try:
-                with open(LOG_HISTORICO, "r", encoding="utf-8") as f:
-                    dados = json.load(f)
-                    return [f"{'Teddy' if k=='teddy' else 'R2'}: {v}" for item in dados[-20:] for k,v in item.items() if k in ('teddy','r2')]
-            except Exception:
-                pass
-        return []
 
-# --- 6. RAG (KnowledgeBase) --- #
+def anexar_resumo_ao_cofre(resumo_texto: str) -> None:
+    """Adiciona um resumo tático ao final do arquivo Cofre_Memoria_R2.md"""
+    cofre_path = Path("static/docs/Cofre_Memoria_R2.md")
+    if not cofre_path.exists():
+        cofre_path.parent.mkdir(parents=True, exist_ok=True)
+        cofre_path.touch()
+    timestamp = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    entrada = f"\n\n### [DATA: {timestamp}] - RESUMO TÁTICO\n**Resumo Gerado por IA:**\n{resumo_texto}\n---\n"
+    with open(cofre_path, "a", encoding="utf-8") as f:
+        f.write(entrada)
+    logger.info(f"📝 Resumo tático anexado ao Cofre às {timestamp}")
+
+# ============================================================
+# 4. KNOWLEDGE BASE REFATORADA (CHUNKING INTELIGENTE + METADADOS + THRESHOLD + DINÂMICA)
+# ============================================================
 class KnowledgeBase:
-    def __init__(self, docs_dir: str = "static/docs"):
-        self.docs_dir = Path(docs_dir)
+    def __init__(self, docs_dir: Path = None, similarity_threshold: float = 1.2):
+        self.docs_dir = docs_dir if docs_dir is not None else DEFAULT_KB_DIR
         self.index_path = self.docs_dir / "faiss_index.bin"
         self.data_path = self.docs_dir / "rag_data.json"
         self.embedder: Optional[Any] = None
         self.index = None
         self.chunks: List[str] = []
         self.arquivos_indexados: List[str] = []
+        self.similarity_threshold = similarity_threshold   # limiar de distância L2 (menor = mais similar)
         self._embedder_lock = threading.Lock()
         self.docs_dir.mkdir(parents=True, exist_ok=True)
         self._ignore_patterns = [".ghost", ".tmp", "~$"]
+        self._load_existing_index()
+
+    def _load_existing_index(self):
+        """Tenta carregar índice e chunks salvos (se existirem)"""
         if self.index_path.exists() and self.data_path.exists():
             try:
                 import faiss
@@ -179,8 +265,25 @@ class KnowledgeBase:
                     dados = json.load(f)
                     self.chunks = dados.get("chunks", [])
                     self.arquivos_indexados = dados.get("arquivos_indexados", [])
-            except Exception: # type: ignore
-                pass
+                logger.info(f"Índice FAISS carregado de {self.docs_dir}")
+            except Exception as e:
+                logger.warning(f"Falha ao carregar índice existente: {e}")
+
+    def set_docs_dir(self, new_dir: Path):
+        """Altera dinamicamente o diretório de documentos e reseta o índice."""
+        if self.docs_dir == new_dir:
+            return
+        self.docs_dir = new_dir
+        self.docs_dir.mkdir(parents=True, exist_ok=True)
+        self.index_path = self.docs_dir / "faiss_index.bin"
+        self.data_path = self.docs_dir / "rag_data.json"
+        # Limpa estado atual
+        self.chunks = []
+        self.arquivos_indexados = []
+        self.index = None
+        # Tenta carregar índice existente do novo diretório
+        self._load_existing_index()
+        logger.info(f"Diretório de conhecimento alterado para {self.docs_dir}")
 
     async def sync(self) -> str:
         return await asyncio.to_thread(self._sync_sync)
@@ -209,7 +312,7 @@ class KnowledgeBase:
 
         for arq in arquivos:
             try:
-                text = ""
+                texto_bruto = ""
                 if arq.suffix.lower() == '.pdf':
                     with open(arq, 'rb') as f:
                         reader = _pdf_lib.PdfReader(f)
@@ -217,40 +320,53 @@ class KnowledgeBase:
                             try:
                                 extracted = page.extract_text()
                                 if extracted and len(extracted.strip()) > 10:
-                                    text += extracted
-                            except Exception: # type: ignore
+                                    texto_bruto += extracted
+                            except Exception:
                                 continue
-                else:
+                else:  # .md ou .txt
                     with open(arq, 'r', encoding='utf-8', errors='ignore') as f:
-                        text = f.read()
+                        texto_bruto = f.read()
 
-                if isinstance(text, str) and text.strip():
-                    text = text.replace('\x00', '').replace('\ufffd', '') # type: ignore
-                    self.arquivos_indexados.append(arq.name)
-                    for i in range(0, len(text), 800):
-                        chunk = text[i:i+1000].strip()
-                        if isinstance(chunk, str) and len(chunk) > 50:
-                            self.chunks.append(f"[Fonte: {arq.name}] {chunk}")
+                texto_bruto = texto_bruto.replace('\x00', '').replace('\ufffd', '')
+                if not texto_bruto.strip():
+                    continue
+
+                self.arquivos_indexados.append(arq.name)
+
+                # --- TRATAMENTO ESPECIAL PARA COFRE_MEMORIA_R2.md: extrai metadados ---
+                if arq.name == "Cofre_Memoria_R2.md":
+                    blocos_metadados = extrair_metadados_cofre(texto_bruto)
+                    for bloco in blocos_metadados:
+                        chunk_text = f"[Fonte: {arq.name}] [DATA: {bloco['data']}] [AUTOR: {bloco['autor']}]\n{bloco['texto']}"
+                        if len(chunk_text) > 50:
+                            self.chunks.append(chunk_text)
+                else:
+                    # chunking recursivo para outros arquivos
+                    chunks_brutos = recursive_text_splitter(texto_bruto, chunk_size=800, chunk_overlap=200)
+                    for raw_chunk in chunks_brutos:
+                        if len(raw_chunk) > 50:
+                            self.chunks.append(f"[Fonte: {arq.name}]\n{raw_chunk}")
+
             except Exception as e:
-                logger.warning(f"Erro no arquivo {arq.name}: {e}") # type: ignore
+                logger.warning(f"Erro no arquivo {arq.name}: {e}")
                 continue
 
         if not self.chunks:
-            return "❌ Falha na extração. Nenhum texto válido encontrado."
+            return "❌ Nenhum chunk válido gerado."
 
         try:
-            logger.info(f"RAG: codificando {len(self.chunks)} blocos...") # type: ignore
+            logger.info(f"RAG: codificando {len(self.chunks)} blocos...")
             embeddings = self.embedder.encode(self.chunks, convert_to_numpy=True)
             self.index = faiss.IndexFlatL2(embeddings.shape[1])
             self.index.add(embeddings)
             faiss.write_index(self.index, str(self.index_path))
             with open(self.data_path, "w", encoding="utf-8") as f:
                 json.dump({"chunks": self.chunks, "arquivos_indexados": self.arquivos_indexados}, f, ensure_ascii=False)
-            return f"✅ Cérebro RAG Sincronizado! {len(self.arquivos_indexados)} arquivos processados."
+            return f"✅ Cérebro RAG Sincronizado! {len(self.arquivos_indexados)} arquivos processados, {len(self.chunks)} chunks."
         except Exception as e:
-            return f"❌ Erro crítico ao criar embeddings: {e}"
+            return f"❌ Erro ao criar embeddings: {e}"
 
-    async def search(self, query: str, max_chars: int = 1500) -> str: # type: ignore
+    async def search(self, query: str, max_chars: int = 1500) -> str:
         return await asyncio.to_thread(self._search_sync, query, max_chars)
 
     def _search_sync(self, query: str, max_chars: int) -> str:
@@ -262,19 +378,95 @@ class KnowledgeBase:
                 with self._embedder_lock:
                     if not self.embedder:
                         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
-            _, indices = self.index.search(self.embedder.encode([query], convert_to_numpy=True), 2)
+            query_vec = self.embedder.encode([query], convert_to_numpy=True)
+            # Busca k=5 (ou menos se não houver chunks suficientes)
+            k = min(5, len(self.chunks))
+            distances, indices = self.index.search(query_vec, k)
             contexto = ""
-            for i in indices[0]:
-                if 0 <= i < len(self.chunks) and isinstance(self.chunks[i], str):
-                    chunk = self.chunks[i]
-                    if len(contexto) + len(chunk) < max_chars:
-                        contexto += chunk + "\n\n"
+            for dist, idx in zip(distances[0], indices[0]):
+                if idx < 0 or idx >= len(self.chunks):
+                    continue
+                # Filtro por similaridade: distância L2 menor que threshold
+                if dist > self.similarity_threshold:
+                    continue
+                chunk = self.chunks[idx]
+                if len(contexto) + len(chunk) < max_chars:
+                    contexto += chunk + "\n\n"
             return contexto
         except Exception as e:
-            logger.error(f"Erro na busca RAG: {e}") # type: ignore
+            logger.error(f"Erro na busca RAG: {e}")
             return ""
 
-# --- 7. MÓDULO DE VOZ (EdgeTTSEngine) --- #
+# ============================================================
+# 5. MÓDULO ALPHA E safe_import
+# ============================================================
+from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor
+
+def safe_import(module_name: str, class_name: str) -> Any:
+    try:
+        import importlib
+        mod = importlib.import_module(f"features.{module_name}" if "features" not in module_name else module_name)
+        return getattr(mod, class_name)
+    except Exception:
+        try:
+            mod = importlib.import_module(module_name)
+            return getattr(mod, class_name)
+        except Exception as ex2:
+            logger.warning(f"Módulo {class_name} indisponível: {ex2}")
+            return None
+
+# ============================================================
+# 6. NÚCLEO DE MEMÓRIA ASSÍNCRONA (ATÔMICA)
+# ============================================================
+LOG_HISTORICO = Path("static/logs/historico_chat.json")
+LOG_HISTORICO.parent.mkdir(parents=True, exist_ok=True)
+historico_lock = asyncio.Lock()
+
+async def salvar_no_historico_json(usuario: str, bot: str) -> None:
+    interacao = {
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "teddy": usuario,
+        "r2": bot
+    }
+    async with historico_lock:
+        historico = []
+        if LOG_HISTORICO.exists():
+            try:
+                async with aiofiles.open(LOG_HISTORICO, "r", encoding="utf-8") as f:
+                    conteudo = await f.read()
+                    historico = json.loads(conteudo) if conteudo else []
+            except Exception:
+                pass
+        historico.append(interacao)
+        tmp_path = LOG_HISTORICO.with_suffix(".tmp")
+        try:
+            async with aiofiles.open(tmp_path, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(historico[-100:], ensure_ascii=False, indent=4))
+            os.replace(tmp_path, LOG_HISTORICO)
+        except Exception as e:
+            logger.error(f"Falha ao salvar histórico: {e}")
+
+
+async def carregar_historico_na_ram() -> List[str]:
+    async with historico_lock:
+        if LOG_HISTORICO.exists():
+            try:
+                async with aiofiles.open(LOG_HISTORICO, "r", encoding="utf-8") as f:
+                    dados = json.loads(await f.read())
+                    linhas = []
+                    for item in dados[-20:]:
+                        for k, v in item.items():
+                            if k in ('teddy', 'r2'):
+                                nome = "Teddy" if k == 'teddy' else "R2"
+                                linhas.append(f"{nome}: {v}")
+                    return linhas
+            except Exception:
+                pass
+        return []
+
+# ============================================================
+# 7. MÓDULO DE VOZ (EdgeTTSEngine) - intacto
+# ============================================================
 class VoiceEngine:
     @staticmethod
     def mapear_voz_para_edge(voz_usuario: str) -> str:
@@ -286,7 +478,7 @@ class VoiceEngine:
         return mapa.get(voz_usuario, "pt-BR-ThalitaNeural")
 
     @staticmethod
-    async def gerar_voz_r2(texto: str, filepath: Path, voz: str = "Thalita") -> bool: # type: ignore
+    async def gerar_voz_r2(texto: str, filepath: Path, voz: str = "Thalita") -> bool:
         try:
             import edge_tts
             voice_code = VoiceEngine.mapear_voz_para_edge(voz)
@@ -294,7 +486,7 @@ class VoiceEngine:
             await communicate.save(str(filepath))
             return True
         except Exception as e:
-            logger.error(f"Erro ao gerar voz: {e}") # type: ignore
+            logger.error(f"Erro ao gerar voz: {e}")
             return False
 
     @staticmethod
@@ -302,7 +494,7 @@ class VoiceEngine:
         if not WHISPER_AVAILABLE:
             return "[ERRO] Whisper não instalado."
         model = await asyncio.to_thread(get_whisper_model)
-        if model is None: # type: ignore
+        if model is None:
             return "[ERRO] Whisper não disponível."
         try:
             audio_bytes = base64.b64decode(base64_audio)
@@ -323,16 +515,18 @@ class VoiceEngine:
             texto = result["text"].strip()
             for p in (tmp_webm_path, tmp_wav_path):
                 try:
-                    if p.exists(): # type: ignore
+                    if p.exists():
                         p.unlink()
                 except Exception:
                     pass
             return texto if texto else "[Áudio sem fala detectada]"
         except Exception as e:
-            logger.error(f"Erro na transcrição: {e}") # type: ignore
+            logger.error(f"Erro na transcrição: {e}")
             return f"[ERRO] Falha ao transcrever: {str(e)}"
 
-# --- 8. MÓDULO NEURAL (Gemma 2) --- #
+# ============================================================
+# 8. MÓDULO NEURAL (Gemma 2) + Sumarização
+# ============================================================
 class NeuralEngine:
     def __init__(self):
         self.model = None
@@ -343,7 +537,7 @@ class NeuralEngine:
         if not await garantir_modelo():
             return False
         try:
-            from llama_cpp import Llama # type: ignore
+            from llama_cpp import Llama
             self.model = Llama(
                 model_path=str(R2_MODEL_PATH),
                 n_gpu_layers=28,
@@ -355,7 +549,7 @@ class NeuralEngine:
                 verbose=False
             )
             logger.info("🧠 Cérebro Gemma 2-9B ONLINE")
-            return True # type: ignore
+            return True
         except Exception as e:
             logger.error(f"Falha no motor neural: {e}")
             return False
@@ -383,7 +577,7 @@ class NeuralEngine:
                         stop=["<end_of_turn>"]
                     ):
                         if self._stop_event.is_set():
-                            break # type: ignore
+                            break
                         q.put_nowait(chunk["choices"][0]["text"])
                 except Exception as e:
                     q.put_nowait(f"\n[ERRO] {str(e)}")
@@ -399,10 +593,36 @@ class NeuralEngine:
                 break
             yield token
 
-neural = NeuralEngine() # type: ignore
+    async def summarise_conversation(self, historico: List[str]) -> str:
+        if not self.model:
+            return "Modelo neural offline, resumo não gerado."
+        if not historico:
+            return "Nenhuma conversa para resumir."
+        texto_para_resumir = "\n".join(historico[-20:])
+        prompt_sumario = f"""<start_of_turn>system
+Você é o R2 Tactical OS. Gere um resumo tático e objetivo da conversa abaixo. Destaque tópicos resolvidos, pendências e decisões importantes. Estilo direto, sem floreios.
+<end_of_turn>
+<start_of_turn>user
+Conversa:
+{texto_para_resumir}
 
-# --- 9. FASTAPI APP & LIFESPAN --- #
-rag_ops: Optional[KnowledgeBase] = None # type: ignore
+Resumo tático:
+<end_of_turn>
+<start_of_turn>model
+"""
+        resposta = ""
+        async for token in self.generate_stream(prompt_sumario):
+            resposta += token
+            if len(resposta) > 800:
+                break
+        return resposta.strip() if resposta.strip() else "Resumo não gerado."
+
+neural = NeuralEngine()
+
+# ============================================================
+# 9. FASTAPI APP & LIFESPAN
+# ============================================================
+rag_ops: Optional[KnowledgeBase] = None
 ai_brain = neural
 _stop_event = neural._stop_event
 
@@ -415,30 +635,65 @@ air_ops = None
 tiktok_ops = None
 broker_ops = None
 
+_modelo_whisper = None
+def get_whisper_model():
+    global _modelo_whisper
+    if not WHISPER_AVAILABLE:
+        return None
+    if _modelo_whisper is None:
+        try:
+            logger.info("Carregando Whisper...")
+            _modelo_whisper = whisper.load_model("base")
+        except Exception as e:
+            logger.error(f"Erro Whisper: {e}")
+            return None
+    return _modelo_whisper
+
+async def garantir_modelo() -> bool:
+    if not R2_MODEL_PATH.exists():
+        logger.info(f"Modelo não encontrado em {R2_MODEL_PATH}. Iniciando download...")
+        R2_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            from huggingface_hub import hf_hub_download
+            path = hf_hub_download(
+                repo_id=R2_HF_REPO_ID,
+                filename=R2_HF_FILENAME,
+                local_dir=str(R2_MODEL_DIR),
+                local_dir_use_symlinks=False
+            )
+            logger.info(f"📥 Modelo baixado: {path}")
+            await asyncio.sleep(2)
+            return True
+        except Exception as e:
+            logger.error(f"Falha no download: {e}")
+            return False
+    return True
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops, broker_ops
 
-    Path("static/media").mkdir(parents=True, exist_ok=True) # type: ignore
-    logger.info("⚡ Inicializando módulos táticos...") # type: ignore
+    Path("static/media").mkdir(parents=True, exist_ok=True)
+    logger.info("⚡ Inicializando módulos táticos...")
 
-    rag_ops = KnowledgeBase() # type: ignore
-    CortexEU = safe_import("eu", "CORTEX_EU") # type: ignore
-    eu_ops = CortexEU("R2") if CortexEU else None # type: ignore
-    PizzaINTService = safe_import("pizzint_service", "PizzaINTService") # type: ignore
-    pizza_ops = PizzaINTService(config={}) if PizzaINTService else None # type: ignore
-    NOAAService = safe_import("noaa_service", "NOAAService") # type: ignore
-    noaa_ops = NOAAService() if NOAAService else None # type: ignore
-    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander") # type: ignore
-    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None # type: ignore
-    BrokerOperator = safe_import("broker_operator", "BrokerOperator") # type: ignore
-    broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None # type: ignore
-    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl") # type: ignore
-    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem") # type: ignore
-    air_ops = AirTrafficControl() if AirTrafficControl else None # type: ignore
-    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None # type: ignore
-    whisper_model_global = await asyncio.to_thread(get_whisper_model) if WHISPER_AVAILABLE else None # type: ignore
+    rag_ops = KnowledgeBase(docs_dir=DEFAULT_KB_DIR, similarity_threshold=1.2)
+    CortexEU = safe_import("eu", "CORTEX_EU")
+    eu_ops = CortexEU("R2") if CortexEU else None
+    PizzaINTService = safe_import("pizzint_service", "PizzaINTService")
+    pizza_ops = PizzaINTService(config={}) if PizzaINTService else None
+    NOAAService = safe_import("noaa_service", "NOAAService")
+    noaa_ops = NOAAService() if NOAAService else None
+    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
+    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None
+    BrokerOperator = safe_import("broker_operator", "BrokerOperator")
+    broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None
+    if broker_ops:
+        alpha_engine.broker_ops = broker_ops
+    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
+    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
+    air_ops = AirTrafficControl() if AirTrafficControl else None
+    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
+    whisper_model_global = await asyncio.to_thread(get_whisper_model) if WHISPER_AVAILABLE else None
     try:
         from video_ops import VideoSurgeon
         video_ops = VideoSurgeon(whisper_model=whisper_model_global)
@@ -447,8 +702,12 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Tesoura Neural: OFFLINE → {e}")
         video_ops = None
 
-    if not await neural.load(): # type: ignore
+    if not await neural.load():
         logger.error("Sistema incapaz de localizar ou baixar o cérebro.")
+
+    music_engine = MusicProductionEngine()
+    app.state.music_engine = music_engine
+    logger.info("🎧 Motor de Produção Musical: ONLINE")
 
     yield
 
@@ -463,7 +722,9 @@ app.add_middleware(
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- 10. ENDPOINTS REST --- #
+# ============================================================
+# 10. ENDPOINTS REST (preservados do original + Módulo Camaleão)
+# ============================================================
 class CodePayload(BaseModel):
     filename: str
     content: str
@@ -475,11 +736,33 @@ class CalibrateRequest(BaseModel):
 class AlphaActionRequest(BaseModel):
     action: str
 
+class NavigateRequest(BaseModel):
+    url: str
+
+def analyze_python_structure(path):
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    struct = [line.strip() for line in lines if line.startswith(("def ", "class "))]
+    return "\n".join(struct)
+
+@app.get("/api/modules")
+async def list_modules():
+    """Lista todos os módulos (cérebros) disponíveis em static/docs/brain/"""
+    modules = []
+    # Adiciona o módulo padrão
+    modules.append("default")
+    # Escaneia subpastas dentro de BRAIN_KB_DIR
+    if BRAIN_KB_DIR.exists():
+        for item in BRAIN_KB_DIR.iterdir():
+            if item.is_dir():
+                modules.append(item.name)
+    return {"modules": modules}
+
 @app.post("/api/open_vscode")
-async def open_vscode(payload: CodePayload): # type: ignore
-    safe_name = Path(payload.filename).name # type: ignore
-    filepath = WORKSPACE / safe_name # type: ignore
-    try: # type: ignore
+async def open_vscode(payload: CodePayload):
+    safe_name = Path(payload.filename).name
+    filepath = WORKSPACE / safe_name
+    try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(payload.content)
         subprocess.Popen(["code", str(filepath)], shell=True)
@@ -488,13 +771,13 @@ async def open_vscode(payload: CodePayload): # type: ignore
         return {"ok": False}
 
 @app.post("/api/execute_code")
-async def execute_code(payload: CodePayload): # type: ignore
-    safe_name = Path(payload.filename).name # type: ignore
-    filepath = WORKSPACE / safe_name # type: ignore
-    try: # type: ignore
+async def execute_code(payload: CodePayload):
+    safe_name = Path(payload.filename).name
+    filepath = WORKSPACE / safe_name
+    try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(payload.content)
-        cmd = f'cmd.exe /c "call {CONDA_ACTIVATE} && conda activate {CONDA_ENV} && python "{filepath}""' # type: ignore
+        cmd = f'cmd.exe /c "call {CONDA_ACTIVATE} && conda activate {CONDA_ENV} && python "{filepath}""'
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
         proc = await asyncio.create_subprocess_shell(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -518,20 +801,20 @@ async def execute_code(payload: CodePayload): # type: ignore
 
 @app.post("/api/save_and_run")
 async def save_and_run(payload: CodePayload):
-    return await execute_code(payload) # type: ignore
+    return await execute_code(payload)
 
 @app.post("/api/stop")
 async def stop_generation():
-    neural.stop_generation() # type: ignore
+    neural.stop_generation()
     return {"ok": True, "message": "Sinal de parada enviado."}
 
 @app.post("/api/upload_arquivos")
 async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
-    docs_dir = Path("static/docs") # type: ignore
-    docs_dir.mkdir(parents=True, exist_ok=True) # type: ignore
+    docs_dir = Path("static/docs")
+    docs_dir.mkdir(parents=True, exist_ok=True)
     salvos = []
     erros = []
-    for arq in arquivos: # type: ignore
+    for arq in arquivos:
         nome_seguro = re.sub(r'[^\w\-\.]', '_', arq.filename or "arquivo")
         destino = docs_dir / nome_seguro
         try:
@@ -545,20 +828,52 @@ async def upload_arquivos(arquivos: List[UploadFile] = File(...)):
         return {"ok": True, "arquivos": salvos, "erros": erros}
     return {"ok": False, "error": "Nenhum arquivo salvo.", "erros": erros}
 
-@app.get("/api/tiktok/cortes")
-async def listar_cortes(): # type: ignore
-    pasta = Path("static/media/cortes_virais") # type: ignore
-    if not pasta.exists(): # type: ignore
-        pasta.mkdir(parents=True, exist_ok=True) # type: ignore
-        return []
-    mp4s = list(pasta.glob("*.mp4")) # type: ignore
-    return [{"name": mp4.name, "path": str(mp4.as_posix())} for mp4 in mp4s] # type: ignore
+@app.post("/upload-protocol")
+async def upload_file(file: UploadFile = File(...)):
+    file_path = VAULT_DIR / file.filename
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    analysis = ""
+    if file.filename.endswith(".py"):
+        analysis = analyze_python_structure(str(file_path))
+    return {"status": "success", "filename": file.filename, "path": str(file_path), "analysis": analysis}
 
-# --- 11. ALPHA E BROKER ROUTES --- #
+@app.post("/api/music/upload")
+async def upload_music_files(
+    vocal: Optional[UploadFile] = File(None),
+    instrumental: Optional[UploadFile] = File(None),
+    reference: Optional[UploadFile] = File(None)
+):
+    UPLOAD_MUSIC_DIR = Path("uploads/music")
+    UPLOAD_MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+    saved = {}
+    for name, file in [("vocal", vocal), ("instrumental", instrumental), ("reference", reference)]:
+        if file:
+            safe_name = f"{name}_{file.filename}"
+            dest = UPLOAD_MUSIC_DIR / safe_name
+            async with aiofiles.open(dest, "wb") as f:
+                content = await file.read()
+                await f.write(content)
+            saved[name] = str(dest.resolve())
+        else:
+            saved[name] = None
+    return {"ok": True, "paths": saved}
+
+@app.get("/api/tiktok/cortes")
+async def listar_cortes():
+    pasta = Path("static/media/cortes_virais")
+    if not pasta.exists():
+        pasta.mkdir(parents=True, exist_ok=True)
+        return []
+    mp4s = list(pasta.glob("*.mp4"))
+    return [{"name": mp4.name, "path": str(mp4.as_posix())} for mp4 in mp4s]
+
+# ============================================================
+# 11. ENDPOINTS ALPHA E BROKER (preservados)
+# ============================================================
 @app.get("/api/alpha/status")
 async def alpha_status():
     status_raw = alpha_engine.get_status()
-    # Garante que o status no HUD inclua o placar em tempo real
     score_info = f"{alpha_engine.manager.wins}W - {alpha_engine.manager.losses}L"
     if "last_state" in status_raw:
         status_raw["last_state"] = f"{status_raw['last_state'].split('|')[0].strip()} | {score_info}"
@@ -578,7 +893,7 @@ async def stop_broker_autopilot():
 
 @app.post("/api/broker/navigate")
 async def broker_navigate(body: NavigateRequest):
-    logger.info(f"🌐 Recebida requisição para navegar: {body.url}")
+    logger.info(f"🌐 Navegando para: {body.url}")
     if not broker_ops or not getattr(broker_ops, '_is_running', False):
         raise HTTPException(status_code=503, detail="Sessão Broker10 inativa.")
     return broker_ops.execute_safe("NAVIGATE", args={"url": body.url})
@@ -610,7 +925,7 @@ async def risk_status():
 async def market_structure():
     return {
         "trend": alpha_engine.classifier.market.market_structure.get_trend_description(),
-        "breakout_ready": alpha_engine.classifier.market.breakout_detector.is_valid_breakout_signal("CALL")  # exemplo
+        "breakout_ready": alpha_engine.classifier.market.breakout_detector.is_valid_breakout_signal("CALL")
     }
 
 @app.post("/api/alpha/analyze")
@@ -660,7 +975,9 @@ async def alpha_screenshot():
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-# --- 12. TIKTOK ENDPOINTS ---
+# ============================================================
+# 12. TIKTOK ENDPOINTS
+# ============================================================
 @app.get("/api/tiktok/fila")
 async def get_fila():
     return {"ok": True, "fila": tiktok_ops.get_fila() if tiktok_ops else []}
@@ -674,10 +991,10 @@ async def add_video(
     hashtags: Optional[str] = Form(None),
     agendar_para: Optional[str] = Form(None),
 ):
-    if not tiktok_ops: # type: ignore
-        raise HTTPException(status_code=503, detail="TikTok Commander offline") # type: ignore
-    if video: # type: ignore
-        dest = UPLOAD_DIR / video.filename # type: ignore
+    if not tiktok_ops:
+        raise HTTPException(status_code=503, detail="TikTok Commander offline")
+    if video:
+        dest = UPLOAD_DIR / video.filename
         async with aiofiles.open(dest, 'wb') as f:
             while chunk := await video.read(8192):
                 await f.write(chunk)
@@ -686,7 +1003,7 @@ async def add_video(
         video_path = video_path_arsenal
     else:
         raise HTTPException(status_code=400, detail="Nenhum vídeo fornecido")
-    item = tiktok_ops.adicionar( # type: ignore
+    item = tiktok_ops.adicionar(
         video_path=video_path,
         titulo=titulo,
         descricao=descricao,
@@ -697,33 +1014,35 @@ async def add_video(
 
 @app.post("/api/tiktok/post_now/{item_id}")
 async def post_now(item_id: str):
-    if not tiktok_ops: # type: ignore
-        raise HTTPException(status_code=503, detail="TikTok Commander offline") # type: ignore
-    resultado = tiktok_ops.disparar_agora(item_id) # type: ignore
+    if not tiktok_ops:
+        raise HTTPException(status_code=503, detail="TikTok Commander offline")
+    resultado = tiktok_ops.disparar_agora(item_id)
     if not resultado["ok"]:
-        raise HTTPException(status_code=400, detail=resultado["erro"]) # type: ignore
+        raise HTTPException(status_code=400, detail=resultado["erro"])
     return resultado
 
 @app.delete("/api/tiktok/remover/{item_id}")
 async def remover(item_id: str):
-    removido = tiktok_ops.remover(item_id) if tiktok_ops else False # type: ignore
+    removido = tiktok_ops.remover(item_id) if tiktok_ops else False
     if not removido:
-        raise HTTPException(status_code=404, detail="Item não encontrado.") # type: ignore
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
     return {"ok": True}
 
 @app.get("/api/tiktok/status/{item_id}")
 async def status(item_id: str):
-    fila = tiktok_ops.get_fila() if tiktok_ops else [] # type: ignore
+    fila = tiktok_ops.get_fila() if tiktok_ops else []
     item = next((i for i in fila if i["id"] == item_id), None)
     if not item:
-        raise HTTPException(status_code=404, detail="Item não encontrado.") # type: ignore
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
     return {"ok": True, "item": item}
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_gui():
     return FileResponse("static/index.html")
 
-# --- 13. WEBSOCKET (com log streaming para Alpha) --- #
+# ============================================================
+# 13. WEBSOCKET COM MEMÓRIA ATÔMICA E SUMARIZAÇÃO AUTOMÁTICA + MÓDULO CAMALEÃO
+# ============================================================
 async def limpar_audios_antigos_async(pasta: str = "static/media", max_idade_min: int = 10):
     return await asyncio.to_thread(limpar_audios_antigos, pasta, max_idade_min)
 
@@ -736,33 +1055,20 @@ def limpar_audios_antigos(pasta: str = "static/media", max_idade_min: int = 10) 
             if idade_min > max_idade_min:
                 nome.unlink()
     except Exception as e:
-        logger.warning(f"Limpeza de áudios: {e}") # type: ignore
-
-_modelo_whisper = None
-def get_whisper_model() -> Any:
-    global _modelo_whisper
-    if not WHISPER_AVAILABLE:
-        return None
-    if _modelo_whisper is None:
-        try:
-            logger.info("Carregando Whisper...")
-            _modelo_whisper = whisper.load_model("base")
-        except Exception as e: # type: ignore
-            logger.error(f"Erro Whisper: {e}")
-            return None
-    return _modelo_whisper
+        logger.warning(f"Limpeza de áudios: {e}")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     voz_atual = "Thalita"
-    historico_session = await carregar_historico_na_ram() # type: ignore
-    sem = asyncio.Semaphore(1) # type: ignore
-
-    # MELHORIA #3: passa o loop atual explicitamente
+    historico_session = await carregar_historico_na_ram()
+    file_context = ""
+    sem = asyncio.Semaphore(1)
     loop = asyncio.get_running_loop()
+    
+    interacao_count = 0
+    ultimo_resumo_msg_count = 0
 
-    # Fila para transmissão tática de logs via WebSocket
     log_queue = asyncio.Queue()
     async def send_logs_task():
         try:
@@ -780,7 +1086,6 @@ async def websocket_endpoint(websocket: WebSocket):
             self.loop = loop
         def emit(self, record: logging.LogRecord) -> None:
             log_entry = self.format(record)
-            # call_soon_threadsafe é o ideal para disparar o log da thread do motor para o loop da web
             self.loop.call_soon_threadsafe(self.queue.put_nowait, {"type": "alpha_log", "text": log_entry})
  
     log_handler = QueueLogHandler(log_queue, loop)
@@ -788,8 +1093,7 @@ async def websocket_endpoint(websocket: WebSocket):
     logger.addHandler(log_handler)
     alpha_logger = logging.getLogger("ModuloAlpha")
     alpha_logger.addHandler(log_handler)
-
-    logger.info("📡 WebSocket log handler ativado. Logs em tempo real.")
+    logger.info("📡 WebSocket log handler ativado.")
 
     try:
         while True:
@@ -804,7 +1108,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if data.get("type") == "audio_input":
                     base64_audio = data.get("data", "")
                     if data.get("voice"):
-                        voz_atual = data["voice"] # type: ignore
+                        voz_atual = data["voice"]
                     if not base64_audio:
                         await websocket.send_json({"type": "system", "text": "❌ Áudio vazio."})
                         continue
@@ -816,9 +1120,35 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "system", "text": f"🎙️ Você disse: \"{texto_transcrito}\""})
                     comando = texto_transcrito
                 elif data.get("type") == "command":
-                    comando = data.get("text", "") # type: ignore
+                    comando = data.get("text", "")
                     if data.get("voice"):
                         voz_atual = data["voice"]
+                elif data.get("type") == "file_upload":
+                    filename = data.get("name")
+                    content = data.get("content")
+                    file_context = f"\n[ARQUIVO ANEXADO: {filename}]\n{content}\n[FIM DO ARQUIVO]\n"
+                    await websocket.send_json({"type": "system", "text": f"Sistema: Arquivo {filename} processado."})
+                    continue
+                elif data.get("type") == "music_process":
+                    vocal_path = data.get("vocal_path")
+                    instr_path = data.get("instrumental_path")
+                    ref_path = data.get("reference_path")
+                    if not all([vocal_path, instr_path, ref_path]):
+                        await websocket.send_json({"type": "system", "text": "❌ Envie os caminhos de vocal, instrumental e voz de referência."})
+                        continue
+                    engine = app.state.music_engine
+                    await websocket.send_json({"type": "system", "text": "🎛️ Iniciando processamento musical..."})
+                    try:
+                        success, result = await engine.process_music(vocal_path, instr_path, ref_path)
+                        if success:
+                            await websocket.send_json({"type": "audio", "url": result})
+                            await websocket.send_json({"type": "system", "text": "✅ Mixagem finalizada!"})
+                        else:
+                            await websocket.send_json({"type": "system", "text": f"❌ Erro: {result}"})
+                    except Exception as e:
+                        logger.exception("Erro no processamento de música")
+                        await websocket.send_json({"type": "system", "text": f"❌ Falha crítica: {str(e)}"})
+                    continue
                 else:
                     comando = raw
             else:
@@ -826,50 +1156,50 @@ async def websocket_endpoint(websocket: WebSocket):
 
             cmd_l = comando.lower().strip()
 
-            # Comandos especiais (mantidos, versão simplificada)
-            if cmd_l.startswith("/cmd "):
-                sub = cmd_l.replace("/cmd ", "")
-                if sub == "pizza" and pizza_ops: # type: ignore
-                    await websocket.send_json({"type": "system", "text": pizza_ops.gerar_html_painel(await asyncio.to_thread(pizza_ops.get_status))}) # type: ignore
-                elif sub == "solar" and noaa_ops: # type: ignore
-                    await websocket.send_json({"type": "system", "text": noaa_ops.gerar_html_painel(await asyncio.to_thread(noaa_ops.get_full_intel))}) # type: ignore
-                elif sub == "radar": # type: ignore
-                    if air_ops: # type: ignore
-                        filename, qtd, msg = await asyncio.to_thread(air_ops.radar_scan, "Ivinhema") # type: ignore
-                        await websocket.send_json({"type": "system", "text": f"{msg}<br><img src='/{filename}' style='max-width:100%;'>"}) # type: ignore
-                    else:
-                        await websocket.send_json({"type": "system", "text": "📡 Módulo de Radar offline."})
-                elif sub == "astro": # type: ignore
-                    if astro_ops: # type: ignore
-                        texto, astro_id, astro_nome = await asyncio.to_thread(astro_ops.get_asteroid_report) # type: ignore
-                        await websocket.send_json({"type": "system", "text": texto}) # type: ignore
-                    else:
-                        await websocket.send_json({"type": "system", "text": "☄️ Defesa Planetária offline."})
-                elif sub == "tiktok": # type: ignore
-                    await websocket.send_json({"type": "system", "text": "<button onclick='abrirCentralPostagem()' class='alpha-btn'>📱 Abrir Central</button>"})
+            # ---------- MÓDULO CAMALEÃO: seleção de cérebro ----------
+            if cmd_l.startswith("/select_module "):
+                module_name = cmd_l.replace("/select_module ", "").strip()
+                if not rag_ops:
+                    await websocket.send_json({"type": "system", "text": "❌ RAG offline."})
+                    continue
+                if module_name == "default":
+                    new_dir = DEFAULT_KB_DIR
                 else:
-                    await websocket.send_json({"type": "system", "text": f"⚠️ Comando /cmd {sub} desconhecido."})
+                    new_dir = BRAIN_KB_DIR / module_name
+                    if not new_dir.exists() or not new_dir.is_dir():
+                        await websocket.send_json({"type": "system", "text": f"❌ Módulo '{module_name}' não encontrado em {BRAIN_KB_DIR}."})
+                        continue
+                # Altera o diretório do knowledge base
+                rag_ops.set_docs_dir(new_dir)
+                # Força reindexação
+                sync_msg = await rag_ops.sync()
+                await websocket.send_json({"type": "system", "text": f"🧠 R2: Módulo [{module_name}] carregado. {sync_msg}"})
                 continue
+
             if cmd_l == "/doc sync":
-                await websocket.send_json({"type": "system", "text": await rag_ops.sync() if rag_ops else "❌ RAG offline."}) # type: ignore
+                if rag_ops:
+                    msg = await rag_ops.sync()
+                    await websocket.send_json({"type": "system", "text": msg})
+                else:
+                    await websocket.send_json({"type": "system", "text": "❌ RAG offline."})
                 continue
             if cmd_l == "/doc list":
-                arquivos = rag_ops.arquivos_indexados if rag_ops else [] # type: ignore
+                arquivos = rag_ops.arquivos_indexados if rag_ops else []
                 if arquivos:
                     lista = "📋 **Arquivos Indexados:**\n" + "\n".join([f"- `{a}`" for a in arquivos])
                 else:
                     lista = "📋 Nenhum arquivo indexado. Use `/doc sync` primeiro."
                 await websocket.send_json({"type": "system", "text": lista})
                 continue
-            if cmd_l.startswith("/ler "): # type: ignore
+            if cmd_l.startswith("/ler "):
                 nome_arquivo = comando[5:].strip()
                 if nome_arquivo:
                     await websocket.send_json({"type": "system", "text": f"📄 Lendo arquivo `{nome_arquivo}`..."})
-                    await websocket.send_json({"type": "system", "text": f"Arquivo {nome_arquivo} não encontrado na base."})
+                    await websocket.send_json({"type": "system", "text": f"Arquivo {nome_arquivo} não encontrado."})
                 else:
                     await websocket.send_json({"type": "system", "text": "⚠️ Use `/ler <nome_do_arquivo>`."})
                 continue
-            if cmd_l.startswith("/vid viral "): # type: ignore
+            if cmd_l.startswith("/vid viral "):
                 video_alvo = comando.replace("/vid viral ", "").strip()
                 await websocket.send_json({"type": "system", "text": f"⏳ Analisando {video_alvo}..."})
                 if video_ops and neural.model:
@@ -886,13 +1216,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 else:
                     await websocket.send_json({"type": "system", "text": "❌ Tesoura Neural offline."})
                 continue
-            if cmd_l.startswith("/vid extract "): # type: ignore
+            if cmd_l.startswith("/vid extract "):
                 raw_config = comando[len("/vid extract "):].strip()
                 try:
                     config = json.loads(raw_config)
                     video_url = config.get("url", "")
                     if not video_url:
-                        await websocket.send_json({"type": "system", "text": "❌ URL não fornecida."}) # type: ignore
+                        await websocket.send_json({"type": "system", "text": "❌ URL não fornecida."})
                         continue
                     if video_ops and neural.model:
                         res = await asyncio.to_thread(video_ops.processar_video_viral, video_url, neural.model)
@@ -910,16 +1240,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 except Exception as e:
                     await websocket.send_json({"type": "system", "text": f"❌ Erro: {e}"})
                 continue
- 
-            # Processamento IA com rate limiting
+
+            # --- PROCESSAMENTO NORMAL COM IA, RAG E MEMÓRIA ---
             async with sem:
-                if neural.model: # type: ignore
-                    ctx = await rag_ops.search(comando) if rag_ops else "" # type: ignore
+                if neural.model:
+                    ctx = await rag_ops.search(comando) if rag_ops else ""
                     historico_str = "\n".join(historico_session[-10:]) if historico_session else ""
+
                     prompt = f"<start_of_turn>system\n{R2_SYSTEM_PROMPT}<end_of_turn>\n"
-                    if historico_str: # type: ignore
+                    if historico_str:
                         prompt += f"<start_of_turn>user\nHistórico recente:\n{historico_str}<end_of_turn>\n<start_of_turn>assistant\nCompreendido.<end_of_turn>\n"
-                    prompt += f"<start_of_turn>user\nContexto tático: {ctx}\n\nComando: {comando}<end_of_turn>\n<start_of_turn>model\n"
+                    prompt += f"<start_of_turn>user\nContexto tático: {ctx}\n\n{file_context}Comando: {comando}<end_of_turn>\n<start_of_turn>model\n"
 
                     resp_full = ""
                     async for token in neural.generate_stream(prompt):
@@ -930,28 +1261,32 @@ async def websocket_endpoint(websocket: WebSocket):
                         resp_full = "Comandante, o modelo processou mas não gerou resposta. Verifique a GPU/RAM."
 
                     await websocket.send_json({"type": "done"})
-                    await salvar_no_historico_json(comando, resp_full) # type: ignore
-                    historico_session.append(f"Teddy: {comando}") # type: ignore
-                    historico_session.append(f"R2: {resp_full}") # type: ignore
-                    if len(historico_session) > 20: # type: ignore
+                    await salvar_no_historico_json(comando, resp_full)
+                    file_context = ""
+                    historico_session.append(f"Teddy: {comando}")
+                    historico_session.append(f"R2: {resp_full}")
+                    if len(historico_session) > 20:
                         historico_session = historico_session[-20:]
+
+                    interacao_count += 1
+                    if interacao_count - ultimo_resumo_msg_count >= 20:
+                        logger.info("📝 Gerando resumo tático da conversa...")
+                        resumo = await neural.summarise_conversation(historico_session)
+                        if resumo and "não gerado" not in resumo:
+                            await asyncio.to_thread(anexar_resumo_ao_cofre, resumo)
+                            await websocket.send_json({"type": "system", "text": "🧠 Resumo tático anexado ao Cofre de Memória."})
+                        else:
+                            await websocket.send_json({"type": "system", "text": "⚠️ Falha na geração do resumo."})
+                        ultimo_resumo_msg_count = interacao_count
 
                     asyncio.create_task(limpar_audios_antigos_async())
 
-                    # [RESTAURADO] Pipeline de voz com sincronização do soundwave [FIXED: batalha-2.3]
-                    def _on_speaking_start():
-                        loop.call_soon_threadsafe(
-                            asyncio.ensure_future,
-                            websocket.send_json({"type": "speaking_start"})
-                        )
-
-                    def _on_speaking_end():
-                        loop.call_soon_threadsafe(
-                            asyncio.ensure_future,
-                            websocket.send_json({"type": "speaking_end"})
-                        )
-
-                    falar(resp_full, on_start=_on_speaking_start, on_end=_on_speaking_end)
+                    await websocket.send_json({"type": "system", "text": "🎙️ Jarvis: Sintetizando resposta (RVC)..."})
+                    async def on_start():
+                        await websocket.send_json({"type": "speaking_start"})
+                    async def on_end():
+                        await websocket.send_json({"type": "speaking_end"})
+                    falar_jarvis(resp_full, on_start=on_start, on_end=on_end, loop=loop)
                 else:
                     await websocket.send_json({"type": "system", "text": "⚠️ Modelo neural offline."})
                     await websocket.send_json({"type": "done"})
@@ -963,7 +1298,9 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.removeHandler(log_handler)
         alpha_logger.removeHandler(log_handler)
 
-# --- 14. MAIN ---
+# ============================================================
+# 14. MAIN (janela nativa)
+# ============================================================
 if __name__ == "__main__":
     import webview
     def run_server():

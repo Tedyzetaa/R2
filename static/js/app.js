@@ -21,6 +21,7 @@ let audioChunks = [];
 let isRecording = false;
 let configVoice = "Thalita";
 let configDriver = "Padrão";
+let musicUploadedPaths = { vocal: null, instrumental: null, reference: null };
 let filaInterval = null;
 let arquivoSelecionado = null;
 let picoSelecionado = null;
@@ -31,6 +32,8 @@ let _siloEventsSet = false;           // Melhoria #1
 let voiceRetryCount = 0;
 let editorTabs = { 'scratchpad.py': '' };
 let currentTab = 'scratchpad.py';
+let currentModule = "default";
+let moduleDropdownVisible = false;
 
 // ====================== MATRIX RAIN (RESPONSIVE) ======================
 let matrixAnimationId = null;
@@ -112,6 +115,127 @@ function r2Log(level, context, msg, data) {
   const timestamp = new Date().toISOString();
   const logMsg = `[${timestamp}] [${context}] ${msg}`;
   console[level](logMsg, data || '');
+}
+
+// ====================== MÓDULO DE PRODUÇÃO MUSICAL ======================
+async function uploadMusicFile(file, type) {
+  if (!file) return null;
+  const formData = new FormData();
+  formData.append(type, file);
+  try {
+    const response = await fetch('/api/music/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await response.json();
+    if (data.ok && data.paths[type]) {
+      return data.paths[type];
+    } else {
+      notificar(`Erro ao enviar ${type}`, 'err');
+      return null;
+    }
+  } catch (e) {
+    notificar(`Falha no upload: ${e.message}`, 'err');
+    return null;
+  }
+}
+
+async function processMusic() {
+  if (!musicUploadedPaths.vocal || !musicUploadedPaths.instrumental || !musicUploadedPaths.reference) {
+    notificar('Envie os três arquivos: Vocal, Instrumental e Referência de Voz.', 'err');
+    return;
+  }
+  if (!wsManager || !wsManager.isConnected) {
+    notificar('Servidor offline.', 'err');
+    return;
+  }
+  wsManager.ws.send(JSON.stringify({
+    type: 'music_process',
+    vocal_path: musicUploadedPaths.vocal,
+    instrumental_path: musicUploadedPaths.instrumental,
+    reference_path: musicUploadedPaths.reference
+  }));
+  showTyping();
+  notificar('🎛️ Processamento iniciado. Isso pode levar alguns segundos...');
+}
+
+function openMusicModal() {
+  const existing = document.getElementById('music-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'music-modal';
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); z-index: 2000; display: flex;
+    align-items: center; justify-content: center; flex-direction: column;
+  `;
+  modal.innerHTML = `
+    <div style="background: #0a0a0a; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; border: 1px solid #00ff41;">
+      <h3 style="margin-top:0;">🎵 Produção Musical</h3>
+      <div class="music-upload-group">
+        <label>🎤 Vocal Original</label>
+        <input type="file" id="music-vocal" accept="audio/*">
+        <span id="vocal-name" style="font-size:0.8rem;"></span>
+      </div>
+      <div class="music-upload-group">
+        <label>🎸 Instrumental (Beat)</label>
+        <input type="file" id="music-instrumental" accept="audio/*">
+        <span id="instr-name"></span>
+      </div>
+      <div class="music-upload-group">
+        <label>🗣️ Referência de Voz (timbre desejado)</label>
+        <input type="file" id="music-reference" accept="audio/*">
+        <span id="ref-name"></span>
+      </div>
+      <button id="music-process-btn" class="action-btn" style="background:#00ff41; color:black; margin-top:1rem;">🚀 Remixar</button>
+      <button id="close-music-modal" style="background:#333; margin-top:1rem;">Fechar</button>
+      <div id="music-progress" style="margin-top:1rem; color:#ccc;"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const vocalInput = modal.querySelector('#music-vocal');
+  const instrInput = modal.querySelector('#music-instrumental');
+  const refInput = modal.querySelector('#music-reference');
+
+  if (vocalInput) {
+    vocalInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        musicUploadedPaths.vocal = await uploadMusicFile(file, 'vocal');
+        modal.querySelector('#vocal-name').textContent = `✅ ${file.name}`;
+      }
+    };
+  }
+  if (instrInput) {
+    instrInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        musicUploadedPaths.instrumental = await uploadMusicFile(file, 'instrumental');
+        modal.querySelector('#instr-name').textContent = `✅ ${file.name}`;
+      }
+    };
+  }
+  if (refInput) {
+    refInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        musicUploadedPaths.reference = await uploadMusicFile(file, 'reference');
+        modal.querySelector('#ref-name').textContent = `✅ ${file.name}`;
+      }
+    };
+  }
+
+  const processBtn = modal.querySelector('#music-process-btn');
+  if (processBtn) {
+    processBtn.onclick = () => {
+      processMusic();
+      modal.remove();
+    };
+  }
+  const closeBtn = modal.querySelector('#close-music-modal');
+  if (closeBtn) closeBtn.onclick = () => modal.remove();
 }
 
 // ====================== WEBSOCKET MANAGER ======================
@@ -546,6 +670,30 @@ async function handleFiles(files) {
   } catch (e) {
     notificar('Falha de rede.', 'err');
   }
+}
+
+async function uploadToVault(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        notificar(`Iniciando upload de ${file.name}...`, "info");
+        
+        const response = await fetch("/upload-protocol", {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        if (result.status === "success") {
+            notificar(`Arquivo indexado: ${result.filename}`, "success");
+            // Envia o resumo da análise para o chat para a IA ficar "ciente"
+            wsManager.sendCommand(`Analise o arquivo que acabei de subir. Estrutura detectada: ${result.analysis}`);
+        }
+    } catch (error) {
+        notificar("Erro no Protocolo de Upload", "error");
+    }
 }
 
 // ====================== EDITOR LATERAL ======================
@@ -1402,6 +1550,79 @@ async function executeCode(btn, filename, content) {
   btn.disabled = false;
 }
 
+// ====================== MÓDULO CAMALEÃO ======================
+async function loadModules() {
+  try {
+    const resp = await fetch('/api/modules');
+    const data = await resp.json();
+    const modules = data.modules || [];
+    const listEl = document.getElementById('module-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    modules.forEach(mod => {
+      const li = document.createElement('li');
+      li.className = 'module-item';
+      if (mod === currentModule) li.classList.add('active');
+      li.textContent = mod;
+      li.addEventListener('click', () => selectModule(mod));
+      listEl.appendChild(li);
+    });
+  } catch (e) {
+    notificar('Erro ao listar módulos', 'err');
+  }
+}
+
+function selectModule(moduleName) {
+  if (!wsManager || !wsManager.isConnected) {
+    notificar('Servidor offline', 'err');
+    return;
+  }
+  wsManager.sendCommand(`/select_module ${moduleName}`);
+  currentModule = moduleName;
+  const btn = document.getElementById('module-btn');
+  if (btn) btn.classList.add('active');
+  setTimeout(() => { if (btn) btn.classList.remove('active'); }, 500);
+  toggleModuleDropdown(false);
+}
+
+function toggleModuleDropdown(forceShow) {
+  const dd = document.getElementById('module-dropdown');
+  if (!dd) return;
+  if (typeof forceShow !== 'undefined') {
+    moduleDropdownVisible = forceShow;
+  } else {
+    moduleDropdownVisible = !moduleDropdownVisible;
+  }
+  dd.classList.toggle('hidden', !moduleDropdownVisible);
+  if (moduleDropdownVisible) {
+    loadModules();
+  }
+}
+
+async function refreshModules() {
+  await loadModules();
+  notificar('Lista de módulos atualizada');
+}
+window.refreshModules = refreshModules;
+
+function initModuleSelector() {
+  const moduleBtn = document.getElementById('module-btn');
+  const refreshBtn = document.getElementById('module-refresh');
+  if (moduleBtn) {
+    moduleBtn.addEventListener('click', () => toggleModuleDropdown());
+  }
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', refreshModules);
+  }
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('module-dropdown');
+    const btn = document.getElementById('module-btn');
+    if (moduleDropdownVisible && dd && !dd.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) {
+      toggleModuleDropdown(false);
+    }
+  });
+}
+
 // ====================== EVENTOS GLOBAIS ======================
 function setupEvents() {
   const sendBtn = document.getElementById('send-btn');
@@ -1428,6 +1649,8 @@ function setupEvents() {
   if (execBtn) execBtn.addEventListener('click', executarCodigoEditor);
   if (expandBtn) expandBtn.addEventListener('click', expandirEditor);
   if (closeCodeBtn) closeCodeBtn.addEventListener('click', fecharEditor);
+  const musicBtn = document.getElementById('music-mode-btn');
+  if (musicBtn) musicBtn.addEventListener('click', openMusicModal);
   
   const safeModeBtn = document.getElementById('safe-mode-btn');
   if (safeModeBtn) safeModeBtn.addEventListener('click', toggleModoBatalha);
@@ -1439,6 +1662,7 @@ function init() {
   initMatrixRain();
   setupUnifiedDragDrop();
   setupEvents();
+  initModuleSelector();
   wsManager = new WebSocketManager();
   wsManager.connect();
   initSettings();
@@ -1447,12 +1671,12 @@ function init() {
   // File input handler for upload button
   const fileInput = document.getElementById('file-input');
   if (fileInput) {
-    fileInput.addEventListener('change', (e) => {
-      const files = e.target.files;
-      if (files && files.length) {
-        handleFiles(files);
-        updateUploadBadge(files.length, files[0].name);
-      }
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      await uploadToVault(file);
+      updateUploadBadge(1, file.name);
     });
   }
 

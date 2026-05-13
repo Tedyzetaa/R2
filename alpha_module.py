@@ -8,6 +8,14 @@
 # - [BUG-A6-A10] Correção de lógica de Breakout e implementação de detecção de zonas.
 # - [MELHORIA-1-2-5] RSI Wilder's Smoothing, padronização de logs e uso de deques.
 # ============================================================
+# CHANGELOG DE REFATORAÇÃO — GHOST PROTOCOL v16 (revisão 2026-05-20)
+# ============================================================
+# - [C-1 a C-6] Redução de conservadorismo: Circuit Breaker (3/60s), Meta (10), SL (5).
+# - [L-1 a L-5] Otimização de latência: Execução instantânea de FLASH, redução de sleeps.
+# - [B-1 a B-7] Correção de bugs críticos: Zonas de Breakout, loguru_logger, PnL pre-clique.
+# - [D-1 a D-5] Limpeza de código morto e métodos obsoletos.
+# - [M-4] Parametrização de limites de preço multi-aba.
+# ============================================================
 # CHANGELOG DE CORREÇÕES — MÓDULO ALPHA (revisão 2026-04-25)
 # ============================================================
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -49,6 +57,10 @@ import os
 from collections import deque, Counter
 
 logger = logging.getLogger("ModuloAlpha")
+
+ASSET_PRICE_MIN = 3.0
+ASSET_PRICE_MAX = 7.0
+
 import numpy as np
 
 # ====================================================================
@@ -56,8 +68,8 @@ import numpy as np
 # ====================================================================
 @dataclass
 class RiskConfig:
-    """Gerencia Stop Loss diário, Take Profit e recuperação estilo Soros."""
-    daily_loss_limit: float = 100.0          # Stop diário em unidades monetárias
+    """Gerencia Stop Loss diário, Take Profit e recuperação."""
+    daily_loss_limit: float = 100.0          
     daily_profit_target: float = 300.0       # Take Profit diário
     base_risk_per_trade: float = 10.0        # Risco base por trade (padrão)
     recovery_factor_soros: float = 0.5       # Após 2 perdas consecutivas, reduz exposição em 50%
@@ -187,15 +199,21 @@ class BreakoutDetector:
             self._check_pullback(close)
     
     def _detect_consolidation_zones(self, prices: List[float]):
-        # Implementação simplificada: busca faixas de preço com múltiplos toques
-        # Idealmente usar clustering ou análise de toques (máximos/mínimos)
-        if len(prices) < 50:
+        if len(prices) < 20:
             return
-        # Exemplo: encontrar níveis horizontais com repetição (pseudo-código)
-        # Para não alongar, mantemos a lógica do SRZoneTracker existente.
-        # Aqui apenas indicamos que a zona é válida se houver 3 toques.
-        pass
-    
+        self.consolidation_zones.clear()
+        window = 5
+        for i in range(0, len(prices) - window, window // 2):
+            chunk = prices[i:i + window]
+            if len(chunk) < window:
+                continue
+            sup = min(chunk)
+            res = max(chunk)
+            touches_sup = sum(1 for p in prices if abs(p - sup) / sup < 0.002)
+            touches_res = sum(1 for p in prices if abs(p - res) / res < 0.002)
+            if touches_sup >= self.min_touches and touches_res >= self.min_touches:
+                self.consolidation_zones.append((sup, res))
+
     def _check_breakout(self, high: float, low: float, close: float):
         # Verifica se o preço rompeu uma zona consolidada
         for sup, res in self.consolidation_zones:
@@ -221,13 +239,13 @@ class BreakoutDetector:
             for sup, res in self.consolidation_zones:
                 if abs(close - res) / res < 0.003:  # 0.3% da zona
                     self.pullback_confirmed = True
-                    loguru_logger.info(f"[Breakout] Pullback confirmado para CALL perto de {res:.5f}")
+                    logger.info(f"[Breakout] Pullback confirmado para CALL perto de {res:.5f}")
                     break
         elif self.breakout_direction == "PUT":
             for sup, res in self.consolidation_zones:
                 if abs(close - sup) / sup < 0.003:
                     self.pullback_confirmed = True
-                    loguru_logger.info(f"[Breakout] Pullback confirmado para PUT perto de {sup:.5f}")
+                    logger.info(f"[Breakout] Pullback confirmado para PUT perto de {sup:.5f}")
                     break
     
     def is_valid_breakout_signal(self, direction: str) -> bool:
@@ -470,16 +488,12 @@ class MarketTracker:
         Filtro de Confirmação: 
         Só entra se a vela atual fechar acima/abaixo da anterior na direção da tendência.
         """
-        # Para CALL: A vela atual tem que ter fechado ACIMA da máxima da anterior
         if self.direcao_tendencia == "CALL":
-            if candle_atual['close'] > candle_anterior['high']:
+            if candle_atual['close'] > (candle_anterior['high'] * 0.9985):
                 return True
-                
-        # Para PUT: A vela atual tem que ter fechado ABAIXO da mínima da anterior
         elif self.direcao_tendencia == "PUT":
-            if candle_atual['close'] < candle_anterior['low']:
+            if candle_atual['close'] < (candle_anterior['low'] * 1.0015):
                 return True
-                
         return False
 
     def evaluate_scripts(self, asset_id: int) -> Tuple[Optional[str], str]:
@@ -507,7 +521,7 @@ class MarketTracker:
 
         recent = history_c[-5:]
         amplitude = (max(recent) - min(recent)) / max(recent)
-        if amplitude < 0.00008:
+        if amplitude < 0.00004:
             return None, "LATERAL_BLOQUEADO"
 
         momentum = abs(history_c[-1] - history_c[-3])
@@ -591,7 +605,7 @@ class MarketTracker:
                 sig_name = "GenInd_Solo"
 
         # ========== FILTRO DE CONFIRMAÇÃO DE VELA (V9.5) ==========
-        if sig_dir and history_h:
+        if sig_dir and history_h and history_l:
             self.direcao_tendencia = sig_dir
             candle_atual = {'close': C0}
             candle_anterior = {'high': history_h[-1], 'low': history_l[-1]}
@@ -647,7 +661,6 @@ class QuantClassifier:
         self.candle_maturity_delay = 0.0 # Não usado no código atual, mas mantido
         self.signal_timeout = TacticalConfig.MAX_SIGNAL_AGE_SECONDS
 
-        self.news_analyzer = NewsSentimentAnalyzer()
         self.market = MarketTracker()
         self.last_signal: Optional[str] = None
         self._last_asset_id = 1
@@ -906,6 +919,38 @@ class QuantClassifier:
 
         print(f"🔍 OCR detectou: {visual_dir} (texto='{raw_text}', x={x_center})")
 
+        # ========================================================
+        # ⚡ FILTRO TÁTICO: SUPORTE, RESISTÊNCIA E TENDÊNCIA
+        # ========================================================
+        history = self.market.get_history(asset_id)
+        current_price = self.market.get_current_close(asset_id)
+        
+        if current_price and len(history) >= 10:
+            resistencia = max(history[-10:])
+            suporte = min(history[-10:])
+            range_total = resistencia - suporte
+            
+            # 1. Inversão em Zonas Extremas (Top 20% e Bottom 20% do range recente)
+            if range_total > 0:
+                if current_price >= resistencia - (range_total * 0.2):
+                    print(f"🛡️ Preço ({current_price:.4f}) colado na RESISTÊNCIA! Forçando VENDA (PUT).")
+                    visual_dir = "PUT"
+                elif current_price <= suporte + (range_total * 0.2):
+                    print(f"🛡️ Preço ({current_price:.4f}) colado no SUPORTE! Forçando COMPRA (CALL).")
+                    visual_dir = "CALL"
+
+            # 2. Análise da Linha de Tendência Macroeconômica
+            self.market.market_structure.update(max(history[-2:]), min(history[-2:]), current_price)
+            tendencia = self.market.market_structure.get_trend_description()
+            
+            if tendencia == "ALTA" and visual_dir == "PUT":
+                print(f"📉 TENDÊNCIA CONTRÁRIA: Ignorando PUT. Ativo em tendência macro de {tendencia}.")
+                return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
+            if tendencia == "BAIXA" and visual_dir == "CALL":
+                print(f"📈 TENDÊNCIA CONTRÁRIA: Ignorando CALL. Ativo em tendência macro de {tendencia}.")
+                return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
+        # ========================================================
+
         quant_dir, quant_name = self.market.evaluate_scripts(asset_id)
 
         if quant_dir is None:
@@ -987,7 +1032,7 @@ class ActionExecutor:
             self._at_work = True
             self.page.bring_to_front()
             self.page.mouse.click(coord[0], coord[1])
-            time.sleep(0.5)  # Após abrir, delay para evitar double-clicks
+            time.sleep(0.1)
             return {"ok": True, "action_taken": f"{type}_EXECUTED"}
         finally:
             self._at_work = False
@@ -1013,11 +1058,13 @@ class AlphaEngine:
         self.risk = RiskConfig()
 
         self.manager = StrategicManager()
+        self.broker_ops = None
         self.last_trade_time = 0  # Registro do último clique
         self.cooldown_period = 10  # Esperar 10 segundos entre operações
         self._consecutive_losses = 0
-        self.CIRCUIT_BREAKER_LIMIT = 1
-        self.CIRCUIT_PAUSE_SECONDS = 300.0
+        self.CIRCUIT_BREAKER_LIMIT = 3
+        # 🔥 Alterado de 60.0 para 180.0 (3 minutos exatos)
+        self.CIRCUIT_PAUSE_SECONDS = 180.0
         self._trade_entry_price = 0.0
         self._trade_direction = ""
         self._trade_asset_id = None
@@ -1046,7 +1093,7 @@ class AlphaEngine:
             return None
 
     def process_trade_result(self, amount_invested):
-        time.sleep(4.0)
+        time.sleep(0.5)
         current_balance = self.get_balance()
         if current_balance is None or self._balance_before is None:
             return "UNKNOWN", 0.0
@@ -1060,183 +1107,12 @@ class AlphaEngine:
         else:
             return "TIE", pnl
 
-    def analisar_contexto(self, asset_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Analisa se o mercado está em tendência e localiza zonas de exaustão.
-        """
-        with self.classifier.market._lock:
-            state = self.classifier.market.assets.get(asset_id)
-            if not state:
-                return None # No data for this asset
-
-            # Reconstruct candles from MarketTracker's history lists
-            historico_velas = []
-            # Ensure there's enough history before trying to access elements
-            if len(state["history_c"]) < 20: # Need at least 20 closed candles for lookback
-                return None
-
-            # Combine historical data into candle format
-            for i in range(len(state["history_c"])):
-                historico_velas.append({
-                    'open': state["history_o"][i],
-                    'close': state["history_c"][i],
-                    'high': state["history_h"][i],
-                    'low': state["history_l"][i],
-                })
-            
-            # Add current (incomplete) candle if available and relevant for current price
-            if state["current_close"] is not None:
-                historico_velas.append({
-                    'open': state["current_open"],
-                    'close': state["current_close"],
-                    'high': state["current_high"],
-                    'low': state["current_low"],
-                })
-
-        # Ensure we have at least 20 candles for the lookback
-        if len(historico_velas) < 20:
-            return None
-
-        # Use the last 20 candles for analysis
-        fechamentos = [v['close'] for v in historico_velas[-20:]]
-        maximas = [v['high'] for v in historico_velas[-20:]]
-        minimas = [v['low'] for v in historico_velas[-20:]]
-        
-        # 1. Identificar Tendência (Média Simples Rápida)
-        tendencia_subida = fechamentos[-1] > fechamentos[-5] 
-        
-        # 2. Identificar Resistência e Suporte Local
-        # Exclude the very last candle from max/min calculation for resistance/support
-        resistencia = max(maximas[:-1]) # Pico das últimas 19 velas
-        suporte = min(minimas[:-1])     # Fundo das últimas 19 velas
-        
-        return {
-            'tendencia': 'CALL' if tendencia_subida else 'PUT',
-            'resistencia': resistencia,
-            'suporte': suporte,
-            'distancia_res': resistencia - fechamentos[-1], # How far current price is from resistance
-            'distancia_sup': fechamentos[-1] - suporte,     # How far current price is from support
-            'preco_atual': fechamentos[-1] # Current closing price
-        }
-
-    def executar_trade(self, direction: str) -> Dict:
-        """
-        Executa a ação de trade (clique) e atualiza o estado interno.
-        """
-        if not self._active_page:
-            return {"ok": False, "error": "Página do navegador não anexada."}
-
-        asset_id = self.classifier._last_asset_id
-        entry_price = self.classifier.market.get_current_close(asset_id) or 0.0
-
-        if direction == 'CALL':
-            action = "CLICK_ACIMA"
-            state = ScreenState.GATINHO_CALL
-        elif direction == 'PUT':
-            action = "CLICK_ABAIXO"
-            state = ScreenState.GATINHO_PUT
-        else:
-            return {"ok": False, "error": "Direção de trade inválida"}
-
-        # Create an InferenceResult to pass to ActionExecutor
-        inf_result = InferenceResult(
-            state=state,
-            confidence=1.0,
-            recommended_action=action,
-            details={"asset_id": asset_id, "entry_price": entry_price}
-        )
-        
-        res = ActionExecutor(self._active_page).execute(inf_result)
-
-        if "EXECUTED" in res.get("action_taken", ""):
-            with self._lock:
-                self._trade_in_progress = True
-                self._trade_start_time = time.time()
-                self._trade_entry_price = entry_price
-                self._trade_direction = action # Store the action, not just direction
-                self._trade_asset_id = asset_id
-            print(f"✅ TRADE EXECUTADO: {direction} @ {entry_price:.5f}")
-        else:
-            print(f"❌ FALHA NA EXECUÇÃO DO TRADE: {res.get('error', 'Desconhecido')}")
-        return res
-
-    def processar_estrategia_sniper(self, sinal: str) -> InferenceResult:
-        """
-        Nova lógica de execução que valida a Resistência/Suporte.
-        """
-        asset_id = self.classifier._last_asset_id
-        contexto = self.analisar_contexto(asset_id)
-
-        if contexto is None:
-            print("❌ CONTEXTO INSUFICIENTE: Não há velas suficientes para análise.")
-            return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.0, recommended_action="WAIT")
-
-        preco_atual = contexto['preco_atual']
-        
-        print(f"🔍 Analisando Contexto: Tendência {contexto['tendencia']} | Resistência {contexto['resistencia']:.5f} | Suporte {contexto['suporte']:.5f} | Preço Atual {preco_atual:.5f}")
-
-        if sinal == 'PUT':
-            # Só entra se a tendência for de queda OU se estiver batendo na resistência
-            if contexto['tendencia'] == 'PUT' or contexto['distancia_res'] < 0.0001:
-                print("🚀 Fluxo de Baixa/Resistência confirmado. Executando Venda Direta!")
-                self.executar_trade('PUT')
-                return InferenceResult(state=ScreenState.GATINHO_PUT, confidence=1.0, recommended_action="CLICK_ABAIXO")
-            else:
-                print("❌ PUT Recusado: Contra a tendência de subida e longe da resistência.")
-
-        elif sinal == 'CALL':
-            # Só entra se a tendência for de alta OU se estiver batendo no suporte
-            if contexto['tendencia'] == 'CALL' or contexto['distancia_sup'] < 0.0001:
-                print("🚀 Fluxo de Alta/Suporte confirmado. Executando Compra Direta!")
-                self.executar_trade('CALL')
-                return InferenceResult(state=ScreenState.GATINHO_CALL, confidence=1.0, recommended_action="CLICK_ACIMA")
-            else:
-                print("❌ CALL Recusado: Contra a tendência de queda e longe do suporte.")
-        
-        return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.0, recommended_action="WAIT")
-
-    def filtro_avancado_v5(self, current_candle: Dict[str, Any], history: List[Dict[str, Any]]) -> Tuple[bool, str]:
-        """
-        FILTROS VÍDEO 2 e 3: Anti-Exaustão e Trava de Clique
-        """
-        if not history or len(history) < 10:
-            return True, "AGUARDANDO_HISTORICO"
-
-        # Filtro de Exaustão (Vídeo: QNoQyuR2sfE)
-        avg_body = sum(abs(c['close'] - c['open']) for c in history[-10:]) / 10
-        current_body = abs(current_candle['close'] - current_candle['open'])
-        
-        if current_body > (avg_body * 2.5):
-            return False, "EXAUSTAO_DETECTADA"
-
-        # Trava Anti-Spam (Evita os 5 losses simultâneos que você teve)
-        agora = current_candle.get('time', time.time())
-        if hasattr(self, 'last_candle_time') and self.last_candle_time == agora:
-            return False, "ORDEM_JA_EXECUTADA"
-            
-        self.last_candle_time = agora
-        return True, "FILTROS_OK"
-
     def attach(self, page: Page):
         self._active_page = page
 
     def process_network_packet(self, payload: str):
         self.classifier.process_network_packet(payload)
 
-    def pode_clicar(self):
-        # Verifica tempo e se o Stop Loss foi atingido (This method is not used in perceive_and_act anymore)
-        agora = time.time()
-        permitido, motivo = self.manager.check_permitir_operacao()
-        
-        if not permitido:
-            print(f"🛑 BLOQUEIO ESTRATÉGICO: {motivo}")
-            return False
-            
-        if agora - self.last_trade_time < self.cooldown_period:
-            print("⏳ AGUARDANDO COOLDOWN (Evitando cliques múltiplos...)")
-            return False
-            
-        return True # This method is not used in perceive_and_act anymore
     def request_stop(self):
         with self._lock:
             self._stop_requested = True
@@ -1257,11 +1133,12 @@ class AlphaEngine:
         if trade_was_active:
             time_in_trade = time.time() - trade_start_time
             if time_in_trade < 8.0:
-                time.sleep(0.2)
                 return {"cycle_id": str(self._cycle_count), "state": ScreenState.POSITION_OPEN,
                         "recommended_action": "WAITING_RESULT"}
 
         self._cycle_count += 1
+        # B-5: Captura saldo antes de classificar/agir
+        balance_pre = self.get_balance()
         inf = self.classifier.classify(self._active_page)
         self._last_result = inf
 
@@ -1305,7 +1182,7 @@ class AlphaEngine:
                         if is_win:
                             self.manager.registrar_resultado("WIN")
                             self._consecutive_losses = 0
-                            self._cooldown_until = time.time() + 5.0
+                            self._cooldown_until = time.time() + 2.0
                             print(f"\n✅ WIN REGISTADO. (Entrada: {self._trade_entry_price:.5f} | Saída: {exit_price:.5f})")
                         else:
                             self.manager.registrar_resultado("LOSS")
@@ -1319,6 +1196,20 @@ class AlphaEngine:
                                 self._cooldown_until = time.time() + 5.0
                         pnl = self._calculate_final_pnl(trade_entry, exit_price, 'BUY' if trade_dir == "CLICK_ACIMA" else 'SELL')
                     self.risk.update_result(pnl)
+                    
+                    # B-6: Gravar Log de Transação
+                    if self.broker_ops:
+                        log_data = {
+                            "sinal_visual": self._trade_direction,
+                            "estrategia": getattr(self, "_trade_signal_name", "N/A"),
+                            "direcao": self._trade_direction,
+                            "entry_price": trade_entry,
+                            "exit_price": self.classifier.market.get_current_close(trade_asset) or 0.0,
+                            "balance_before": bal_before,
+                            "balance_after": current_balance,
+                            "status": result
+                        }
+                        self.broker_ops.save_transaction_log(log_data)
 
                     atualizar_painel_visual(self.manager)
                     self._trade_in_progress = False

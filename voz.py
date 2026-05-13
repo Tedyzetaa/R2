@@ -5,6 +5,7 @@ import edge_tts
 import pyttsx3
 import threading
 import re # [FIXED: batalha-1.2]
+from jarvis_rvc import sintetizar_jarvis
 
 # 1. TENTA INICIAR O MIXER DE AUDIO (ONLINE)
 try:
@@ -95,5 +96,24 @@ def falar(texto, on_start=None, on_end=None): # [FIXED: batalha-1.3]
 
     threading.Thread(target=_thread_voz, daemon=True).start()
 
-if __name__ == "__main__":
-    falar("Módulo de voz R2 operacional.")
+# Adicione no topo do voz.py (junto aos outros imports)
+
+def falar_jarvis(texto, on_start, on_end, loop):
+    async def _processo():
+        try:
+            if on_start: await on_start()
+            
+            # Chama o Jarvis RVC (seu jarvis_rvc.py)
+            from jarvis_rvc import sintetizar_jarvis
+            audio_url = await sintetizar_jarvis(texto)
+            
+            # Aqui você envia o comando para o Frontend tocar o áudio
+            # (Exemplo via retorno do WebSocket que você já tem no main2.py)
+            
+        except Exception as e:
+            print(f"Falha no Jarvis, usando fallback: {e}")
+            await falar(texto) # Seu fallback para Edge TTS
+        finally:
+            if on_end: await on_end()
+
+    asyncio.run_coroutine_threadsafe(_processo(), loop)

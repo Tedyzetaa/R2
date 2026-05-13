@@ -57,6 +57,7 @@
                 <button id="toggle-editor-btn" class="editor-toggle-btn" title="Terminal de Código">💻</button>
                 <button id="clear-btn" class="settings-btn" title="Limpar chat" onclick="clearChat()">🗑</button>
                 <button id="settings-btn" class="settings-btn" title="Configurações">⚙️</button>
+                <button id="music-mode-btn" class="action-btn" title="Modo Produção Musical">🎵 Remix</button>
                 <button id="battle-mode-btn" class="battle-mode-btn" onclick="toggleModoBatalha()">🎬 MODO BATALHA</button>
                 <div class="status-pill" id="status-pill">
                     <div class="status-dot" id="status-dot"></div>
@@ -129,6 +130,14 @@
                         <button id="upload-btn" class="mic-btn" title="Injetar arquivo" onclick="document.getElementById('file-input').click()">📎</button>
                         <input type="file" id="file-input" style="display:none" multiple>
                         <button id="mic-msg-btn" class="mic-btn" title="Comunicação de Voz">🎤</button>
+                        <button id="module-btn" class="mic-btn" title="Trocar Cérebro (RAG)">🧠</button>
+                        <div id="module-dropdown" class="module-dropdown hidden">
+                            <div class="dropdown-header">
+                                <span>🧬 MÓDULOS DE CONHECIMENTO</span>
+                                <button id="module-refresh" class="dropdown-refresh">⟳</button>
+                            </div>
+                            <ul id="module-list"></ul>
+                        </div>
                         <textarea id="msgBox" rows="1" placeholder="> Inserir comando na interface..." oninput="autoResize(this)"></textarea>
                         <button id="send-btn" class="btn-send">EXECUTAR</button>
                     </div>
