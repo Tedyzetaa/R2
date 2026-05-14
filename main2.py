@@ -1,4 +1,4 @@
-# filename: main2.py
+# filename: main2.py (refatorado - Ghost Protocol v21)
 # ============================================================
 # CHANGELOG DE REFATORAÇÃO — MÓDULO CAMALEÃO + MEMÓRIA AUMENTADA
 # ============================================================
@@ -12,7 +12,9 @@
 # - [CAM-2] Endpoint /api/modules lista cérebros disponíveis
 # - [CAM-3] Comando WebSocket /select_module [nome] troca RAG em tempo real
 # - [CAM-4] Botão sincronizar força reindexação da pasta atual
-# R2 TACTICAL OS — Ghost Protocol v18 — Módulo Camaleão Ativo
+# - [BUG-1] Lifespan não-bloqueante: módulos pesados movidos para to_thread
+# - [BUG-2] WebSocket handlers restaurados: PizzaINT, Radar de Voos, Astro Defense
+# R2 TACTICAL OS — Ghost Protocol v21 — Correção de Módulos Críticos
 
 import sys
 import os
@@ -620,7 +622,7 @@ Resumo tático:
 neural = NeuralEngine()
 
 # ============================================================
-# 9. FASTAPI APP & LIFESPAN
+# 9. FASTAPI APP & LIFESPAN (CORRIGIDO: módulos pesados em to_thread)
 # ============================================================
 rag_ops: Optional[KnowledgeBase] = None
 ai_brain = neural
@@ -669,6 +671,37 @@ async def garantir_modelo() -> bool:
             return False
     return True
 
+# [BUG-1] Função de inicialização isolada para execução em thread
+def _init_modulos():
+    """Instancia todos os módulos táticos em thread separada para não bloquear o loop."""
+    global pizza_ops, noaa_ops, tiktok_ops, broker_ops, air_ops, astro_ops, eu_ops
+
+    CortexEU = safe_import("eu", "CORTEX_EU")
+    eu_ops = CortexEU("R2") if CortexEU else None
+
+    PizzaINTService = safe_import("pizzint_service", "PizzaINTService")
+    pizza_ops = PizzaINTService(config={}) if PizzaINTService else None
+
+    NOAAService = safe_import("noaa_service", "NOAAService")
+    noaa_ops = NOAAService() if NOAAService else None
+
+    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
+    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None
+
+    BrokerOperator = safe_import("broker_operator", "BrokerOperator")
+    _broker = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None
+    broker_ops = _broker
+    if broker_ops:
+        alpha_engine.broker_ops = broker_ops
+
+    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
+    air_ops = AirTrafficControl() if AirTrafficControl else None
+
+    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
+    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
+
+    logger.info("✅ Módulos táticos carregados em background.")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global rag_ops, eu_ops, pizza_ops, noaa_ops, video_ops, astro_ops, air_ops, tiktok_ops, broker_ops
@@ -677,22 +710,10 @@ async def lifespan(app: FastAPI):
     logger.info("⚡ Inicializando módulos táticos...")
 
     rag_ops = KnowledgeBase(docs_dir=DEFAULT_KB_DIR, similarity_threshold=1.2)
-    CortexEU = safe_import("eu", "CORTEX_EU")
-    eu_ops = CortexEU("R2") if CortexEU else None
-    PizzaINTService = safe_import("pizzint_service", "PizzaINTService")
-    pizza_ops = PizzaINTService(config={}) if PizzaINTService else None
-    NOAAService = safe_import("noaa_service", "NOAAService")
-    noaa_ops = NOAAService() if NOAAService else None
-    TikTokCommander = safe_import("tiktok_publisher", "TikTokCommander")
-    tiktok_ops = TikTokCommander(alpha_engine=alpha_engine) if TikTokCommander else None
-    BrokerOperator = safe_import("broker_operator", "BrokerOperator")
-    broker_ops = BrokerOperator(alpha_engine=alpha_engine) if BrokerOperator else None
-    if broker_ops:
-        alpha_engine.broker_ops = broker_ops
-    AirTrafficControl = safe_import("air_traffic", "AirTrafficControl")
-    AstroDefenseSystem = safe_import("astro_defense", "AstroDefenseSystem")
-    air_ops = AirTrafficControl() if AirTrafficControl else None
-    astro_ops = AstroDefenseSystem() if AstroDefenseSystem else None
+    
+    # [BUG-1] Inicialização não-bloqueante: todos os módulos pesados em thread
+    await asyncio.to_thread(_init_modulos)
+
     whisper_model_global = await asyncio.to_thread(get_whisper_model) if WHISPER_AVAILABLE else None
     try:
         from video_ops import VideoSurgeon
@@ -1041,7 +1062,7 @@ async def serve_gui():
     return FileResponse("static/index.html")
 
 # ============================================================
-# 13. WEBSOCKET COM MEMÓRIA ATÔMICA E SUMARIZAÇÃO AUTOMÁTICA + MÓDULO CAMALEÃO
+# 13. WEBSOCKET COM MEMÓRIA ATÔMICA E SUMARIZAÇÃO AUTOMÁTICA + MÓDULO CAMALEÃO (CORRIGIDO)
 # ============================================================
 async def limpar_audios_antigos_async(pasta: str = "static/media", max_idade_min: int = 10):
     return await asyncio.to_thread(limpar_audios_antigos, pasta, max_idade_min)
@@ -1155,6 +1176,82 @@ async def websocket_endpoint(websocket: WebSocket):
                 comando = raw
 
             cmd_l = comando.lower().strip()
+
+            # ── Strip do prefixo /cmd (enviado pelo frontend) ──
+            if cmd_l.startswith("/cmd "):
+                cmd_l = cmd_l[5:].strip()
+                comando = comando[5:].strip()
+
+            # ==================== [BUG-2] HANDLERS RESTAURADOS ====================
+            # ──────────────────────────────────────────────────────────────
+            # MÓDULO PIZZA INT (Inteligência DEFCON)
+            # Ativado por: "pizza", "pizzaint", "defcon", "openPizzaInt" (ou variações)
+            # ──────────────────────────────────────────────────────────────
+            if cmd_l in ("pizza", "pizzaint", "defcon", "openpizzaint", "/pizza", "/defcon"):
+                if not pizza_ops:
+                    await websocket.send_json({"type": "system", "text": "❌ Módulo PizzaINT offline. Verifique a instalação."})
+                    continue
+                await websocket.send_json({"type": "system", "text": "🍕 [PizzINT] Iniciando varredura geopolítica... Aguarde."})
+                try:
+                    # Executa em thread pois é totalmente síncrono (requests + scraping)
+                    status = await asyncio.to_thread(pizza_ops.get_status)
+                    html_painel = pizza_ops.gerar_html_painel(status)
+                    await websocket.send_json({"type": "system", "text": html_painel})
+                except Exception as e:
+                    logger.error(f"Erro PizzaINT: {e}")
+                    await websocket.send_json({"type": "system", "text": f"❌ Falha no PizzaINT: {e}"})
+                continue
+
+            # ──────────────────────────────────────────────────────────────
+            # MÓDULO RADAR DE VOOS (AirTrafficControl)
+            # Ativado por: "radar", "voos", "flightradar", "openFlightRadar" (ou variações)
+            # Suporta localização: "radar <cidade>" ex: "radar São Paulo"
+            # ──────────────────────────────────────────────────────────────
+            if cmd_l.startswith(("radar", "voos", "flightradar", "openflightradar", "/radar")):
+                if not air_ops:
+                    await websocket.send_json({"type": "system", "text": "❌ Módulo Radar de Voos offline."})
+                    continue
+
+                # Tenta extrair localização do comando (ex: "radar São Paulo")
+                partes = comando.strip().split(None, 1)
+                location = partes[1].strip() if len(partes) > 1 else "Ivinhema"
+
+                await websocket.send_json({"type": "system", "text": f"📡 [RADAR] Escaneando setor: {location.upper()}..."})
+                try:
+                    # Executa em thread (requests + matplotlib são síncronos)
+                    filename, qtd, msg = await asyncio.to_thread(air_ops.radar_scan, location)
+                    await websocket.send_json({"type": "system", "text": msg})
+                    if filename and os.path.exists(filename):
+                        # Converte imagem para base64 e envia inline
+                        with open(filename, "rb") as img_f:
+                            img_b64 = base64.b64encode(img_f.read()).decode("utf-8")
+                        html_radar = (
+                            f'<img src="data:image/png;base64,{img_b64}" '
+                            f'style="width:100%;max-width:500px;border:1px solid #00ff00;border-radius:4px;" '
+                            f'alt="Radar Tático {location}"/>'
+                        )
+                        await websocket.send_json({"type": "system", "text": html_radar})
+                except Exception as e:
+                    logger.error(f"Erro Radar: {e}")
+                    await websocket.send_json({"type": "system", "text": f"❌ Falha no Radar: {e}"})
+                continue
+
+            # ──────────────────────────────────────────────────────────────
+            # MÓDULO DEFESA PLANETÁRIA (AstroDefenseSystem)
+            # Ativado por: "asteroides", "astro", "neo", "/astro"
+            # ──────────────────────────────────────────────────────────────
+            if cmd_l in ("asteroides", "astro", "neo", "/astro", "defesa planetaria"):
+                if not astro_ops:
+                    await websocket.send_json({"type": "system", "text": "❌ Módulo Astro Defense offline."})
+                    continue
+                await websocket.send_json({"type": "system", "text": "☄️ [ASTRO] Consultando NASA NEO API..."})
+                try:
+                    texto_relatorio, asteroid_id, asteroid_nome = await asyncio.to_thread(astro_ops.get_asteroid_report)
+                    await websocket.send_json({"type": "system", "text": texto_relatorio})
+                except Exception as e:
+                    logger.error(f"Erro Astro: {e}")
+                    await websocket.send_json({"type": "system", "text": f"❌ Falha Astro Defense: {e}"})
+                continue
 
             # ---------- MÓDULO CAMALEÃO: seleção de cérebro ----------
             if cmd_l.startswith("/select_module "):

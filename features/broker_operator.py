@@ -1,4 +1,3 @@
-
 # filename: broker_operator.py
 import os
 import threading
@@ -28,7 +27,7 @@ class BrokerOperator:
         self._cmd_queue = queue.Queue()
         self._results = {}
 
-        self.autopilot_delay = 60
+        self.autopilot_delay = 60  # segundos entre ciclos do autopilot
         self._autopilot_running = False
         self._autopilot_cycle_count = 0
         self._last_autopilot_result = None
@@ -58,7 +57,6 @@ class BrokerOperator:
 
         wait_start = time.time()
         while not self._page and (time.time() - wait_start) < 30:
-            # [BUG 12] Sinaliza morte prematura da thread aos waiters
             if self._browser_thread and not self._browser_thread.is_alive():
                 return {"ok": False, "error": "O navegador abortou a inicialização de forma inesperada."}
             time.sleep(0.2)
@@ -91,7 +89,6 @@ class BrokerOperator:
                 self._autopilot_cycle_count = 0
                 self._autopilot_consecutive_errors = 0
             return {"ok": True, "msg": "Autopilot ativado.", "running": True}
-
         if cmd == "AUTOPILOT_STOP":
             self._autopilot_running = False
             try: self.alpha_engine.request_stop()
@@ -140,7 +137,6 @@ class BrokerOperator:
                             self._results[cmd_id].set_result(result)
                     except queue.Empty: pass
 
-                    # [BUG 15] Substituição do sleep fragmentado. Processa os comandos instantaneamente
                     now = time.time()
                     if self._autopilot_running and (now - self._last_autopilot_time) >= self.autopilot_delay:
                         self._run_autopilot_cycle()
@@ -149,7 +145,6 @@ class BrokerOperator:
         except Exception as e:
             logger.error(f"Erro fatal na thread do browser: {e}")
         finally:
-            # [BUG 5] Limpa memory leak cancelando futures órfãos caso o browser crashe
             for cid, fut in list(self._results.items()):
                 if not fut.done():
                     fut.set_exception(RuntimeError("Browser thread encerrada abruptamente."))
@@ -158,7 +153,6 @@ class BrokerOperator:
             self._page = None
 
     def _inject_netscape_cookies(self, file_path):
-        # [BUG 10] Tratamento rigoroso de cookies
         try:
             cookies = []
             with open(file_path, 'r') as f:
@@ -179,9 +173,10 @@ class BrokerOperator:
 
     def _dispatch_cmd(self, cmd: str, args: dict = None) -> dict:
         try:
-            if cmd == "ANALYZE": return self.alpha_engine.perceive_and_act()
-            elif cmd == "SCREENSHOT": return {"ok": True, "screenshot_b64": base64.b64encode(self._page.screenshot()).decode("utf-8")}
-            # [BUG 2] Handler oficial de navegação garantido no dispatcher
+            if cmd == "ANALYZE":
+                return self.alpha_engine.perceive_and_act()
+            elif cmd == "SCREENSHOT":
+                return {"ok": True, "screenshot_b64": base64.b64encode(self._page.screenshot()).decode("utf-8")}
             elif cmd == "NAVIGATE":
                 url = (args or {}).get("url", "https://trade.broker10.com/traderoom")
                 self._page.goto(url, timeout=30000)
@@ -194,16 +189,32 @@ class BrokerOperator:
                 x, y = (args or {}).get("x"), (args or {}).get("y")
                 self._page.mouse.click(x, y)
                 return {"ok": True, "screenshot_b64": base64.b64encode(self._page.screenshot()).decode("utf-8"), "coord": [x, y]}
-            elif cmd == "DIAGNOSTICO": return {"log": ["Sistema Operacional"]}
-            else: return {"ok": False, "error": f"Comando desconhecido: {cmd}"}
-        except Exception as e: return {"ok": False, "error": str(e)}
+            elif cmd == "DIAGNOSTICO":
+                return {"log": ["Sistema Operacional"]}
+            else:
+                return {"ok": False, "error": f"Comando desconhecido: {cmd}"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     def _run_autopilot_cycle(self):
-        # [BUG 9] Previne falha infinita caso a aba do browser morra subitamente
+        """Ciclo do autopilot – logs de monitoramento e execução de ordens."""
         if not self._page or self._page.is_closed():
             logger.warning("Autopilot detectou página inativa. Pausando.")
             self._autopilot_running = False
             return
+
+        # LOG DE MONITORAMENTO: exibe distância para zonas ativas (se houver)
+        try:
+            # Acessa as zonas ativas do FirstTouchManager via alpha_engine
+            ft_manager = self.alpha_engine.classifier.first_touch
+            current_price = self.alpha_engine.classifier.market.get_current_close(self.alpha_engine.classifier._last_asset_id)
+            if current_price and ft_manager.get_active_zones():
+                for zone in ft_manager.get_active_zones():
+                    diff = abs(current_price - zone['level'])
+                    # Log a cada ciclo (60s) – para aumentar a frequência, reduza autopilot_delay
+                    logger.info(f"[TRACKER] 🔍 Monitorando: Preço Atual: {current_price:.5f} | Alvo: {zone['level']:.5f} | Distância: {diff:.5f} pips")
+        except Exception as e:
+            logger.debug(f"Erro ao logar monitoramento: {e}")
 
         try:
             result = self.alpha_engine.perceive_and_act()
@@ -222,22 +233,16 @@ class BrokerOperator:
 
         state = result.get("state", "UNKNOWN")
         state_str = state.value if hasattr(state, 'value') else str(state)
-        # O Bug 3 foi corrigido no alpha_module.py (Enum), agora esta trava funciona!
         if state_str in {"LOGIN_REQUIRED", "RATE_LIMIT"}:
             logger.critical(f"Trava de segurança acionada pelo estado: {state_str}")
             self._autopilot_running = False
 
     def save_transaction_log(self, data):
-        """
-        Salva os detalhes da operação em um arquivo JSON para auditoria.
-        """
         log_file = "trade_history.json"
-        
-        # Prepara a entrada do log com timestamp preciso
         log_entry = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
-            "sinal_origem": data.get("sinal_visual"), # OCR (CALL/PUT)
-            "confirmacao_math": data.get("estrategia"), # JustWin/GenInd
+            "sinal_origem": data.get("sinal_visual"),
+            "confirmacao_math": data.get("estrategia"),
             "direcao_disparada": data.get("direcao"),
             "precos": {
                 "entrada": data.get("entry_price"),
@@ -248,12 +253,10 @@ class BrokerOperator:
                 "saldo_depois": data.get("balance_after"),
                 "valor_investido": data.get("amount")
             },
-            "resultado_final": data.get("status"), # WIN/LOSS/TIE
-            "id_instancia": os.getpid() # Ajuda a identificar se há processos duplicados
+            "resultado_final": data.get("status"),
+            "id_instancia": os.getpid()
         }
-
         try:
-            # Carrega o histórico existente ou cria um novo
             if os.path.exists(log_file):
                 with open(log_file, 'r+', encoding='utf-8') as f:
                     history = json.load(f)
@@ -263,6 +266,5 @@ class BrokerOperator:
             else:
                 with open(log_file, 'w', encoding='utf-8') as f:
                     json.dump([log_entry], f, indent=4, ensure_ascii=False)
-                    
         except Exception as e:
             logger.error(f"⚠️ Erro ao salvar log JSON: {e}")

@@ -1,5 +1,0 @@
-commands
-core
-features
-gui
-utils

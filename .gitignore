@@ -1,87 +1,51 @@
-# ============================================================
-# R2 — Ghost Protocol · .gitignore
-# ============================================================
-
-# --- Perfis de browser (Chromium / Playwright) ---
-broker10_profile/
-tiktok_profile/
-*_profile/
-
-# --- Cookies e credenciais ---
-*.txt
-!requirements.txt
-!estrutura.txt
-!atualizacao.txt
-*.json
-!config.json
-!environment.yml
-*_cookies*
-*.env
-.env*
-!.env.example
-
-# --- Modelos de IA (pesados demais) ---
-models/
-*.gguf
-*.bin
-*.pt
-*.safetensors
-
-# --- Áudio e vídeo gerados ---
-*.mp3
-*.mp4
-*.wav
-*.webm
-static/media/
-temp_files/
-temp_video/
-
-# --- Logs e debug ---
-*.log
-packets_debug.txt
-static/logs/
-logs/
-
-# --- Cache Python ---
+# --- AMBIENTE E IDE ---
+.vs/
+.vscode/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-*.egg-info/
-dist/
+.env
+.env.example
+r2_assistant.egg-info/
 build/
-*.egg
 
-# --- RAG / FAISS index (gerado em runtime) ---
-static/docs/faiss_index.bin
-static/docs/rag_data.json
+# --- DADOS DO NAVEGADOR (PERFIS E COOKIES) ---
+# Essencial ignorar para não vazar suas sessões logadas
+broker10_profile/
+tiktok_profile/
 
-# --- Uploads de usuário ---
+# --- LOGS E DIAGNÓSTICOS ---
+# Evita enviar arquivos de texto pesados e logs de performance
+logs/
+*.log
+packets_debug.txt
+alpha_bot_performance.log
+atualizacao.txt
+
+# --- MÍDIA E TEMPORÁRIOS ---
+# Remove vídeos processados, áudios gerados e capturas de tela
+*.mp4
+*.mp3
+*.png
+*.jpg
+*.ico
+temp_files/
+temp_video/
 uploads/
-
-# --- Backups automáticos ---
-backup/
-backup_*/
-*.bak
-
-# --- Arquivos temporários e debug ---
-*.tmp
-*.temp
+vault_uploads/
 maior_area
-alpha_debug.png
-INI.png
-radar_scan.png
-fala_r2.mp3
-teste_voz.mp3
-tts_*.mp3
 
-# --- VS Code / IDE ---
-.vs/
-.vscode/
-*.suo
-*.user
+# --- BACKUPS E PATCHES ANTIGOS ---
+backup/
+backup_patch_v*/
+*.bak
+aplicar_patch_v*.py
+apply_patches.py
 
-# --- Windows ---
-Thumbs.db
-Desktop.ini
+# --- DADOS E MODELOS PESADOS ---
+# Se os modelos forem baixados via script, não precisa enviá-los
+models/
+visual_models/
+data/
+static/docs/

@@ -1,39 +1,11 @@
 # filename: alpha_module.py
 # ============================================================
-# CHANGELOG DE REFATORAÇÃO — MÓDULO ALPHA (revisão 2026-05-15)
+# ESTRATÉGIA: FIRST TOUCH COMMAND (Ghost Protocol v21)
 # ============================================================
-# - [BUG-A1-A2-A9] Consolidação de AlphaEngine e correção de race condition no processamento de trades.
-# - [BUG-A3-A4] Remoção de definições duplicadas de StrategicManager e painel visual.
-# - [BUG-A5] Integração do filtro de pavio no QuantClassifier.
-# - [BUG-A6-A10] Correção de lógica de Breakout e implementação de detecção de zonas.
-# - [MELHORIA-1-2-5] RSI Wilder's Smoothing, padronização de logs e uso de deques.
-# ============================================================
-# CHANGELOG DE REFATORAÇÃO — GHOST PROTOCOL v16 (revisão 2026-05-20)
-# ============================================================
-# - [C-1 a C-6] Redução de conservadorismo: Circuit Breaker (3/60s), Meta (10), SL (5).
-# - [L-1 a L-5] Otimização de latência: Execução instantânea de FLASH, redução de sleeps.
-# - [B-1 a B-7] Correção de bugs críticos: Zonas de Breakout, loguru_logger, PnL pre-clique.
-# - [D-1 a D-5] Limpeza de código morto e métodos obsoletos.
-# - [M-4] Parametrização de limites de preço multi-aba.
-# ============================================================
-# CHANGELOG DE CORREÇÕES — MÓDULO ALPHA (revisão 2026-04-25)
-# ============================================================
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 🔥 CORREÇÃO DO FLASH FALSO (entradas no final da tendência)
-#   PROBLEMA: C0 > C1 era muito sensível, causava entradas
-#             em ruídos e no final do movimento.
-#   FIX: FLASH agora exige rompimento de consolidação:
-#        - CALL: C0 > max(últimos 3 closes)
-#        - PUT:  C0 < min(últimos 3 closes)
-#        - Amplitude mínima de 0.0002 (20 pips)
-#        - Bloqueio se movimento já consumiu >70% da amplitude média
-#        - Janela reduzida para 1.5 segundos (precisão fracionária)
-#
-# 🔧 Melhoria: Idade da vela agora usa time.time() com fração
-#   para evitar o corte brusco de segundos inteiros.
-#
-# 🔧 FLASH pendente agora respeita o mesmo filtro de ticks
-#   (mas com required_ticks = 0) para garantir condições no clique.
+# - Detecta Velas de Comando (bull: open==low, bear: open==high)
+# - Cria zonas de Suporte (verde) e Resistência (vermelha)
+# - No primeiro toque da zona, dispara ordem imediatamente e remove a zona
+# - Logs detalhados para observabilidade
 # ============================================================
 
 import time
@@ -95,9 +67,7 @@ class RiskConfig:
             self._consecutive_losses = 0
     
     def get_position_size_multiplier(self) -> float:
-        """Retorna multiplicador do tamanho da posição baseado no fator de recuperação."""
         if self._consecutive_losses >= self.max_consecutive_losses_before_reduce:
-            # Modo Soros: protege o capital, não aumenta (ao contrário de Martingale)
             return self.recovery_factor_soros
         return 1.0
     
@@ -117,7 +87,7 @@ class MarketStructure:
         self.min_touch = min_touch
         self.history_high: List[float] = []
         self.history_low: List[float] = []
-        self.trend: str = "LATERAL"  # ALTA, BAIXA, LATERAL
+        self.trend: str = "LATERAL"
         self._last_update = 0
         
     def update(self, high: float, low: float, close: float):
@@ -132,8 +102,6 @@ class MarketStructure:
         if len(self.history_high) < 10:
             self.trend = "LATERAL"
             return
-        
-        # Identifica topos (picos) e fundos (vales)
         highs = self.history_high
         lows = self.history_low
         tops = [highs[i] for i in range(2, len(highs)-2)
@@ -142,7 +110,6 @@ class MarketStructure:
         bottoms = [lows[i] for i in range(2, len(lows)-2)
                    if lows[i] < lows[i-1] and lows[i] < lows[i-2] and
                       lows[i] < lows[i+1] and lows[i] < lows[i+2]]
-        
         if len(tops) >= 2 and len(bottoms) >= 2:
             rising_tops = all(tops[i] < tops[i+1] for i in range(len(tops)-1))
             rising_bottoms = all(bottoms[i] < bottoms[i+1] for i in range(len(bottoms)-1))
@@ -167,7 +134,7 @@ class MarketStructure:
         return self.trend
 
 # ====================================================================
-# DETECTOR DE ROMPIMENTO (Breakout + Pullback)
+# DETECTOR DE ROMPIMENTO (Breakout + Pullback) - mantido para compatibilidade
 # ====================================================================
 class BreakoutDetector:
     """Detecta zonas de consolidação (mínimo 3 toques), rompimento e pullback."""
@@ -175,26 +142,19 @@ class BreakoutDetector:
         self.lookback = lookback
         self.min_touches = min_touches
         self.volume_avg_period = volume_avg_period
-        self.consolidation_zones: List[Tuple[float, float]] = []  # (suporte, resistencia)
+        self.consolidation_zones: List[Tuple[float, float]] = []
         self.breakout_detected: bool = False
-        self.breakout_direction: Optional[str] = None  # "CALL" (acima) ou "PUT" (abaixo)
+        self.breakout_direction: Optional[str] = None
         self.pullback_confirmed: bool = False
         self._last_breakout_candle_volume = 0.0
         self._volume_history: List[float] = []
     
     def update(self, high: float, low: float, close: float, volume: float, price_history: List[float]):
-        # Atualiza volume history (simulado, se não houver volume real, use tick count)
         self._volume_history.append(volume)
         if len(self._volume_history) > self.volume_avg_period:
             self._volume_history.pop(0)
-        
-        # Detecta zonas de consolidação usando SRZoneTracker ou cálculo próprio
         self._detect_consolidation_zones(price_history)
-        
-        # Verifica rompimento
         self._check_breakout(high, low, close)
-        
-        # Verifica pullback
         if self.breakout_detected and not self.pullback_confirmed:
             self._check_pullback(close)
     
@@ -215,16 +175,15 @@ class BreakoutDetector:
                 self.consolidation_zones.append((sup, res))
 
     def _check_breakout(self, high: float, low: float, close: float):
-        # Verifica se o preço rompeu uma zona consolidada
         for sup, res in self.consolidation_zones:
-            if close > res and high > res * 1.002:  # rompeu resistência
+            if close > res and high > res * 1.002:
                 avg_vol = np.mean(self._volume_history) if self._volume_history else 1
                 if self._volume_history and self._volume_history[-1] > avg_vol * 1.5:
                     self.breakout_detected = True
                     self.breakout_direction = "CALL"
                     self._last_breakout_candle_volume = self._volume_history[-1]
                     break
-            elif close < sup and low < sup * 0.998:  # rompeu suporte
+            elif close < sup and low < sup * 0.998:
                 avg_vol = np.mean(self._volume_history) if self._volume_history else 1
                 if self._volume_history and self._volume_history[-1] > avg_vol * 1.5:
                     self.breakout_detected = True
@@ -233,11 +192,9 @@ class BreakoutDetector:
                     break
     
     def _check_pullback(self, close: float):
-        # Após rompimento, aguarda reteste da zona rompida
         if self.breakout_direction == "CALL":
-            # Reteste na resistência rompida
             for sup, res in self.consolidation_zones:
-                if abs(close - res) / res < 0.003:  # 0.3% da zona
+                if abs(close - res) / res < 0.003:
                     self.pullback_confirmed = True
                     logger.info(f"[Breakout] Pullback confirmado para CALL perto de {res:.5f}")
                     break
@@ -257,14 +214,12 @@ class BreakoutDetector:
         self.pullback_confirmed = False
         self.breakout_direction = None
 
-# --- CONFIGURAÇÕES TÁTICAS (PATCH AGRESSIVO) ---
+# --- CONFIGURAÇÕES TÁTICAS ---
 class TacticalConfig:
-    """Configurações globais de sensibilidade do Sniper"""
-    MAX_SIGNAL_AGE_SECONDS = 5.0    # Tolerância de delay do sinal
-    MIN_BIAS_THRESHOLD = 0.15       # Sensibilidade da confirmação matemática
-    TICK_VOLATILITY_TOLERANCE = 0.0008 # Estabilidade mínima do preço
+    MAX_SIGNAL_AGE_SECONDS = 5.0
+    MIN_BIAS_THRESHOLD = 0.15
+    TICK_VOLATILITY_TOLERANCE = 0.0008
 
-# Configuração explícita do Tesseract
 _tess_path = os.environ.get("TESSERACT_CMD", r'C:\Program Files\Tesseract-OCR\tesseract.exe')
 if os.path.exists(_tess_path):
     pytesseract.pytesseract.tesseract_cmd = _tess_path
@@ -290,36 +245,26 @@ class InferenceResult:
 # ============================================================
 # 1. MACRO: RADAR GEOPOLÍTICO
 # ============================================================
-
 class NewsSentimentAnalyzer:
     def __init__(self, symbol: str = "USD-BRL", logger_instance=None):
         self.symbol = symbol
-        self.news_bias = 0.0  # Float entre -1.0 e 1.0 (substitui current_sentiment, bullish_score, bearish_score)
-        self.last_news_update = 0.0  # Renomeado de last_update
-        self.update_interval = 30  # Reduzido para 30 segundos
+        self.news_bias = 0.0
+        self.last_news_update = 0.0
+        self.update_interval = 30
         self._lock = threading.Lock()
         self.logger = logger_instance if logger_instance else logging.getLogger("NewsSentimentAnalyzer")
 
     def get_sentiment(self) -> float:
         now = time.time()
-        # Sempre tenta buscar notícias, a função _fetch_news gerencia o intervalo
-        # para evitar chamadas excessivas em threads separadas.
         if now - self.last_news_update > self.update_interval:
             threading.Thread(target=self._fetch_news, daemon=True).start()
-
-        # FIX: Retornar o valor com segurança de thread
         with self._lock:
             return self.news_bias
-    def _fetch_news(self):
-        """
-        Busca notícias em múltiplas fontes com intervalo reduzido para 30s.
-        Fontes: Google News, Reuters (Finance), Bloomberg (Market).
-        """
-        now = time.time()
-        # Reduzido de 60s para 30s conforme solicitado
-        if now - self.last_news_update < 30: 
-            return
 
+    def _fetch_news(self):
+        now = time.time()
+        if now - self.last_news_update < 30:
+            return
         self.last_news_update = now
         combined_sentiment = 0
         sources = [
@@ -327,30 +272,81 @@ class NewsSentimentAnalyzer:
             f"https://www.reuters.com/search/news?blob={self.symbol}",
             "https://www.bloomberg.com/markets"
         ]
-
         try:
             for url in sources:
                 response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     headlines = soup.find_all(['h3', 'h4', 'a'], limit=5)
-                    
                     for h in headlines:
                         text = h.get_text().lower()
-                        # Lógica de Sentimento Alpha
                         if any(w in text for w in ['surge', 'boost', 'growth', 'upward', 'bull']):
                             combined_sentiment += 0.15
                         if any(w in text for w in ['drop', 'fall', 'crisis', 'down', 'bear']):
                             combined_sentiment -= 0.15
-            
-            # Normalização do Bias
             with self._lock:
                 self.news_bias = max(-1.0, min(1.0, combined_sentiment))
                 self.logger.info(f"Feed atualizado (30s). Bias resultante: {self.news_bias:.2f}")
-
         except Exception as e:
             self.logger.error(f"Erro na varredura de notícias: {e}")
 
+
+# ============================================================
+# ESTRATÉGIA FIRST TOUCH COMMAND (Primeiro Toque)
+# ============================================================
+class FirstTouchManager:
+    """
+    Gerencia zonas de Suporte (verde) e Resistência (vermelha) baseadas em Velas de Comando.
+    - No primeiro toque do preço na zona (distância <= tolerance), dispara sinal imediato.
+    - Remove a zona após o toque (uso único).
+    - Logs detalhados de mapeamento, monitoramento e gatilho.
+    """
+    def __init__(self, tolerance: float = 0.0002):
+        self.zones = []          # cada zona: {'level': float, 'type': str, 'color': str, 'price': float}
+        self.tolerance = tolerance
+
+    def add_zone(self, level: float, zone_type: str, color: str) -> None:
+        """Adiciona uma nova zona (Suporte ou Resistência). Evita duplicatas próximas."""
+        for z in self.zones:
+            if abs(z['level'] - level) < self.tolerance and z['type'] == zone_type:
+                # Zona já existente, log silencioso (apenas debug)
+                logger.debug(f"[SCANNER] Zona {zone_type} já existente em {level:.5f} - ignorada.")
+                return
+        self.zones.append({
+            'level': level,
+            'type': zone_type,
+            'color': color,
+            'price': level
+        })
+        # LOG DE MAPEAMENTO
+        logger.info(f"[SCANNER] 📍 Nova zona detectada | Cor: {color} | Preço Estimado: {level:.5f} | Tipo: {zone_type}")
+
+    def update(self, current_price: float) -> Optional[str]:
+        """
+        Verifica se o preço tocou alguma zona ativa (first touch).
+        Retorna 'CALL' para toque em SUPORTE, 'PUT' para RESISTÊNCIA, ou None.
+        Remove a zona imediatamente após o toque.
+        """
+        now = time.time()
+        for i, zone in enumerate(self.zones):
+            if abs(current_price - zone['level']) <= self.tolerance:
+                # TOQUE DETECTADO!
+                signal = 'CALL' if zone['type'] == 'SUPPORT' else 'PUT'
+                cor = zone['color']
+                level = zone['level']
+                # LOG DE GATILHO
+                logger.info(f"[🎯 TRIGGER] ⚡ TOQUE DETECTADO! Linha {cor} em {level:.5f}. Enviando ordem de {signal}...")
+                # Remove a zona (uso único)
+                self.zones.pop(i)
+                return signal
+        return None
+
+    def get_active_zones(self) -> List[Dict]:
+        """Retorna as zonas ativas para monitoramento externo."""
+        return self.zones
+
+    def reset(self) -> None:
+        self.zones.clear()
 
 
 # ============================================================
@@ -363,7 +359,7 @@ class MarketTracker:
         self._lock = threading.Lock()
         self.market_structure = MarketStructure(lookback=20)
         self.breakout_detector = BreakoutDetector()
-        self.volumes: List[float] = []   # simular volume (número de ticks por candle)
+        self.volumes: List[float] = []
 
     def _init_asset_state(self, asset_id: int) -> Dict[str, Any]:
         return {
@@ -385,15 +381,12 @@ class MarketTracker:
             if asset_id not in self.assets:
                 self.assets[asset_id] = self._init_asset_state(asset_id)
             state = self.assets[asset_id]
-
             is_new_candle = False
-
             current_color = "UNKNOWN"
             if cl > op:
                 current_color = "GREEN"
             elif cl < op:
                 current_color = "RED"
-
             if current_color == "UNKNOWN":
                 state["consecutive_ticks"] = 0
                 state["last_color_state"] = "UNKNOWN"
@@ -403,10 +396,8 @@ class MarketTracker:
                 else:
                     state["consecutive_ticks"] = 1
                     state["last_color_state"] = current_color
-
             if state["last_candle_time"] is None:
                 state["last_candle_time"] = candle_time
-
             if candle_time != state["last_candle_time"]:
                 if state["current_close"] is not None:
                     state["history_c"].append(state["current_close"])
@@ -418,12 +409,10 @@ class MarketTracker:
                 state["current_high"] = cl
                 state["current_low"] = cl
                 is_new_candle = True
-
             if state["current_open"] is None:
                 state["current_open"] = op
                 state["current_high"] = cl
                 state["current_low"] = cl
-
             state["current_close"] = cl
             state["current_high"] = max(state.get("current_high", cl), cl)
             state["current_low"] = min(state.get("current_low", cl), cl)
@@ -467,7 +456,6 @@ class MarketTracker:
         deltas = [hist[i] - hist[i-1] for i in range(1, len(hist))]
         gains = [max(d, 0) for d in deltas]
         losses = [max(-d, 0) for d in deltas]
-        # Wilder's smoothing
         avg_gain = sum(gains[:14]) / 14
         avg_loss = sum(losses[:14]) / 14
         for i in range(14, len(gains)):
@@ -484,10 +472,6 @@ class MarketTracker:
             return 1.0
 
     def check_confirmacao_vela(self, candle_atual, candle_anterior):
-        """
-        Filtro de Confirmação: 
-        Só entra se a vela atual fechar acima/abaixo da anterior na direção da tendência.
-        """
         if self.direcao_tendencia == "CALL":
             if candle_atual['close'] > (candle_anterior['high'] * 0.9985):
                 return True
@@ -497,7 +481,6 @@ class MarketTracker:
         return False
 
     def evaluate_scripts(self, asset_id: int) -> Tuple[Optional[str], str]:
-        # Cópias rasas das listas criadas DENTRO do lock
         with self._lock:
             if asset_id not in self.assets:
                 return None, ""
@@ -508,27 +491,19 @@ class MarketTracker:
             history_l = list(state["history_l"])
             C0 = state["current_close"]
             O0 = state["current_open"]
-
         if len(history_c) < 10:
             return None, f"MATRIZ_INCOMPLETA: apenas {len(history_c)} velas"
-
-        # ========== IDADE DA VELA (precisão fracionária) ==========
-        # Obtém o timestamp atual em fração de segundo
         now = time.time()
         candle_start = (int(now) // 5) * 5
         age_in_seconds = now - candle_start
-        # =========================================================
-
         recent = history_c[-5:]
-        amplitude = (max(recent) - min(recent)) / max(recent)
+        amplitude = (max(recent) - min(recent)) / max(recent) if max(recent) > 0 else 0
         if amplitude < 0.00004:
             return None, "LATERAL_BLOQUEADO"
-
         momentum = abs(history_c[-1] - history_c[-3])
         avg_move = sum(abs(history_c[i] - history_c[i - 1]) for i in range(-5, -1)) / 4
         if avg_move > 0 and momentum > avg_move * 2.5:
             return None, "MOMENTUM_ESGOTADO"
-
         C1 = history_c[-1]
         C2 = history_c[-2]
         C3 = history_c[-3]
@@ -537,34 +512,21 @@ class MarketTracker:
         C8 = history_c[-8]
         O2 = history_o[-2]
         O1 = history_o[-1]
-
         sig_dir = None
         sig_name = ""
-
-        # ========== PADRÃO FLASH CORRIGIDO (rompimento de consolidação) ==========
-        # Só é válido nos primeiros 1.5 segundos da vela
+        # FLASH pattern (mantido)
         if age_in_seconds < 1.5:
-            # Para evitar entradas no fim do movimento, verifica se o preço está rompendo uma faixa de consolidação
-            # Usa as últimas 3 velas fechadas como referência
             last_3_closes = history_c[-3:]
             range_high = max(last_3_closes)
             range_low = min(last_3_closes)
-            range_size = range_high - range_low
-            
-            # CALL: preço atual acima do ponto mais alto das últimas 3 velas, com amplitude mínima
             if C0 > range_high and (C0 - range_high) >= 0.0002:
-                # Verifica se o movimento não está exausto (evita entrada no topo)
-                # Calcula a amplitude média das últimas 5 velas
                 avg_range_5 = (max(history_c[-5:]) - min(history_c[-5:])) / 5
                 if avg_range_5 > 0:
-                    # Se já percorreu mais de 70% da amplitude média, bloqueia
                     distance_from_low = C0 - min(history_c[-5:])
                     if distance_from_low / avg_range_5 < 0.7:
                         sig_dir, sig_name = "CALL", "FLASH"
                 else:
                     sig_dir, sig_name = "CALL", "FLASH"
-                    
-            # PUT: preço atual abaixo do ponto mais baixo das últimas 3 velas, com amplitude mínima
             elif C0 < range_low and (range_low - C0) >= 0.0002:
                 avg_range_5 = (max(history_c[-5:]) - min(history_c[-5:])) / 5
                 if avg_range_5 > 0:
@@ -573,27 +535,19 @@ class MarketTracker:
                         sig_dir, sig_name = "PUT", "FLASH"
                 else:
                     sig_dir, sig_name = "PUT", "FLASH"
-        # ============================================================
-
         if not sig_dir:
-            # Bloqueio geral para entradas tardias (após 4.2 segundos) - V9.0: Margem ampliada para latência OCR
             if age_in_seconds >= 4.2:
                 return None, f"ENTRADA_TARDIA (Idade {age_in_seconds:.1f}s)"
-
-            # Padrão JustWin: tendência de médio prazo confirmando direção atual
             justwin_curr = None
             if (C0 > C2) and (C2 > O2) and (C4 > C8):
                 justwin_curr = "CALL"
             elif (C0 < C2) and (C2 < O2) and (C4 < C8):
                 justwin_curr = "PUT"
-
-            # Padrão GenInd: impulso de curto prazo com vela fechada bullish/bearish
             genind_curr = None
             if (C0 > C1) and (C1 > O1) and (C3 > C2):
                 genind_curr = "CALL"
             elif (C0 < C1) and (C1 < O1) and (C3 < C2):
                 genind_curr = "PUT"
-
             if justwin_curr == genind_curr and justwin_curr is not None:
                 sig_dir = justwin_curr
                 sig_name = "DUPLA_CONFIRMACAO"
@@ -603,35 +557,27 @@ class MarketTracker:
             elif genind_curr is not None:
                 sig_dir = genind_curr
                 sig_name = "GenInd_Solo"
-
-        # ========== FILTRO DE CONFIRMAÇÃO DE VELA (V9.5) ==========
         if sig_dir and history_h and history_l:
             self.direcao_tendencia = sig_dir
             candle_atual = {'close': C0}
             candle_anterior = {'high': history_h[-1], 'low': history_l[-1]}
             if not self.check_confirmacao_vela(candle_atual, candle_anterior):
                 return None, f"FILTRO_PA_RECUSADO ({sig_name})"
-        # ==========================================================
-
         return sig_dir, sig_name
 
 
 # ============================================================
-# 1. Primeiro defina o Gerenciador Estratégico (Onde fica o Placar e o Stop)
+# GERENCIADOR ESTRATÉGICO (Placar)
 # ============================================================
 class StrategicManager:
     def __init__(self):
-        # Configurações de Gerenciamento (Vídeo 1)
         self.stop_loss_diario = 2
         self.meta_diaria = 4
-        
-        # Contadores Reais
         self.wins = 0
         self.losses = 0
         self.losses_seguidas = 0
         
     def registrar_resultado(self, resultado):
-        """Atualiza o placar e reseta sequências"""
         if resultado == "WIN":
             self.wins += 1
             self.losses_seguidas = 0
@@ -657,23 +603,19 @@ class QuantClassifier:
     def __init__(self, alpha_engine_instance=None):
         self.pending_signal = None
         self._data_lock = threading.Lock()
-
-        self.candle_maturity_delay = 0.0 # Não usado no código atual, mas mantido
+        self.candle_maturity_delay = 0.0
         self.signal_timeout = TacticalConfig.MAX_SIGNAL_AGE_SECONDS
-
         self.market = MarketTracker()
+        self.first_touch = FirstTouchManager(tolerance=0.0002)   # Estratégia principal
         self.last_signal: Optional[str] = None
         self._last_asset_id = 1
-
-        # --- OCR ---
         self._last_ocr_scan_time = 0.0
         self.OCR_SCAN_INTERVAL = 0.0
         self._ocr_error_logged = False
-
         self._last_warmup_log = 0.0
         self._system_armed_logged = False
         self.news_analyzer = NewsSentimentAnalyzer(symbol="USD-BRL", logger_instance=logger)
-        self.alpha_engine_instance = alpha_engine_instance # Reference to AlphaEngine
+        self.alpha_engine_instance = alpha_engine_instance
         self.risk_config = RiskConfig()
 
     def _extract_visual_signal(self, page: Page) -> Tuple[Optional[str], Optional[str], Optional[int]]:
@@ -681,50 +623,39 @@ class QuantClassifier:
         if now - self._last_ocr_scan_time < self.OCR_SCAN_INTERVAL:
             return None, None, None
         self._last_ocr_scan_time = now
-
         try:
             screenshot_bytes = page.screenshot(full_page=False)
             img = Image.open(io.BytesIO(screenshot_bytes))
             width, height = img.size
-
-            # Visão em túnel (50% a 98% do eixo X)
             crop_x1 = int(width * 0.50)
             crop_x2 = int(width * 0.98)
             crop_y1 = int(height * 0.10)
             crop_y2 = int(height * 0.90)
-
             if crop_x1 >= crop_x2 or crop_y1 >= crop_y2:
                 return None, None, None
-
             cropped = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
             gray = cropped.convert('L')
             threshold_img = gray.point(lambda p: 255 if p > 150 else 0)
-
             scale = 2
             new_size = (threshold_img.width * scale, threshold_img.height * scale)
             big_img = threshold_img.resize(new_size, Image.Resampling.LANCZOS)
-
             custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÇçÁáÃãÂâÉéÍíÓóÚúÊêÔôÕõ '
             data = pytesseract.image_to_data(big_img, lang='por+eng', config=custom_config, output_type=pytesseract.Output.DICT)
-
             target_words = {
                 "CALL": "CALL",
                 "COMPRA": "CALL",
                 "PUT": "PUT",
                 "VENDA": "PUT"
             }
-
             best_direction = None
             best_text = None
             best_conf = -1
             best_x = -1
-
             n_boxes = len(data['text'])
             for i in range(n_boxes):
                 text = data['text'][i].strip().upper()
                 if not text:
                     continue
-
                 direction = None
                 for k, v in target_words.items():
                     if k == text:
@@ -732,12 +663,9 @@ class QuantClassifier:
                         break
                 if direction is None:
                     continue
-
                 conf = int(data['conf'][i]) if data['conf'][i] != '-1' else 0
                 if conf < 50:
                     continue
-
-                # V9.0: Critério de seleção por maior confiança para evitar sinais fantasmas/antigos
                 if conf > best_conf:
                     best_conf = conf
                     best_direction = direction
@@ -745,17 +673,14 @@ class QuantClassifier:
                     x = data['left'][i]
                     w = data['width'][i]
                     best_x = (x + w // 2) // scale + crop_x1
-
             if best_direction:
                 self._ocr_error_logged = False
                 return best_direction, best_text, best_x
-
         except Exception as e:
             if not self._ocr_error_logged:
                 print(f"\n⚠️ ERRO NO MÓDULO DE VISÃO (OCR): {e}\n[Verifique se o Tesseract está instalado]")
                 self._ocr_error_logged = True
             return None, None, None
-
         return None, None, None
 
     def process_network_packet(self, payload: str):
@@ -763,21 +688,14 @@ class QuantClassifier:
             if "{" not in payload and "[" not in payload:
                 return
             payload_lower = payload.lower()
-
-            # Aspirador universal de ticks
             prices = re.findall(r'"(?:close|ask|bid|value)"\s*:\s*"?([0-9]+\.[0-9]+)"?', payload_lower)
             opens = re.findall(r'"open"\s*:\s*([0-9]+\.[0-9]+)', payload_lower)
-
             if not prices and not opens:
                 return
-
             cl = float(prices[-1]) if prices else float(opens[-1])
             op = float(opens[-1]) if opens else cl
-
-            # Proteção Multi-Aba: ignora ativos baratos (EUR, DOGE, etc)
             if op < 3.0 or op > 7.0:
                 return
-
             match_id = re.search(r'"active_id"\s*:\s*(\d+)', payload_lower)
             if match_id:
                 asset_id = int(match_id.group(1))
@@ -785,12 +703,8 @@ class QuantClassifier:
                     self._last_asset_id = asset_id
             else:
                 asset_id = self._last_asset_id
-
-            # Relógio absoluto (PC clock) - velas de 5 em 5s
             candle_time = int(time.time()) // 5
-
             self.market.update_robust(asset_id, op, cl, candle_time, volume=1)
-
         except Exception:
             pass
 
@@ -810,34 +724,31 @@ class QuantClassifier:
 
         asset_id = self._last_asset_id
 
-        # Modo de aquecimento silencioso
+        # Modo de aquecimento
         history_len = self.market.get_history_len(asset_id)
         if history_len < 10:
             now = time.time()
             if now - self._last_warmup_log > 5.0:
-                print(f"⏳ [AQUECIMENTO TÁTICO] A calibrar histórico matemático da corretora... ({history_len}/10 velas completas).")
+                print(f"⏳ [AQUECIMENTO TÁTICO] A calibrar histórico... ({history_len}/10 velas).")
                 self._last_warmup_log = now
             return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=1.0, recommended_action="WAIT")
         elif not self._system_armed_logged:
-            print(f"\n🎯 [SISTEMA ARMADO] Matriz 100% carregada! Sniper silencioso ativado. Aguardando alvos na tela...")
+            print(f"\n🎯 [SISTEMA ARMADO] Matriz 100% carregada! Aguardando first touch...")
             self._system_armed_logged = True
 
-        # Verifica se há um sinal pendente (já confirmado anteriormente)
+        # Verifica se há sinal pendente (outras estratégias)
         if self.pending_signal:
             elapsed = time.time() - self.pending_signal["timestamp"]
             if elapsed > self.signal_timeout:
-                # V9.0: Tenta renovação se a matemática ainda confirmar (máx 1 renovação)
                 quant_dir, quant_name = self.market.evaluate_scripts(asset_id)
                 if quant_dir == self.pending_signal["direction"] and not self.pending_signal.get("renewed"):
                     self.pending_signal["timestamp"] = time.time()
                     self.pending_signal["renewed"] = True
-                    print(f"🔄 SINAL RENOVADO: Matemática ainda confirma na nova vela.")
+                    print(f"🔄 SINAL RENOVADO: Matemática confirma.")
                     return InferenceResult(state=ScreenState.ARMED, confidence=0.8, recommended_action="WAIT")
-                
-                print("\n⚠️ TIMEOUT: O sinal visual expirou.")
+                print("\n⚠️ TIMEOUT: Sinal expirou.")
                 self.pending_signal = None
                 return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
-
             if elapsed < self.candle_maturity_delay:
                 return InferenceResult(state=ScreenState.ARMED, confidence=0.8, recommended_action="WAIT")
 
@@ -845,140 +756,156 @@ class QuantClassifier:
             direction = self.pending_signal["direction"]
             signal_name = self.pending_signal.get("name", "")
 
-            # Para sinais FLASH, agora também verificamos as condições novamente (evita entrada tardia)
+            # Tratamento de FLASH
             if signal_name == "FLASH":
-                # Reavalia as condições do FLASH para garantir que ainda é válido
                 quant_dir, quant_name = self.market.evaluate_scripts(asset_id)
                 if quant_dir != direction or quant_name != "FLASH":
-                    print(f"⚠️ SINAL FLASH EXPIRADO: Condições de rompimento não se mantêm.")
+                    print(f"⚠️ SINAL FLASH EXPIRADO.")
                     self.pending_signal = None
                     return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
-                
-                # FLASH executa imediatamente, sem esperar ticks adicionais
-                print("⚡ SINAL FLASH VÁLIDO! Execução instantânea.")
                 entry_price = self.market.get_current_close(asset_id) or 0.0
                 self.pending_signal = None
                 if direction == "CALL":
-                    return InferenceResult(
-                        state=ScreenState.GATINHO_CALL,
-                        confidence=1.0,
-                        recommended_action="CLICK_ACIMA",
-                        details={"asset_id": asset_id, "entry_price": entry_price}
-                    )
+                    return InferenceResult(state=ScreenState.GATINHO_CALL, confidence=1.0,
+                                           recommended_action="CLICK_ACIMA",
+                                           details={"asset_id": asset_id, "entry_price": entry_price})
                 else:
-                    return InferenceResult(
-                        state=ScreenState.GATINHO_PUT,
-                        confidence=1.0,
-                        recommended_action="CLICK_ABAIXO",
-                        details={"asset_id": asset_id, "entry_price": entry_price}
-                    )
+                    return InferenceResult(state=ScreenState.GATINHO_PUT, confidence=1.0,
+                                           recommended_action="CLICK_ABAIXO",
+                                           details={"asset_id": asset_id, "entry_price": entry_price})
 
-            # Demais sinais (JustWin, GenInd, DUPLA) seguem a lógica original com ticks
-            news_bias = self.news_analyzer.get_sentiment() # Agora retorna um float
-            
-            # Definir um limiar para considerar o viés significativo
+            # Sinais JustWin/GenInd com ticks
+            news_bias = self.news_analyzer.get_sentiment()
             BIAS_THRESHOLD = TacticalConfig.MIN_BIAS_THRESHOLD
-
             base_ticks = 0 if "DUPLA" in signal_name else 1
             required_ticks = base_ticks
-            is_counter_trend = False
-
-            if (direction == "CALL" and news_bias < -BIAS_THRESHOLD) or \
-               (direction == "PUT" and news_bias > BIAS_THRESHOLD):
+            if (direction == "CALL" and news_bias < -BIAS_THRESHOLD) or (direction == "PUT" and news_bias > BIAS_THRESHOLD):
                 required_ticks = base_ticks + 2
-                is_counter_trend = True
+
+            if signal_name == "FIRST_TOUCH":  # Para compatibilidade com first touch
+                entry_price = self.market.get_current_close(asset_id) or 0.0
+                self.pending_signal = None
+                if direction == "CALL":
+                    return InferenceResult(state=ScreenState.GATINHO_CALL, confidence=1.0,
+                                           recommended_action="CLICK_ACIMA",
+                                           details={"asset_id": asset_id, "entry_price": entry_price})
+                else:
+                    return InferenceResult(state=ScreenState.GATINHO_PUT, confidence=1.0,
+                                           recommended_action="CLICK_ABAIXO",
+                                           details={"asset_id": asset_id, "entry_price": entry_price})
 
             if ticks_forca >= required_ticks:
                 if direction == "CALL" and candle_color == "GREEN":
-                    print("✅ ALINHAMENTO TOTAL (TIRO INSTANTÂNEO)! Disparando ACIMA!")
+                    print("✅ ALINHAMENTO TOTAL! Disparando ACIMA!")
                     entry_price = self.market.get_current_close(asset_id) or 0.0
                     self.pending_signal = None
-                    return InferenceResult(
-                        state=ScreenState.GATINHO_CALL,
-                        confidence=1.0,
-                        recommended_action="CLICK_ACIMA",
-                        details={"asset_id": asset_id, "entry_price": entry_price}
-                    )
+                    return InferenceResult(state=ScreenState.GATINHO_CALL, confidence=1.0,
+                                           recommended_action="CLICK_ACIMA",
+                                           details={"asset_id": asset_id, "entry_price": entry_price})
                 if direction == "PUT" and candle_color == "RED":
-                    print("✅ ALINHAMENTO TOTAL (TIRO INSTANTÂNEO)! Disparando ABAIXO!")
+                    print("✅ ALINHAMENTO TOTAL! Disparando ABAIXO!")
                     entry_price = self.market.get_current_close(asset_id) or 0.0
                     self.pending_signal = None
-                    return InferenceResult(
-                        state=ScreenState.GATINHO_PUT,
-                        confidence=1.0,
-                        recommended_action="CLICK_ABAIXO",
-                        details={"asset_id": asset_id, "entry_price": entry_price}
-                    )
-
+                    return InferenceResult(state=ScreenState.GATINHO_PUT, confidence=1.0,
+                                           recommended_action="CLICK_ABAIXO",
+                                           details={"asset_id": asset_id, "entry_price": entry_price})
             return InferenceResult(state=ScreenState.ARMED, confidence=0.8, recommended_action="WAIT")
 
-        # --- Nenhum sinal pendente: tenta detectar novo sinal visual + matemático ---
+        # ========== ESTRATÉGIA FIRST TOUCH COMMAND ==========
+        # 1) Detectar Velas de Comando (vela anterior já fechada)
+        history_o = self.market.assets[asset_id]["history_o"] if asset_id in self.market.assets else []
+        history_c = self.market.assets[asset_id]["history_c"] if asset_id in self.market.assets else []
+        history_h = self.market.assets[asset_id]["history_h"] if asset_id in self.market.assets else []
+        history_l = self.market.assets[asset_id]["history_l"] if asset_id in self.market.assets else []
+
+        if len(history_o) >= 2 and len(history_c) >= 2:
+            prev_open = history_o[-2]
+            prev_close = history_c[-2]
+            prev_high = history_h[-2] if len(history_h) >= 2 else prev_open
+            prev_low = history_l[-2] if len(history_l) >= 2 else prev_open
+
+            is_bullish = prev_close > prev_open
+            is_bearish = prev_close < prev_open
+
+            # Vela de Comando de Alta (bull_command: open == low and close > open)
+            if is_bullish and prev_low == prev_open:
+                self.first_touch.add_zone(prev_open, 'SUPPORT', 'VERDE')
+                print(f"📊 [VELA DE COMANDO] Alta -> Suporte em {prev_open:.5f}")
+
+            # Vela de Comando de Baixa (bear_command: open == high and close < open)
+            if is_bearish and prev_high == prev_open:
+                self.first_touch.add_zone(prev_open, 'RESISTANCE', 'VERMELHA')
+                print(f"📊 [VELA DE COMANDO] Baixa -> Resistência em {prev_open:.5f}")
+
+        # 2) Verificar first touch nas zonas ativas
+        current_price = self.market.get_current_close(asset_id)
+        if current_price:
+            # LOG DE MONITORAMENTO (distância) - será chamado a cada ciclo do alpha engine
+            for zone in self.first_touch.get_active_zones():
+                diff = abs(current_price - zone['level'])
+                logger.info(f"[TRACKER] 🔍 Monitorando: Preço Atual: {current_price:.5f} | Alvo: {zone['level']:.5f} | Distância: {diff:.5f} pips")
+            touch_signal = self.first_touch.update(current_price)
+            if touch_signal:
+                print(f"🔁 [FIRST TOUCH] Sinal: {touch_signal}")
+                self.pending_signal = {
+                    "asset_id": asset_id,
+                    "direction": touch_signal,
+                    "name": "FIRST_TOUCH",
+                    "timestamp": time.time(),
+                    "required_ticks": 0
+                }
+                return InferenceResult(state=ScreenState.ARMED, confidence=0.9, recommended_action="WAIT")
+        # ========================================================
+
+        # Se não houver sinal de first touch, tenta outras estratégias (OCR + matemática)
         visual_dir, raw_text, x_center = self._extract_visual_signal(page)
         if visual_dir is None:
             return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=1.0, recommended_action="WAIT")
 
-        print(f"🔍 OCR detectou: {visual_dir} (texto='{raw_text}', x={x_center})")
+        print(f"🔍 OCR detectou: {visual_dir} (texto='{raw_text}')")
 
-        # ========================================================
-        # ⚡ FILTRO TÁTICO: SUPORTE, RESISTÊNCIA E TENDÊNCIA
-        # ========================================================
+        # Filtros de suporte/resistência e tendência
         history = self.market.get_history(asset_id)
         current_price = self.market.get_current_close(asset_id)
-        
         if current_price and len(history) >= 10:
             resistencia = max(history[-10:])
             suporte = min(history[-10:])
             range_total = resistencia - suporte
-            
-            # 1. Inversão em Zonas Extremas (Top 20% e Bottom 20% do range recente)
             if range_total > 0:
                 if current_price >= resistencia - (range_total * 0.2):
-                    print(f"🛡️ Preço ({current_price:.4f}) colado na RESISTÊNCIA! Forçando VENDA (PUT).")
+                    print(f"🛡️ Preço colado na RESISTÊNCIA! Forçando PUT.")
                     visual_dir = "PUT"
                 elif current_price <= suporte + (range_total * 0.2):
-                    print(f"🛡️ Preço ({current_price:.4f}) colado no SUPORTE! Forçando COMPRA (CALL).")
+                    print(f"🛡️ Preço colado no SUPORTE! Forçando CALL.")
                     visual_dir = "CALL"
-
-            # 2. Análise da Linha de Tendência Macroeconômica
             self.market.market_structure.update(max(history[-2:]), min(history[-2:]), current_price)
             tendencia = self.market.market_structure.get_trend_description()
-            
             if tendencia == "ALTA" and visual_dir == "PUT":
-                print(f"📉 TENDÊNCIA CONTRÁRIA: Ignorando PUT. Ativo em tendência macro de {tendencia}.")
+                print(f"📉 TENDÊNCIA CONTRÁRIA: Ignorando PUT.")
                 return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
             if tendencia == "BAIXA" and visual_dir == "CALL":
-                print(f"📈 TENDÊNCIA CONTRÁRIA: Ignorando CALL. Ativo em tendência macro de {tendencia}.")
+                print(f"📈 TENDÊNCIA CONTRÁRIA: Ignorando CALL.")
                 return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
-        # ========================================================
 
         quant_dir, quant_name = self.market.evaluate_scripts(asset_id)
-
         if quant_dir is None:
-            print(f"🚫 SINAL VISUAL IGNORADO: Matemática não confirmou (filtro: {quant_name or 'SEM_ALINHAMENTO'})")
+            print(f"🚫 SINAL VISUAL IGNORADO: Matemática não confirmou ({quant_name})")
             return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
-
         if quant_dir != visual_dir:
-            print(f"⚠️ FALSO POSITIVO GRÁFICO: OCR viu {visual_dir}, mas Matemática aponta {quant_dir}. Ignorado.")
+            print(f"⚠️ FALSO POSITIVO: OCR viu {visual_dir}, Matemática {quant_dir}.")
             return InferenceResult(state=ScreenState.WAITING_SIGNAL, confidence=0.5, recommended_action="WAIT")
-
         print(f"✅ CONFIRMAÇÃO HÍBRIDA: OCR ({visual_dir}) + Math ({quant_name}) alinhados!")
         self.last_signal = visual_dir
-
-        # Para sinais FLASH, armamos o pending_signal mas a execução será no próximo ciclo
-        # (para garantir que a condição de rompimento se mantém por pelo menos um tick)
         self.pending_signal = {
             "asset_id": asset_id,
             "direction": visual_dir,
             "name": quant_name,
             "timestamp": time.time()
         }
-        
-        # Se for FLASH, já avisamos que está armado e será executado no próximo ciclo (rápido)
         if quant_name == "FLASH":
-            print("⚡ SINAL FLASH ARMADO. Aguardando confirmação de manutenção do rompimento...")
+            print("⚡ SINAL FLASH ARMADO.")
         else:
-            print(f"🔫 SINAL {quant_name} ARMADO. Aguardando alinhamento de ticks...")
-            
+            print(f"🔫 SINAL {quant_name} ARMADO.")
         return InferenceResult(state=ScreenState.ARMED, confidence=0.9, recommended_action="WAIT")
 
     def _detect_posicao_aberta(self, html_str: str) -> bool:
@@ -986,23 +913,13 @@ class QuantClassifier:
         return int(m.group(1)) > 0 if m else False
 
     def filtro_justiceiro_pavio(self, candle):
-        """
-        Estratégia: Rejeição de Zona (Pavio Longo)
-        Detecta se o mercado 'tentou' ir para um lado e foi empurrado de volta.
-        """
         tamanho_total = abs(candle['high'] - candle['low'])
-        corpo = abs(candle['close'] - candle['open'])
         pavio_superior = candle['high'] - max(candle['open'], candle['close'])
         pavio_inferior = min(candle['open'], candle['close']) - candle['low']
-
-        # Se sinal for PUT, queremos pavio superior (rejeição de compra)
         if self.last_signal == "PUT" and pavio_superior > (tamanho_total * 0.3):
             return True, "REJEICAO_ALTA_CONFIRMADA"
-        
-        # Se sinal for CALL, queremos pavio inferior (rejeição de venda)
         if self.last_signal == "CALL" and pavio_inferior > (tamanho_total * 0.3):
             return True, "REJEICAO_BAIXA_CONFIRMADA"
-
         return False, "SEM_REJEICAO_SUFICIENTE"
 
 
@@ -1014,7 +931,8 @@ class ActionExecutor:
         self.page = page
         self.coord_acima = coord_acima
         self.coord_abaixo = coord_abaixo
-        self._at_work = False  # Trava de segurança
+        self._at_work = False
+        self._timeframe_set = False
 
     def execute(self, result: InferenceResult):
         if result.recommended_action == "CLICK_ACIMA":
@@ -1023,16 +941,36 @@ class ActionExecutor:
             return self._click(self.coord_abaixo, "SELL")
         return {"ok": True, "action_taken": "WAIT"}
 
+    def _set_timeframe_m1(self):
+        try:
+            m1_selector = "button[data-value='1']"
+            if self._timeframe_set:
+                return
+            dropdown = self.page.query_selector(".timeframe-selector")
+            if dropdown:
+                dropdown.click()
+                time.sleep(0.3)
+            m1_button = self.page.query_selector(m1_selector)
+            if m1_button:
+                m1_button.click()
+                time.sleep(0.2)
+                self._timeframe_set = True
+                logger.info("⏱️ Timeframe ajustado para 1 Minuto (M1)")
+        except Exception as e:
+            logger.warning(f"Falha ao ajustar timeframe M1: {e}")
+
     def _click(self, coord, type):
         if self._at_work:
-            print("⚠️ BLOQUEIO: Já existe uma operação em curso. Ignorando sinal duplicado.")
+            print("⚠️ BLOQUEIO: Já existe uma operação em curso.")
             return {"ok": False, "error": "Already at work"}
-            
         try:
             self._at_work = True
+            self._set_timeframe_m1()
             self.page.bring_to_front()
             self.page.mouse.click(coord[0], coord[1])
             time.sleep(0.1)
+            # LOG DE EXECUÇÃO
+            logger.info(f"[✅ EXECUÇÃO] Ordem enviada com sucesso. Maratona de zona encerrada (First Touch).")
             return {"ok": True, "action_taken": f"{type}_EXECUTED"}
         finally:
             self._at_work = False
@@ -1054,31 +992,26 @@ class AlphaEngine:
         self._lock = threading.Lock()
         self.historico_velas = []
         self.last_candle_time = 0
-
         self.risk = RiskConfig()
-
         self.manager = StrategicManager()
         self.broker_ops = None
-        self.last_trade_time = 0  # Registro do último clique
-        self.cooldown_period = 10  # Esperar 10 segundos entre operações
+        self.last_trade_time = 0
+        self.cooldown_period = 10
         self._consecutive_losses = 0
         self.CIRCUIT_BREAKER_LIMIT = 3
-        # 🔥 Alterado de 60.0 para 180.0 (3 minutos exatos)
         self.CIRCUIT_PAUSE_SECONDS = 180.0
         self._trade_entry_price = 0.0
         self._trade_direction = ""
         self._trade_asset_id = None
         self._balance_before = 0.0
-        self._at_work = False  # Trava de segurança
+        self._at_work = False
 
     def _calculate_final_pnl(self, entry_price, exit_price, side):
-        if side == 'BUY':  # Long
-            pnl = exit_price - entry_price
-        elif side == 'SELL':  # Short
-            pnl = entry_price - exit_price
-        else:
-            pnl = 0
-        return pnl
+        if side == 'BUY':
+            return exit_price - entry_price
+        elif side == 'SELL':
+            return entry_price - exit_price
+        return 0
 
     def get_balance(self):
         if not self._active_page:
@@ -1099,10 +1032,10 @@ class AlphaEngine:
             return "UNKNOWN", 0.0
         pnl = current_balance - self._balance_before
         if current_balance < self._balance_before:
-            logger.error(f"❌ LOSS CONFIRMADO POR SALDO: Antes ${self._balance_before} | Depois ${current_balance}")
+            logger.error(f"❌ LOSS: Antes ${self._balance_before} | Depois ${current_balance}")
             return "LOSS", pnl
         elif current_balance > self._balance_before:
-            logger.info(f"✅ WIN CONFIRMADO POR SALDO: Antes ${self._balance_before} | Depois ${current_balance}")
+            logger.info(f"✅ WIN: Antes ${self._balance_before} | Depois ${current_balance}")
             return "WIN", pnl
         else:
             return "TIE", pnl
@@ -1129,7 +1062,6 @@ class AlphaEngine:
         if time.time() < cooldown:
             return {"cycle_id": "WAIT", "state": ScreenState.COOLDOWN, "recommended_action": "WAIT"}
 
-        # Blind Spot Bypass: evita sobrecarga de CPU durante trade aberto
         if trade_was_active:
             time_in_trade = time.time() - trade_start_time
             if time_in_trade < 8.0:
@@ -1137,22 +1069,18 @@ class AlphaEngine:
                         "recommended_action": "WAITING_RESULT"}
 
         self._cycle_count += 1
-        # B-5: Captura saldo antes de classificar/agir
         balance_pre = self.get_balance()
         inf = self.classifier.classify(self._active_page)
         self._last_result = inf
 
         if trade_was_active:
             if inf.state != ScreenState.POSITION_OPEN:
-                # BUG-A9: Chama fora do lock para não bloquear thread
                 with self._lock:
                     trade_dir = self._trade_direction
                     trade_entry = self._trade_entry_price
                     trade_asset = self._trade_asset_id
                     bal_before = self._balance_before
-                
                 result, pnl = self.process_trade_result(0)
-                
                 with self._lock:
                     if result == "WIN":
                         self.manager.registrar_resultado("WIN")
@@ -1162,42 +1090,35 @@ class AlphaEngine:
                         self.manager.registrar_resultado("LOSS")
                         self._consecutive_losses = self.manager.losses_seguidas
                         if self.manager.losses_seguidas >= self.CIRCUIT_BREAKER_LIMIT:
-                            print(f"🛑 CIRCUIT BREAKER ACIONADO! {self.CIRCUIT_BREAKER_LIMIT} perdas consecutivas.")
-                            print(f"Pausando motores por {self.CIRCUIT_PAUSE_SECONDS} segundos...\n")
+                            print(f"🛑 CIRCUIT BREAKER! {self.CIRCUIT_BREAKER_LIMIT} perdas consecutivas.")
+                            print(f"Pausa de {self.CIRCUIT_PAUSE_SECONDS}s")
                             self._cooldown_until = time.time() + self.CIRCUIT_PAUSE_SECONDS
                         else:
                             self._cooldown_until = time.time() + 5.0
                     elif result == "TIE":
                         self._cooldown_until = time.time() + 5.0
                     else:
-                        # UNKNOWN, fallback to old logic
                         exit_price = self.classifier.market.get_current_close(trade_asset)
                         if exit_price is None:
                             exit_price = self.classifier.market.get_current_close(self.classifier._last_asset_id) or 0.0
-                        is_win = False
-                        if trade_dir == "CLICK_ACIMA":
-                            is_win = exit_price > trade_entry
-                        elif trade_dir == "CLICK_ABAIXO":
-                            is_win = exit_price < trade_entry
+                        is_win = (trade_dir == "CLICK_ACIMA" and exit_price > trade_entry) or \
+                                 (trade_dir == "CLICK_ABAIXO" and exit_price < trade_entry)
                         if is_win:
                             self.manager.registrar_resultado("WIN")
                             self._consecutive_losses = 0
                             self._cooldown_until = time.time() + 2.0
-                            print(f"\n✅ WIN REGISTADO. (Entrada: {self._trade_entry_price:.5f} | Saída: {exit_price:.5f})")
+                            print(f"\n✅ WIN: Entrada {trade_entry:.5f} | Saída {exit_price:.5f}")
                         else:
                             self.manager.registrar_resultado("LOSS")
                             self._consecutive_losses = self.manager.losses_seguidas
-                            print(f"\n❌ LOSS REGISTADO. (Entrada: {self._trade_entry_price:.5f} | Saída: {exit_price:.5f})")
+                            print(f"\n❌ LOSS: Entrada {trade_entry:.5f} | Saída {exit_price:.5f}")
                             if self.manager.losses_seguidas >= self.CIRCUIT_BREAKER_LIMIT:
-                                print(f"🛑 CIRCUIT BREAKER ACIONADO! {self.CIRCUIT_BREAKER_LIMIT} perdas consecutivas.")
-                                print(f"Pausando motores por {self.CIRCUIT_PAUSE_SECONDS} segundos...\n")
+                                print(f"🛑 CIRCUIT BREAKER!")
                                 self._cooldown_until = time.time() + self.CIRCUIT_PAUSE_SECONDS
                             else:
                                 self._cooldown_until = time.time() + 5.0
                         pnl = self._calculate_final_pnl(trade_entry, exit_price, 'BUY' if trade_dir == "CLICK_ACIMA" else 'SELL')
                     self.risk.update_result(pnl)
-                    
-                    # B-6: Gravar Log de Transação
                     if self.broker_ops:
                         log_data = {
                             "sinal_visual": self._trade_direction,
@@ -1210,15 +1131,12 @@ class AlphaEngine:
                             "status": result
                         }
                         self.broker_ops.save_transaction_log(log_data)
-
                     atualizar_painel_visual(self.manager)
                     self._trade_in_progress = False
                     self._trade_asset_id = None
                     self._at_work = False
-                
                 status_hud = f"{ScreenState.COOLDOWN} | {self.manager.wins}W - {self.manager.losses}L"
                 return {"cycle_id": str(self._cycle_count), "state": status_hud, "action_result": {"ok": True}}
-
             return {"cycle_id": str(self._cycle_count), "state": inf.state, "recommended_action": "WAITING_RESULT"}
 
         if inf.state == ScreenState.POSITION_OPEN:
@@ -1239,10 +1157,8 @@ class AlphaEngine:
                 self._balance_before = self.get_balance()
                 self._at_work = True
 
-        # Formata o estado para o HUD (Janela Preta)
         score_str = f"{self.manager.wins}W - {self.manager.losses}L"
         display_state = f"{inf.state} | {score_str}"
-        
         return {"cycle_id": str(self._cycle_count), "state": display_state, "action_result": res}
 
     def get_status(self) -> Dict:
@@ -1259,37 +1175,28 @@ alpha_engine = AlphaEngine()
 class BreakoutAnalyzer:
     @staticmethod
     def is_valid_breakout(history_c, current_price, direction):
-        if len(history_c) < 5: return False
-        
-        # Vídeo 3: Onde operar após rompimento
-        # Define zona de suporte/resistência baseada nas últimas 5 velas
+        if len(history_c) < 5:
+            return False
         high_zone = max(history_c[-5:-1])
         low_zone = min(history_c[-5:-1])
-        
         if direction == "CALL":
-            # Rompeu a resistência e está acima dela
             return current_price > high_zone and (current_price - high_zone) > 0.0001
         elif direction == "PUT":
-            # Rompeu o suporte e está abaixo dele
             return current_price < low_zone and (low_zone - current_price) > 0.0001
         return False
 
 # ============================================================
-# NÚCLEO ESTRATÉGICO ATUALIZADO (GERENCIAMENTO + ROMPIMENTO)
+# NÚCLEO ESTRATÉGICO (mantido para compatibilidade)
 # ============================================================
 class StrategicManager:
     def __init__(self):
-        # Configurações de Gerenciamento (Vídeo 1)
-        self.stop_loss_diario = 2  
-        self.meta_diaria = 4      
-        
-        # Contadores Reais
+        self.stop_loss_diario = 2
+        self.meta_diaria = 4
         self.wins = 0
         self.losses = 0
-        self.losses_seguidas = 0      
+        self.losses_seguidas = 0
         
     def registrar_resultado(self, resultado):
-        """Atualiza o placar e reseta sequências"""
         if resultado == "WIN":
             self.wins += 1
             self.losses_seguidas = 0
@@ -1305,7 +1212,5 @@ class StrategicManager:
         return True, "OK"
 
 def atualizar_painel_visual(manager):
-    # Esta linha força a exibição no terminal e no Log do Painel Alpha
     placar_str = f"STRIKE: {manager.wins}W - {manager.losses}L"
-    
     print(f"\n[HUD UPDATE] {placar_str} | Sequência Loss: {manager.losses_seguidas}")
