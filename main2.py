@@ -402,7 +402,7 @@ class KnowledgeBase:
 # ============================================================
 # 5. MÓDULO ALPHA E safe_import
 # ============================================================
-from alpha_module import alpha_engine, ScreenState, InferenceResult, ActionExecutor
+from alpha_module import alpha_engine, ScreenState, InferenceResult
 
 def safe_import(module_name: str, class_name: str) -> Any:
     try:
@@ -676,6 +676,10 @@ def _init_modulos():
     """Instancia todos os módulos táticos em thread separada para não bloquear o loop."""
     global pizza_ops, noaa_ops, tiktok_ops, broker_ops, air_ops, astro_ops, eu_ops
 
+    # Configuração de tolerância via Environment (opcional)
+    alpha_engine.classifier.justiceiro.tolerance = float(os.environ.get("ALPHA_TOLERANCE", 0.0002))
+    logger.info(f"🎯 AlphaEngine: Tolerância configurada para {alpha_engine.classifier.justiceiro.tolerance}")
+
     CortexEU = safe_import("eu", "CORTEX_EU")
     eu_ops = CortexEU("R2") if CortexEU else None
 
@@ -910,7 +914,9 @@ async def start_broker():
 async def stop_broker_autopilot():
     if not broker_ops:
         raise HTTPException(status_code=503, detail="BrokerOperator offline.")
-    return broker_ops.execute_safe("AUTOPILOT_STOP")
+    # Em vez de chamar broker_ops.execute_safe("AUTOPILOT_STOP")
+    broker_ops.autopilot_ativo = False
+    return {"status": "Autopilot desativado com sucesso"}
 
 @app.post("/api/broker/navigate")
 async def broker_navigate(body: NavigateRequest):
@@ -961,7 +967,7 @@ async def alpha_analyze():
 @app.post("/api/alpha/autopilot")
 async def alpha_autopilot():
     if broker_ops and getattr(broker_ops, '_is_running', False):
-        return broker_ops.execute_safe("AUTOPILOT_START")
+        return broker_ops.iniciar_sessao()
     if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
         alpha_engine.attach(tiktok_ops._page)
         return {"ok": True, "msg": "autopilot_solicitado"}
@@ -969,16 +975,13 @@ async def alpha_autopilot():
 
 @app.post("/api/alpha/override")
 async def alpha_override(body: AlphaActionRequest):
+    # BUG-10: ActionExecutor desativado para evitar duplicidade de cliques.
     if broker_ops and getattr(broker_ops, '_is_running', False):
-        return broker_ops.execute_safe("OVERRIDE", args={"action": body.action})
-    page = None
-    if tiktok_ops and hasattr(tiktok_ops, "_page") and tiktok_ops._page:
-        page = tiktok_ops._page
-    if not page:
-        raise HTTPException(status_code=503, detail="Nenhuma sessão tática aberta.")
-    fake_result = InferenceResult(state=ScreenState.UNKNOWN, confidence=1.0, recommended_action=body.action)
-    executor = ActionExecutor(page)
-    return {"override_action": body.action, "result": executor.execute(fake_result)}
+        logger.info(f"🎯 Override manual disparado via API: {body.action}")
+        return broker_ops.executar_ordem(body.action)
+    
+    logger.warning(f"⚠️ Tentativa de override ignorada: Broker inativo. Ação: {body.action}")
+    raise HTTPException(status_code=503, detail="Sessão Broker10 inativa ou ActionExecutor desativado.")
 
 @app.get("/api/alpha/screenshot")
 async def alpha_screenshot():
@@ -1081,6 +1084,10 @@ def limpar_audios_antigos(pasta: str = "static/media", max_idade_min: int = 10) 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    
+    # MELHORIA-2: Sincronização de warm-up (10s) ao estabelecer conexão
+    alpha_engine.marcar_conexao_ws()
+    
     voz_atual = "Thalita"
     historico_session = await carregar_historico_na_ram()
     file_context = ""
