@@ -15,13 +15,19 @@
 # - [BUG-1] Lifespan não-bloqueante: módulos pesados movidos para to_thread
 # - [BUG-2] WebSocket handlers restaurados: PizzaINT, Radar de Voos, Astro Defense
 # R2 TACTICAL OS — Ghost Protocol v21 — Correção de Módulos Críticos
+# ============================================================
+# CORREÇÕES APLICADAS:
+# - BUG-14: /ler arquivo implementado (busca em static/docs e vault_uploads)
+# - BUG-15: callbacks síncronos para falar_jarvis com run_coroutine_threadsafe
+# - R2_LOG_LEVEL: controle de logging via env
+# ============================================================
 
 import sys
 import os
 from pathlib import Path
 
 # --- CONFIGURAÇÃO DE CAMINHO RVC (INJEÇÃO AGRESSIVA) ---
-rvc_root = r"c:\R2\models\Retrieval-based-Voice-Conversion-WebUI"
+rvc_root = os.environ.get("RVC_ROOT", r"c:\R2\models\Retrieval-based-Voice-Conversion-WebUI")
 if os.path.exists(rvc_root):
     sys.path.insert(0, rvc_root)
     sub_paths = [
@@ -69,10 +75,12 @@ from audio_engine import MusicProductionEngine
 from voz import falar_jarvis
 
 # ============================================================
-# 1. CONFIGURAÇÃO DE LOGGING E FILTROS
+# 1. CONFIGURAÇÃO DE LOGGING E FILTROS (com R2_LOG_LEVEL)
 # ============================================================
+log_level_str = os.environ.get("R2_LOG_LEVEL", "DEBUG").upper()
+log_level = getattr(logging, log_level_str, logging.DEBUG)
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("r2")
@@ -1295,13 +1303,32 @@ async def websocket_endpoint(websocket: WebSocket):
                     lista = "📋 Nenhum arquivo indexado. Use `/doc sync` primeiro."
                 await websocket.send_json({"type": "system", "text": lista})
                 continue
+            # BUG-14: COMANDO /LER IMPLEMENTADO
             if cmd_l.startswith("/ler "):
                 nome_arquivo = comando[5:].strip()
-                if nome_arquivo:
-                    await websocket.send_json({"type": "system", "text": f"📄 Lendo arquivo `{nome_arquivo}`..."})
-                    await websocket.send_json({"type": "system", "text": f"Arquivo {nome_arquivo} não encontrado."})
-                else:
+                if not nome_arquivo:
                     await websocket.send_json({"type": "system", "text": "⚠️ Use `/ler <nome_do_arquivo>`."})
+                    continue
+                # Busca em static/docs/ e depois em vault_uploads/
+                possiveis_dirs = [Path("static/docs"), VAULT_DIR]
+                encontrado = None
+                for diretorio in possiveis_dirs:
+                    caminho = diretorio / nome_arquivo
+                    if caminho.exists() and caminho.is_file():
+                        encontrado = caminho
+                        break
+                if encontrado:
+                    try:
+                        async with aiofiles.open(encontrado, "r", encoding="utf-8") as f:
+                            conteudo = await f.read()
+                        # Limita o tamanho para não sobrecarregar o chat
+                        if len(conteudo) > 5000:
+                            conteudo = conteudo[:5000] + "\n... [TRUNCADO]"
+                        await websocket.send_json({"type": "system", "text": f"📄 Conteúdo de `{nome_arquivo}`:\n\n```\n{conteudo}\n```"})
+                    except Exception as e:
+                        await websocket.send_json({"type": "system", "text": f"❌ Erro ao ler arquivo: {e}"})
+                else:
+                    await websocket.send_json({"type": "system", "text": f"❌ Arquivo `{nome_arquivo}` não encontrado em static/docs/ ou vault_uploads/."})
                 continue
             if cmd_l.startswith("/vid viral "):
                 video_alvo = comando.replace("/vid viral ", "").strip()
@@ -1386,11 +1413,19 @@ async def websocket_endpoint(websocket: WebSocket):
                     asyncio.create_task(limpar_audios_antigos_async())
 
                     await websocket.send_json({"type": "system", "text": "🎙️ Jarvis: Sintetizando resposta (RVC)..."})
-                    async def on_start():
-                        await websocket.send_json({"type": "speaking_start"})
-                    async def on_end():
-                        await websocket.send_json({"type": "speaking_end"})
-                    falar_jarvis(resp_full, on_start=on_start, on_end=on_end, loop=loop)
+
+                    # BUG-15: wrappers síncronos para os callbacks
+                    def on_start_sync():
+                        asyncio.run_coroutine_threadsafe(
+                            websocket.send_json({"type": "speaking_start"}),
+                            loop
+                        )
+                    def on_end_sync():
+                        asyncio.run_coroutine_threadsafe(
+                            websocket.send_json({"type": "speaking_end"}),
+                            loop
+                        )
+                    falar_jarvis(resp_full, on_start=on_start_sync, on_end=on_end_sync, loop=loop)
                 else:
                     await websocket.send_json({"type": "system", "text": "⚠️ Modelo neural offline."})
                     await websocket.send_json({"type": "done"})
