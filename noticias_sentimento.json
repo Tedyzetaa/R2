@@ -1,0 +1,24 @@
+{
+    "sentimento": 0.0124,
+    "timestamp": "2026-05-22T07:47:07.065453",
+    "top_headlines": [
+        {
+            "titulo": "Fed votes to hold rates steady, notes 'uncertain' impacts from Iran war - CNBC",
+            "fonte": "Google News - Federal Reserve",
+            "score_individual": -0.7269
+        },
+        {
+            "titulo": "Federal Reserve Maintains Rates and Watches Risks From Iran War - The New York Times",
+            "fonte": "Google News - Federal Reserve",
+            "score_individual": -0.7184
+        },
+        {
+            "titulo": "Why the Fed May Be Convinced to Reverse Course on Interest Rates - Investopedia",
+            "fonte": "Google News - Federal Reserve",
+            "score_individual": 0.6908
+        }
+    ],
+    "total_analisados": 199,
+    "status": "ATIVO",
+    "erro": null
+}

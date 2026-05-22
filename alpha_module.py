@@ -23,6 +23,9 @@ import threading
 from collections import deque
 from datetime import datetime
 
+# --- [INTEGRAÇÃO GHOST PROTOCOL: NEWS WORKER] ---
+from features.news_worker import NewsWorker, ler_sentimento
+
 try:
     import aiofiles
 except ImportError:
@@ -174,6 +177,22 @@ class SimpleSR:
         return None
 
 # ==================================================================
+# EMA ENGINE (Filtro de Tendência Consistente)
+# ==================================================================
+class EMAEngine:
+    def __init__(self, period: int = 50):
+        self.period = period
+        self.k = 2.0 / (period + 1.0)
+        self.ema = None
+
+    def add_price(self, price: float) -> Optional[float]:
+        if self.ema is None:
+            self.ema = price
+        else:
+            self.ema = (price * self.k) + (self.ema * (1.0 - self.k))
+        return self.ema
+
+# ==================================================================
 # ALPHA ENGINE (orquestrador principal S5)
 # ==================================================================
 class AlphaEngine:
@@ -187,6 +206,7 @@ class AlphaEngine:
         # Motores simplificados
         self.rsi = RSIEngine(period=10, oversold=30.0, overbought=70.0)
         self.sr = SimpleSR(lookback=10, tolerance=tolerance)
+        self.ema50 = EMAEngine(period=50) # <-- NOVO: Motor EMA adicionado
 
         # Estado interno (sem variáveis globais)
         self.broker_ops = None
@@ -251,6 +271,13 @@ class AlphaEngine:
             'is_daily_stopped': lambda: False
         })()
 
+        # --- [INTEGRAÇÃO GHOST PROTOCOL: NEWS WORKER] ---
+        # Configura o worker para rodar a cada 180 segundos (3 minutos)
+        self.news_worker = NewsWorker(poll_interval=180)
+        self.news_thread = threading.Thread(target=self.news_worker.iniciar, daemon=True)
+        self.news_thread.start()
+        logger.info("📡 [GHOST PROTOCOL] NewsWorker acoplado e iniciado com sucesso em background.")
+
     def ligar_autopilot(self):
         """Ativa o robô e reseta todos os estados internos."""
         with self._lock:
@@ -276,6 +303,53 @@ class AlphaEngine:
                 f"🔍 Autopilot ativado. Aguardando warmup do RSI "
                 f"({self._min_candles_for_rsi} candles M1 | active_id={self.target_active_id})."
             )
+
+    def check_tendencia_macro(self) -> float:
+        """Lê o arquivo que a thread de notícias vai atualizar para filtrar operações."""
+        try:
+            if os.path.exists("noticias_sentimento.json"):
+                with open("noticias_sentimento.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return float(data.get("sentimento", 0.0)) # Retorna o valor de -1 a 1
+        except Exception as e:
+            logger.debug(f"Erro ao ler macro sentimento: {e}")
+        return 0.0 # Neutral
+    def _validar_sentimento_macro(self, direcao_sinal: str) -> bool:
+        """
+        Consulta o payload de notícias. 
+        Retorna True se a operação for permitida.
+        Retorna False se o sinal for contra a tendência macro das notícias (Bloqueia).
+        """
+        # Utiliza a função auxiliar do news_worker para ler o JSON com segurança
+        payload = ler_sentimento("noticias_sentimento.json")
+        
+        # Se o arquivo não existir ou der erro de leitura, opera normalmente por segurança
+        # Nota: Payload status "ATIVO" indica sucesso no NewsWorker
+        if payload.status != "ATIVO" or payload.sentimento is None:
+            return True
+            
+        score = payload.sentimento
+        
+        # DEFINIÇÃO DE THRESHOLD (Tolerância Comercial)
+        # score > 0.25 (Dólar Forte / Alta) | score < -0.25 (Dólar Fraco / Baixa)
+        
+        if score > 0.25 and direcao_sinal == "PUT":
+            headline = payload.top_headlines[0].get('titulo', 'N/A') if payload.top_headlines else 'Sem Headline'
+            logger.warning(
+                f"🚫 [FILTRO MACRO] Operação de PUT abortada! Notícias apontam ALTA do ativo (Score: {score:.2f}). "
+                f"Headline Principal: {headline}"
+            )
+            return False
+            
+        if score < -0.25 and direcao_sinal == "CALL":
+            headline = payload.top_headlines[0].get('titulo', 'N/A') if payload.top_headlines else 'Sem Headline'
+            logger.warning(
+                f"🚫 [FILTRO MACRO] Operação de CALL abortada! Notícias apontam BAIXA do ativo (Score: {score:.2f}). "
+                f"Headline Principal: {headline}"
+            )
+            return False
+            
+        return True
 
     def _pode_operar(self, timestamp_vela: float) -> bool:
         """Verifica condições gerais para permitir uma nova operação."""
@@ -401,12 +475,15 @@ class AlphaEngine:
             self.last_price = close
             self._warmup_candles += 1
 
-            # --- 2. Lógica de Filtro de Tendência (Micro-momentum) ---
+            # --- 2. Lógica de Filtro de Tendência (EMA 50) ---
+            ema_val = self.ema50.add_price(close)
             tendencia = "LATERAL"
-            if len(self.historico_direcao) >= 3:
-                soma = sum(list(self.historico_direcao)[-3:])
-                if soma == 3: tendencia = "ALTA"
-                elif soma == -3: tendencia = "BAIXA"
+            
+            if ema_val is not None:
+                if close > ema_val:
+                    tendencia = "ALTA"
+                elif close < ema_val:
+                    tendencia = "BAIXA"
 
             # FILTRO DE ANTI-DOJI / COMPRESSÃO (Volatilidade Mínima)
             # Aplicado APÓS o incremento do warmup para não bloquear a contagem.
@@ -427,6 +504,9 @@ class AlphaEngine:
 
             segundo_local = int(timestamp) % self.timeframe
 
+            # --- FILTRO MACRO (NOTÍCIAS) ---
+            sentimento_macro = self.check_tendencia_macro()
+
             contexto = {
                 "rsi": round(rsi_val, 2) if rsi_val is not None else None,
                 "preco_captura": close,
@@ -438,6 +518,17 @@ class AlphaEngine:
             # 1. Sinal de Suporte/Resistência (com FILTRO DE EXAUSTÃO RSI)
             sinal_sr = self.sr.check_touch(close)
             if sinal_sr:
+                # --- FILTRO MACRO PRIORITÁRIO ---
+                if sentimento_macro > 0.5 and sinal_sr == "PUT":
+                    logger.info("🚫 FILTRO MACRO: Tendência de alta confirmada por notícias. PUT bloqueado.")
+                # --- FILTRO MACRO PRIORITÁRIO (NOTÍCIAS) ---
+                if not self._validar_sentimento_macro(sinal_sr):
+                    logger.info("⚡ [ENGINE] Sinal SR descartado pela camada analítica macro.")
+                    return None
+                if sentimento_macro < -0.5 and sinal_sr == "CALL":
+                    logger.info("🚫 FILTRO MACRO: Tendência de baixa confirmada por notícias. CALL bloqueado.")
+                    return None
+
                 # Filtro de Tendência de Baixa Forte (5 velas consecutivas)
                 if tendencia_baixa_5 and sinal_sr == "CALL":
                     logger.info("🚫 FILTRO ATIVADO: Tendência de baixa forte detectada. CALL bloqueado.")
@@ -445,10 +536,10 @@ class AlphaEngine:
 
                 # --- 3. Filtro de Tendência Forte para SR ---
                 if tendencia == "ALTA" and sinal_sr == "PUT":
-                    logger.info("🚫 [SR BLOQUEADO] Tendência de ALTA forte detectada. Abortando PUT.")
+                    logger.info(f"🚫 [EMA BLOQUEADO] Preço acima da EMA50. Abortando PUT contra a tendência.")
                     return None
                 if tendencia == "BAIXA" and sinal_sr == "CALL":
-                    logger.info("🚫 [SR BLOQUEADO] Tendência de BAIXA forte detectada. Abortando CALL.")
+                    logger.info(f"🚫 [EMA BLOQUEADO] Preço abaixo da EMA50. Abortando CALL contra a tendência.")
                     return None
 
                 if rsi_val is None:
@@ -470,13 +561,21 @@ class AlphaEngine:
             # 2. Sinal de RSI (Inversão Pura)
             if rsi_val is not None:
                 if rsi_val <= self.rsi.oversold:
+                    # --- FILTRO MACRO ---
+                    if sentimento_macro < -0.5:
+                        logger.info("🚫 FILTRO MACRO: Tendência de baixa confirmada por notícias. CALL bloqueado.")
+                    # --- FILTRO MACRO (NOTÍCIAS) ---
+                    if not self._validar_sentimento_macro("CALL"):
+                        logger.info("⚡ [ENGINE] Sinal RSI_OVERSOLD descartado pela camada analítica macro.")
+                        return None
+
                     # Filtro de Tendência de Baixa Forte (5 velas consecutivas)
                     if tendencia_baixa_5:
                         logger.info("🚫 FILTRO ATIVADO: Tendência de baixa forte detectada. CALL bloqueado.")
                         return None
 
                     if tendencia == "BAIXA":
-                        logger.info("⏳ [RSI FILTRADO] Sobrevenda detectada, mas tendência de BAIXA forte continua.")
+                        logger.info("⏳ [RSI FILTRADO] Sobrevenda detectada, mas Preço está abaixo da EMA50.")
                         return None
 
                     if timestamp <= self.ultimo_id_disparado_rsi + rsi_cooldown_time:
@@ -484,8 +583,16 @@ class AlphaEngine:
                         return None
                     return self.executar_disparo("CALL", "RSI_OVERSOLD", timestamp, contexto)
                 elif rsi_val >= self.rsi.overbought:
+                    # --- FILTRO MACRO ---
+                    if sentimento_macro > 0.5:
+                        logger.info("🚫 FILTRO MACRO: Tendência de alta confirmada por notícias. PUT bloqueado.")
+                    # --- FILTRO MACRO (NOTÍCIAS) ---
+                    if not self._validar_sentimento_macro("PUT"):
+                        logger.info("⚡ [ENGINE] Sinal RSI_OVERBOUGHT descartado pela camada analítica macro.")
+                        return None
+
                     if tendencia == "ALTA":
-                        logger.info("⏳ [RSI FILTRADO] Sobrecompra detectada, mas tendência de ALTA forte continua.")
+                        logger.info("⏳ [RSI FILTRADO] Sobrecompra detectada, mas Preço está acima da EMA50.")
                         return None
 
                     if timestamp <= self.ultimo_id_disparado_rsi + rsi_cooldown_time:
