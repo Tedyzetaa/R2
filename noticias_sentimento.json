@@ -1,7 +1,12 @@
 {
-    "sentimento": 0.0124,
-    "timestamp": "2026-05-22T07:47:07.065453",
+    "sentimento": 0.0211,
+    "timestamp": "2026-05-31T17:31:39.833069",
     "top_headlines": [
+        {
+            "titulo": "The Stock Market May Be in Trouble: President Trump Put Fed Chair Kevin Warsh in a Tough Spot - The Motley Fool",
+            "fonte": "Google News - Federal Reserve",
+            "score_individual": -0.7269
+        },
         {
             "titulo": "Fed votes to hold rates steady, notes 'uncertain' impacts from Iran war - CNBC",
             "fonte": "Google News - Federal Reserve",
@@ -11,11 +16,6 @@
             "titulo": "Federal Reserve Maintains Rates and Watches Risks From Iran War - The New York Times",
             "fonte": "Google News - Federal Reserve",
             "score_individual": -0.7184
-        },
-        {
-            "titulo": "Why the Fed May Be Convinced to Reverse Course on Interest Rates - Investopedia",
-            "fonte": "Google News - Federal Reserve",
-            "score_individual": 0.6908
         }
     ],
     "total_analisados": 199,

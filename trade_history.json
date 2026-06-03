@@ -8663,5 +8663,1465 @@
         "timestamp": "2026-05-22 07:34:40",
         "direcao": "CALL",
         "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:33:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:34:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:35:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:37:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:39:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:40:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:48:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:50:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:51:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:53:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:54:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:56:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 08:57:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:04:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:08:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:12:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:14:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:20:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:29:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:38:31",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:41:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 09:51:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 10:00:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 10:21:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 10:47:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 10:51:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 11:02:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 11:15:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 11:32:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 11:37:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 11:39:21",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 11:54:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 12:09:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 12:19:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 12:28:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 12:32:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 14:57:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 14:58:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:00:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:03:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:10:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:24:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:27:55",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:33:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:52:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 15:53:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:01:55",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:13:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:17:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:19:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:27:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:32:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 16:45:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 17:00:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 17:01:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 17:55:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 18:02:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 18:21:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 18:43:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 18:45:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 22:24:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 22:25:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 22:45:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:10:01",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:13:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:14:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:32:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:34:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:41:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:47:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:56:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-22 23:59:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 00:27:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 00:37:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 00:51:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 01:24:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 01:27:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 01:29:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 01:34:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 01:42:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 01:58:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:05:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:07:11",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:10:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:19:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:21:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:22:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:35:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:39:55",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:41:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 02:52:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:05:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:11:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:12:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:14:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:26:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:40:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:46:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:52:55",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 03:56:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 04:07:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 04:13:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 04:27:55",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 04:32:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 04:41:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 05:07:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 05:18:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 05:42:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 05:54:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 05:55:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:13:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:27:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:35:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:46:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:52:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:57:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 06:59:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 07:04:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 07:10:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 07:14:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 07:32:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 07:48:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 07:58:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 08:08:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 08:10:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 08:29:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 08:39:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 08:53:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:00:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:02:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:26:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:28:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:32:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:36:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:38:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:40:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 09:59:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 10:06:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 10:13:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 10:27:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 10:43:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 10:45:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:12:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:34:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:40:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:41:40",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:44:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:49:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 11:50:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 12:03:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 12:11:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 12:14:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 12:16:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 12:59:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:05:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:10:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:19:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:21:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:26:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:28:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 13:46:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 14:04:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 14:20:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 14:36:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 14:38:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 14:43:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 14:56:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 15:22:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 15:33:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 15:36:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 15:41:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 16:10:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 16:22:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:21:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:24:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:31:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:35:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:37:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:50:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:58:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 22:59:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 23:21:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 23:25:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 23:37:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 23:52:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-23 23:57:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:10:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:15:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:18:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:19:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:22:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:27:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:42:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:45:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:49:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:56:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 00:57:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 01:01:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 01:03:55",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 01:09:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 01:10:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 01:14:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 01:16:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 02:19:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 02:20:45",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 02:22:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 02:51:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 02:52:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 02:58:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:05:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:17:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:26:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:28:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:37:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:40:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:47:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 03:53:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 04:08:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 04:20:00",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 04:36:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:02:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:05:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:20:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:38:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:44:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:46:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:49:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 05:53:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:07:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:16:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:25:25",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:32:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:38:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:43:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:50:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 06:55:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 07:16:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 07:24:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 07:30:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 07:53:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 08:10:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 08:32:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 08:38:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 08:55:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 08:59:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:09:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:21:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:23:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:33:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:34:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:40:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 09:43:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 10:01:50",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 10:05:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 10:48:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 10:52:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 10:58:00",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:06:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:08:45",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:14:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:20:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:28:15",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:33:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:43:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:54:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 11:55:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 12:18:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 12:28:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 12:37:35",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 12:49:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 12:57:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 13:01:20",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 13:19:30",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 13:32:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 13:38:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 13:55:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 13:59:15",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:14:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:16:50",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:18:10",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:19:55",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:32:40",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:35:20",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:43:25",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:53:05",
+        "direcao": "PUT",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 14:58:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 15:04:05",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 15:29:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 15:30:30",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 15:31:35",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 15:33:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
+    },
+    {
+        "timestamp": "2026-05-24 15:38:10",
+        "direcao": "CALL",
+        "resultado": "EXECUTED"
     }
 ]
